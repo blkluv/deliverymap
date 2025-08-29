@@ -256,7 +256,7 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">黑名原因 <span class="text-red-500">*</span></label>
+                                <label class="block text-sm font-medium text-gray-700">黑名原因 (最少3個中文字) <span class="text-red-500">*</span></label>
                                 <textarea id="add-blacklist-reason" name="blacklistReason" rows="3" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required></textarea>
                             </div>
                         </div>
@@ -679,6 +679,9 @@
             
             const visibilityThreshold = 16.5; 
 
+            // --- NEW: Global variable for popup state ---
+            let currentPopupReports = [];
+
             function showNotification(message, type = 'info') {
                 const $notification = $('#notification');
                 $notification.text(message).removeClass('hidden');
@@ -839,7 +842,8 @@
             });
             $(document).on('click', '#show-more-product', function() {
                 $('#product-modal-title').text('黑名原因');
-                $('#product-modal-content').text($(this).data('fulltext'));
+                // Use decodeURIComponent to handle special characters correctly
+                $('#product-modal-content').text(decodeURIComponent($(this).data('fulltext')));
                 $('#product-modal').removeClass('hidden');
             });
             
@@ -1000,6 +1004,134 @@
 
             $('#close-add-location-modal, #close-add-location-modal-mobile').on('click', exitAddMode);
 
+            // --- NEW: Address Sorting and Popup Logic ---
+
+            /**
+             * Extracts numbers from an address string for sorting.
+             * Handles full-width numbers, Chinese characters for basement, and '之' for decimals.
+             * @param {string} address The address string.
+             * @returns {number[]} An array of numbers found in the address.
+             */
+            function extractAddressNumbers(address) {
+                if (!address) return [Infinity];
+                
+                // Normalize full-width numbers and some text to half-width
+                address = address.replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 65248))
+                                 .replace(/地下/g, 'B')
+                                 .replace(/之/g, '.');
+
+                // Find all numbers, including negative (for B) and decimals
+                // The regex looks for an optional 'B' followed by numbers.
+                const numbers = address.match(/B?\d+(\.\d+)?/g);
+
+                if (!numbers) return [Infinity];
+
+                // Convert matched strings to numbers, treating 'B' as negative
+                return numbers.map(n => {
+                    if (n.startsWith('B')) {
+                        return -parseFloat(n.substring(1));
+                    }
+                    return parseFloat(n);
+                });
+            }
+
+            /**
+             * A comparison function for Array.sort() to sort reports by address.
+             * @param {object} a The first report object.
+             * @param {object} b The second report object.
+             * @returns {number} A negative, zero, or positive value.
+             */
+            function compareAddresses(a, b) {
+                const addressA = a['地址'] || '';
+                const addressB = b['地址'] || '';
+                
+                const numsA = extractAddressNumbers(addressA);
+                const numsB = extractAddressNumbers(addressB);
+
+                const minLength = Math.min(numsA.length, numsB.length);
+                for (let i = 0; i < minLength; i++) {
+                    if (numsA[i] !== numsB[i]) {
+                        return numsA[i] - numsB[i];
+                    }
+                }
+
+                return numsA.length - numsB.length;
+            }
+
+            /**
+             * Renders the list view in the popup for locations with multiple reports.
+             */
+            function renderPopupListView() {
+                const baseReport = currentPopupReports[0];
+                const shortAddress = formatAddress(baseReport['地址']);
+
+                let listHtml = currentPopupReports.map((report, index) => {
+                    const fullAddr = report['地址'] || '';
+                    // Try to find a more specific part of the address for the list item
+                    const addrMatch = fullAddr.match(/(\d.*)/); // Get from the first number onwards
+                    const displayAddr = addrMatch ? addrMatch[1].trim() : fullAddr;
+                    
+                    return `
+                        <li class="border-t py-2 px-1 cursor-pointer hover:bg-gray-100 rounded report-item" data-index="${index}">
+                            <p class="font-semibold truncate" title="${fullAddr}">${displayAddr}</p>
+                            <p class="text-xs text-gray-500">${report['黑名類別']}</p>
+                        </li>
+                    `;
+                }).join('');
+
+                popupContent.innerHTML = `
+                    <h3 class="text-lg font-bold text-gray-800">${shortAddress}</h3>
+                    <p class="text-sm text-gray-600 mb-2">此地點有多筆回報，請選擇查看：</p>
+                    <ul class="text-sm max-h-40 overflow-y-auto custom-scrollbar pr-2">${listHtml}</ul>
+                `;
+            }
+
+            /**
+             * Renders the detail view in the popup for a single report.
+             * @param {number} index The index of the report in the currentPopupReports array.
+             */
+            function renderPopupDetailView(index) {
+                const report = currentPopupReports[index];
+                if (!report) return;
+
+                const reason = report['黑名原因'] || '';
+                let reasonDisplay = reason.length > 50 ? reason.substring(0, 50) + '...' : reason;
+                // Use encodeURIComponent for safely embedding text in data attributes
+                let showMoreBtn = reason.length > 50 ? `<button id="show-more-product" data-fulltext="${encodeURIComponent(reason)}" class="text-blue-500 hover:underline text-sm ml-1">顯示更多</button>` : '';
+                
+                // Use the new timestamp if available, otherwise fall back to the old one
+                const reportDate = report.timestamp || report.Timestamp;
+                const dateString = reportDate ? new Date(reportDate).toLocaleDateString() : '日期不明';
+
+                const backButton = currentPopupReports.length > 1 ? '<button class="back-to-list-btn text-blue-500 hover:underline text-sm mb-2">&larr; 返回列表</button>' : '';
+
+                popupContent.innerHTML = `
+                    <h3 class="text-lg font-bold text-gray-800">${formatAddress(report['地址'])}</h3>
+                    ${backButton}
+                    <div class="border-t pt-2 mt-2">
+                        <p class="text-xs text-gray-500">${report.submitterName || '匿名'} &bull; ${dateString}</p>
+                        <p class="font-semibold">${report['黑名類別']}</p>
+                        <p class="whitespace-pre-wrap">${reasonDisplay} ${showMoreBtn}</p>
+                    </div>
+                `;
+            }
+
+            // Delegated event listener for popup content (list items and back button)
+            $('#popup').on('click', function(e) {
+                const $target = $(e.target);
+                
+                const $reportItem = $target.closest('.report-item');
+                if ($reportItem.length) {
+                    renderPopupDetailView($reportItem.data('index'));
+                    return;
+                }
+
+                if ($target.hasClass('back-to-list-btn')) {
+                    renderPopupListView();
+                }
+            });
+
+            // REFACTORED: map click handler
             map.on('singleclick', function (evt) {
                 if ($('#app-container').hasClass('desktop-add-mode')) return;
                 
@@ -1007,56 +1139,27 @@
                 infoOverlay.setPosition(undefined);
                 if (feature) {
                     const features = feature.get('features');
-                    if (features.length > 1) {
+                    if (features.length > 1) { // It's a cluster
                         const extent = ol.extent.createEmpty();
                         features.forEach(f => ol.extent.extend(extent, f.getGeometry().getExtent()));
                         map.getView().fit(extent, { duration: 500, padding: [50, 50, 50, 50] });
-                    } else {
+                    } else { // It's a single location (which might have multiple reports)
                         const originalFeature = features[0];
                         const coordinates = originalFeature.getGeometry().getCoordinates();
                         const data = originalFeature.getProperties();
-                        const reports = data.reports || [data]; // Handle single or grouped features
+                        
+                        // Set global state for the popup
+                        currentPopupReports = Array.isArray(data.reports) ? [...data.reports] : [data];
+                        currentPopupReports.sort(compareAddresses);
                         
                         map.getView().animate({ center: coordinates, zoom: 18, duration: 800 });
 
-                        const shortAddress = formatAddress(data.address);
-                        const likes = data.likes || 0;
-                        const dislikes = data.dislikes || 0;
-                        const score = likes - dislikes;
-                        let scoreColor = 'text-gray-600';
-                        if (score > 0) scoreColor = 'text-green-600';
-                        if (score < 0) scoreColor = 'text-red-600';
-                        
-                        let reportsHtml = reports.map(report => {
-                            const reason = report['黑名原因'] || '';
-                            let reasonDisplay = reason.length > 50 ? reason.substring(0, 50) + '...' : reason;
-                            let showMoreBtn = reason.length > 50 ? `<button id="show-more-product" data-fulltext="${reason}" class="text-blue-500 hover:underline text-sm ml-1">顯示更多</button>` : '';
-                            return `
-                                <div class="border-t pt-2 mt-2">
-                                    <p class="text-xs text-gray-500">${report.submitterName || '匿名'} &bull; ${new Date(report.Timestamp).toLocaleDateString()}</p>
-                                    <p class="font-semibold">${report['黑名類別']}</p>
-                                    <p class="whitespace-pre-wrap">${reasonDisplay} ${showMoreBtn}</p>
-                                </div>
-                            `;
-                        }).join('');
-
-                        popupContent.innerHTML = `
-                            <h3 class="text-lg font-bold text-gray-800">${shortAddress}</h3>
-                            <div class="flex items-center justify-between text-sm mt-2">
-                                <span>總評分 (<span class="${scoreColor} font-bold">${score}</span>)</span>
-                                <div class="flex items-center space-x-2">
-                                    <button class="vote-btn p-1 rounded-full hover:bg-gray-200" data-row-index="${data.rowIndex}" data-vote-type="like">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.364a1 1 0 00.949-.684l2.121-6.364A1 1 0 0015.364 9H12V4a1 1 0 00-1-1h-1a1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.4 10.333zM6 8h2.545M5 10.5a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 013 0v3a1.5 1.5 0 01-1.5 1.5z"/></svg>
-                                    </button>
-                                    <button class="vote-btn p-1 rounded-full hover:bg-gray-200" data-row-index="${data.rowIndex}" data-vote-type="dislike">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1h-6.364a1 1 0 00-.949.684L3.565 9H6v7a1 1 0 001 1h1a1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.6-4.8zM14 12h-2.545M15 9.5a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-3 0v-3a1.5 1.5 0 011.5-1.5z"/></svg>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="text-sm mt-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">
-                                ${reportsHtml}
-                            </div>
-                        `;
+                        // Decide which view to render
+                        if (currentPopupReports.length > 1) {
+                            renderPopupListView();
+                        } else {
+                            renderPopupDetailView(0);
+                        }
                         infoOverlay.setPosition(coordinates);
                     }
                 }
@@ -1103,7 +1206,15 @@
                 const $form = $(e.target);
                 const $submitBtn = $form.find('.submit-text').parent();
                 
-                let isValid = true;
+                // --- NEW: Validation for blacklist reason ---
+                const formData = new FormData($form[0]);
+                const reasonText = formData.get('blacklistReason').trim();
+                const chineseCharMatch = reasonText.match(/[\u4e00-\u9fa5]/g);
+
+                if (!chineseCharMatch || chineseCharMatch.length < 3) {
+                    showNotification('黑名原因請至少輸入3個中文字。', 'error');
+                    return; // Stop submission
+                }
                 
                 let finalCoords;
                 if (isMobile) {
@@ -1123,17 +1234,14 @@
 
                     if (distance > 200) { // MODIFIED: Increased radius
                         showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點200公尺。`, 'error');
-                        isValid = false;
+                        return;
                     }
                 }
-                
-                if (!isValid) return;
                 
                 $submitBtn.prop('disabled', true).find('.submit-text').addClass('hidden');
                 $submitBtn.find('.spinner').removeClass('hidden');
                 
                 const lonLat = ol.proj.toLonLat(finalCoords);
-                const formData = new FormData($form[0]);
                 const rowIndex = $form.find('#edit-row-index').val();
                 const originalName = $form.find('#edit-original-name').val();
                 
@@ -1149,9 +1257,10 @@
                     category: formData.get('category'), 
                     address: formData.get('address'), 
                     blacklistCategory: formData.get('blacklistCategory'),
-                    blacklistReason: formData.get('blacklistReason'),
+                    blacklistReason: reasonText, // Use validated and trimmed reason
                     lon: lonLat[0], 
                     lat: lonLat[1],
+                    timestamp: new Date().toISOString(), // --- NEW: Add timestamp ---
                 };
                 
                 fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(newData) })
@@ -1292,47 +1401,17 @@
                              const coordinates = feature.getGeometry().getCoordinates();
                              map.getView().animate({ center: coordinates, zoom: 18, duration: 800 });
                              setTimeout(() => {
-                                 infoOverlay.setPosition(coordinates);
+                                 // REFACTORED: Use new popup functions
                                  const data = feature.getProperties();
-                                 const reports = data.reports || [data];
-                                 const shortAddress = formatAddress(data.address);
-                                 const likes = data.likes || 0;
-                                 const dislikes = data.dislikes || 0;
-                                 const score = likes - dislikes;
-                                 let scoreColor = 'text-gray-600';
-                                 if (score > 0) scoreColor = 'text-green-600';
-                                 if (score < 0) scoreColor = 'text-red-600';
-                                 
-                                 let reportsHtml = reports.map(report => {
-                                     const reason = report['黑名原因'] || '';
-                                     let reasonDisplay = reason.length > 50 ? reason.substring(0, 50) + '...' : reason;
-                                     let showMoreBtn = reason.length > 50 ? `<button id="show-more-product" data-fulltext="${reason}" class="text-blue-500 hover:underline text-sm ml-1">顯示更多</button>` : '';
-                                     return `
-                                         <div class="border-t pt-2 mt-2">
-                                             <p class="text-xs text-gray-500">${report.submitterName || '匿名'} &bull; ${new Date(report.Timestamp).toLocaleDateString()}</p>
-                                             <p class="font-semibold">${report['黑名類別']}</p>
-                                             <p class="whitespace-pre-wrap">${reasonDisplay} ${showMoreBtn}</p>
-                                         </div>
-                                     `;
-                                 }).join('');
+                                 currentPopupReports = Array.isArray(data.reports) ? [...data.reports] : [data];
+                                 currentPopupReports.sort(compareAddresses);
 
-                                 popupContent.innerHTML = `
-                                     <h3 class="text-lg font-bold text-gray-800">${shortAddress}</h3>
-                                     <div class="flex items-center justify-between text-sm mt-2">
-                                         <span>總評分 (<span class="${scoreColor} font-bold">${score}</span>)</span>
-                                         <div class="flex items-center space-x-2">
-                                             <button class="vote-btn p-1 rounded-full hover:bg-gray-200" data-row-index="${data.rowIndex}" data-vote-type="like">
-                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.364a1 1 0 00.949-.684l2.121-6.364A1 1 0 0015.364 9H12V4a1 1 0 00-1-1h-1a1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.4 10.333zM6 8h2.545M5 10.5a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 013 0v3a1.5 1.5 0 01-1.5 1.5z"/></svg>
-                                             </button>
-                                             <button class="vote-btn p-1 rounded-full hover:bg-gray-200" data-row-index="${data.rowIndex}" data-vote-type="dislike">
-                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1h-6.364a1 1 0 00-.949.684L3.565 9H6v7a1 1 0 001 1h1a1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.6-4.8zM14 12h-2.545M15 9.5a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-3 0v-3a1.5 1.5 0 011.5-1.5z"/></svg>
-                                             </button>
-                                         </div>
-                                     </div>
-                                     <div class="text-sm mt-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">
-                                         ${reportsHtml}
-                                     </div>
-                                 `;
+                                 if (currentPopupReports.length > 1) {
+                                     renderPopupListView();
+                                 } else {
+                                     renderPopupDetailView(0);
+                                 }
+                                 infoOverlay.setPosition(coordinates);
                              }, 200);
                          });
                          $listContent.append(listItem);
