@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>超認真工業指南針</title>
+    <title>黑客指南針</title>
     
     <!-- OpenLayers CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css">
@@ -225,7 +225,8 @@
                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
                     </svg>
                 </button>
-                <button id="add-location-mode-btn" class="bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="新增店家">
+                <!-- MODIFIED: Changed button ID and purpose -->
+                <button id="add-location-btn" class="bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="新增店家">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
                     </svg>
@@ -289,7 +290,10 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700">地址 <span class="text-red-500">*</span></label>
-                            <input type="text" id="add-address" name="address" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required>
+                            <div id="address-input-container">
+                                <input type="text" id="add-address" name="address" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required>
+                                <!-- JS 會在這裡插入定位失敗的提示 -->
+                            </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700">聯絡方式(電話) <span class="text-red-500">*</span></label>
@@ -465,7 +469,7 @@
         const nlscLayer = new ol.layer.Tile({
             source: new ol.source.XYZ({
                 url: 'https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}.png',
-                attributions: '超認真少年 X 國土測繪中心', crossOrigin: 'anonymous'
+                attributions: '阿偉 X 國土測繪中心', crossOrigin: 'anonymous'
             })
         });
 
@@ -577,6 +581,9 @@
             let isLoggedIn = false;
             let userProfile = {};
             let isAdmin = false; 
+            
+            // NEW: Variable to store the initial coordinates when adding a location
+            let initialAddLocationCoords = null;
             
             const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzCvwSU0lm6r01UxVtljbKAEEhn6dbW6KaUcwy0m40aGHC1NF3Z3T3CPitVjNk_HP4JQw/exec';
             
@@ -852,9 +859,41 @@
             });
             
             let tempMarker = null;
-            let isAddModeActive = false;
             let isDraggingMarker = false;
 
+            // --- MODIFIED: New and updated functions for adding locations ---
+
+            // This function now handles opening the modal when location is denied
+            function openAddModalWithoutLocation() {
+                // Reset form and clear any existing marker
+                $('#add-location-form')[0].reset();
+                $('#edit-row-index').val('');
+                $('#edit-original-name').val('');
+                $('#hours-container').empty();
+                createTimeSlot();
+                if(tempMarker) map.removeOverlay(tempMarker);
+                tempMarker = null;
+
+                $('#modal-title').text('新增店家');
+                $('#add-location-modal').removeClass('hidden');
+
+                // Special handling for address field
+                const $addressInput = $('#add-address');
+                const $container = $('#address-input-container');
+                $addressInput.val('').attr('placeholder', '未取得定位資料');
+                
+                // Add a message with a re-authorization button
+                if ($container.find('#address-info').length === 0) {
+                    $container.append(`
+                        <div id="address-info" class="text-sm text-gray-600 mt-1">
+                            無法取得定位。請手動輸入地址，或 
+                            <button type="button" id="re-auth-location-btn" class="text-blue-600 hover:underline">點此重新授權</button>
+                        </div>
+                    `);
+                }
+            }
+
+            // This function now sets up the marker and modal after getting coordinates
             function startAddLocationProcess(coordinate) {
                 if (!isLoggedIn) {
                     showNotification('請先登入才能新增店家！', 'warning');
@@ -871,6 +910,7 @@
                 });
                 map.addOverlay(tempMarker);
                 
+                // Event listeners for dragging the marker
                 markerEl.addEventListener('pointerdown', (e) => {
                     isDraggingMarker = true;
                     map.getInteractions().forEach(i => { if(i instanceof ol.interaction.DragPan) i.setActive(false); });
@@ -879,11 +919,17 @@
                     e.stopPropagation();
                 });
 
+                // Reset form and fill with new location data
                 $('#add-location-form')[0].reset();
                 $('#edit-row-index').val('');
                 $('#edit-original-name').val('');
                 $('#hours-container').empty();
                 createTimeSlot();
+                
+                // Clean up any previous error messages
+                $('#address-info').remove();
+                $('#add-address').attr('placeholder', '');
+                
                 reverseGeocode(lonLat[0], lonLat[1]);
                 $('#modal-title').text('新增店家');
                 $('#add-location-modal').removeClass('hidden');
@@ -920,28 +966,52 @@
                 $('#add-location-modal').addClass('hidden');
                 if(tempMarker) map.removeOverlay(tempMarker);
                 tempMarker = null;
+                initialAddLocationCoords = null; // Reset initial coords on close
             });
 
-            const $addModeBtn = $('#add-location-mode-btn');
-            $addModeBtn.on('click', function() {
-                isAddModeActive = !isAddModeActive;
-                if (isAddModeActive) {
-                    $(this).removeClass('bg-white text-gray-700').addClass('bg-blue-600 text-white');
-                    showNotification('進入新增模式：請點擊地圖上您想新增的位置。');
-                    map.getTargetElement().style.cursor = 'crosshair';
-                } else {
-                    $(this).removeClass('bg-white text-gray-700').addClass('bg-white text-gray-700');
-                    showNotification('已取消新增模式。', 'info');
-                    map.getTargetElement().style.cursor = '';
-                }
-            });
-
-            map.on('dblclick', function(evt) {
-                if (window.innerWidth < 768) {
+            // MODIFIED: New click handler for the "Add Location" button
+            const $addLocationBtn = $('#add-location-btn');
+            $addLocationBtn.on('click', function() {
+                if (!isLoggedIn) {
+                    showNotification('請先登入才能新增店家！', 'warning');
                     return;
                 }
-                startAddLocationProcess(evt.coordinate);
+
+                showNotification('正在取得您的目前位置...');
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => { // Success callback
+                        const coords = [position.coords.longitude, position.coords.latitude];
+                        const mapCoords = ol.proj.fromLonLat(coords);
+                        
+                        // Store the initial position for distance validation
+                        initialAddLocationCoords = mapCoords; 
+                        
+                        startAddLocationProcess(mapCoords);
+                    },
+                    (error) => { // Error callback
+                        showNotification('無法取得您的位置，請手動輸入地址或重新授權。', 'warning');
+                        // Clear initial position so distance check is skipped
+                        initialAddLocationCoords = null; 
+                        
+                        // Open the modal in a "no location" state
+                        openAddModalWithoutLocation();
+                    },
+                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                );
             });
+
+            // Event handler for the dynamically added "re-authorize" button
+            $('#address-input-container').on('click', '#re-auth-location-btn', function() {
+                $('#add-location-modal').addClass('hidden'); // Close modal before re-trying
+                $addLocationBtn.click(); // Re-trigger the whole process
+            });
+
+            // REMOVED: Old map click handlers for adding locations are no longer needed.
+            // map.on('dblclick', ...);
+            // map.on('singleclick', ...); (The part for adding locations is removed)
+
+            // --- End of MODIFIED add location functions ---
 
             function animateSpiderLines(clusterFeatures) {
                 const originalLon = clusterFeatures[0].get('lon');
@@ -961,13 +1031,7 @@
             }
 
             map.on('singleclick', function (evt) {
-                if (isAddModeActive) {
-                    startAddLocationProcess(evt.coordinate);
-                    isAddModeActive = false;
-                    $addModeBtn.removeClass('bg-blue-600 text-white').addClass('bg-white text-gray-700');
-                    map.getTargetElement().style.cursor = '';
-                    return;
-                }
+                // REMOVED: The logic for `isAddModeActive` was here.
                 
                 const feature = map.forEachFeatureAtPixel(evt.pixel, f => f);
                 infoOverlay.setPosition(undefined);
@@ -1079,7 +1143,17 @@
                         if (data.results && data.results.length > 0) {
                             const location = data.results[0].geometry.location;
                             const coords = ol.proj.fromLonLat([location.lng, location.lat]);
-                            if (tempMarker) tempMarker.setPosition(coords);
+                            if (tempMarker) {
+                                tempMarker.setPosition(coords);
+                            } else {
+                                // If no marker exists (e.g., location failed), create one now
+                                const markerEl = document.createElement('div');
+                                markerEl.className = 'new-location-marker';
+                                tempMarker = new ol.Overlay({
+                                    element: markerEl, position: coords, positioning: 'bottom-center', stopEvent: false,
+                                });
+                                map.addOverlay(tempMarker);
+                            }
                             map.getView().animate({ center: coords, zoom: 17 });
                         } else showNotification('找不到輸入的地址', 'error');
                     }).catch(err => showNotification('地址解析失敗', 'error'));
@@ -1093,6 +1167,12 @@
                 let isValid = true;
                 
                 // --- Validation Logic ---
+
+                // 0. Check if a location is set
+                if (!tempMarker) {
+                    showNotification('請在地圖上設定一個位置。', 'error');
+                    return;
+                }
 
                 // 1. Contact Number Validation
                 const $contactInput = $('#add-contact');
@@ -1157,6 +1237,23 @@
                     isValid = false;
                 }
 
+                // NEW: Distance validation
+                if (initialAddLocationCoords) { // Only check if we started with a GPS location
+                    const finalCoords = tempMarker.getPosition();
+                    
+                    // Convert coordinates from map projection (EPSG:3857) to LonLat (EPSG:4326)
+                    const initialLonLat = ol.proj.toLonLat(initialAddLocationCoords);
+                    const finalLonLat = ol.proj.toLonLat(finalCoords);
+
+                    // Calculate distance in meters
+                    const distance = ol.sphere.getDistance(initialLonLat, finalLonLat);
+
+                    if (distance > 100) {
+                        showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點100公尺。`, 'error');
+                        isValid = false;
+                    }
+                }
+
                 if (!isValid) {
                     return; // Stop submission if any validation fails
                 }
@@ -1204,6 +1301,7 @@
                     $('#add-location-modal').addClass('hidden');
                     if(tempMarker) map.removeOverlay(tempMarker);
                     tempMarker = null;
+                    initialAddLocationCoords = null; // Reset after successful submission
                     setTimeout(loadData, 2000);
                 }).catch(error => {
                     showNotification('送出失敗，請稍後再試。', 'error');
@@ -1605,6 +1703,10 @@
 
                 if (tempMarker) map.removeOverlay(tempMarker);
                 const coordinate = ol.proj.fromLonLat([data.lon, data.lat]);
+                
+                // For editing, we also need to set the initial location for distance check
+                initialAddLocationCoords = coordinate;
+
                 const markerEl = document.createElement('div');
                 markerEl.className = 'new-location-marker';
                 tempMarker = new ol.Overlay({
