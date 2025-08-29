@@ -1508,7 +1508,27 @@
                     currentUserDisplayName = newName.trim();
                     localStorage.setItem(`nickname_${userProfile.email}`, currentUserDisplayName);
                     $('#user-name').text(currentUserDisplayName);
-                    showNotification('暱稱已更新！', 'success');
+                    
+                    // Send update to backend
+                    const payload = {
+                        action: 'update_nickname',
+                        userEmail: userProfile.email,
+                        newName: currentUserDisplayName
+                    };
+
+                    fetch(APPS_SCRIPT_URL, { 
+                        method: 'POST', 
+                        mode: 'no-cors',
+                        body: JSON.stringify(payload) 
+                    })
+                    .then(() => {
+                        showNotification('暱稱已同步更新！', 'success');
+                    })
+                    .catch(error => {
+                        console.error('Nickname sync failed:', error);
+                        showNotification('暱稱同步失敗，請稍後再試。', 'error');
+                    });
+
                 } else if (newName === '') {
                     showNotification('暱稱不能為空。', 'error');
                 }
