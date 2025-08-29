@@ -380,8 +380,8 @@
                     </div>
                 </div>
 
-                <!-- NEW: Mobile placement confirmation button -->
-                <button id="complete-placement-btn" class="hidden absolute bottom-8 left-1/2 -translate-x-1/2 z-20 bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-green-700 transition-colors">
+                <!-- MODIFIED: Mobile placement confirmation button position -->
+                <button id="complete-placement-btn" class="hidden absolute top-4 left-4 z-20 bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-green-700 transition-colors">
                     完成位置設定
                 </button>
             </main>
@@ -1021,7 +1021,8 @@
                     e.stopPropagation();
                 });
                 
-                map.getView().animate({ center: coordinate, zoom: 17, duration: 500 });
+                // MODIFIED: Set zoom to 18 for mobile
+                map.getView().animate({ center: coordinate, zoom: 18, duration: 500 });
             }
 
             function enterDesktopAddMode(coordinate) {
