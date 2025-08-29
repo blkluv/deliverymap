@@ -864,7 +864,7 @@
             $('#close-product-modal').on('click', () => $('#product-modal').addClass('hidden'));
 
             $('#center-on-me-btn').on('click', () => {
-                if (userPositionCoords) map.getView().animate({ center: userPositionCoords, zoom: 18, duration: 300 });
+                if (userPositionCoords) map.getView().animate({ center: userPositionCoords, zoom: 22, duration: 300 });
                 else showNotification('無法定位您的位置。', 'warning');
             });
             $(document).on('click', '#show-more-product', function() {
