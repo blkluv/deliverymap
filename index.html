@@ -318,6 +318,7 @@
                         </div>
                          <div id="add-info" class="bg-white text-gray-700 py-2 px-4 rounded-lg shadow-lg items-center space-x-2 hidden">
                             <span id="user-name" class="font-bold"></span>
+                            <button id="edit-nickname-btn" class="text-xs text-blue-500 hover:underline">[修改]</button>
                             <button id="manage-btn" class="text-sm text-blue-600 hover:underline">管理</button>
                             <button id="review-btn" class="text-sm text-red-600 hover:underline hidden">審核</button>
                             <a href="#" id="sign-out-btn" class="text-xs text-gray-500 hover:underline ml-2">登出</a>
@@ -692,6 +693,7 @@
             // --- Global variable for popup state and votes ---
             let currentFeatureData = null; // Store data of the main feature
             let userVotes = {};
+            let currentUserDisplayName = '';
             const VOTES_STORAGE_KEY = 'userBlacklistVotes';
 
             function loadUserVotes() {
@@ -883,7 +885,8 @@
                 const view = map.getView();
                 const projection = view.getProjection();
                 const resolution = view.getResolution();
-                const radius = 200; // MODIFIED: Increased radius
+                // *** 可修改數字：這裡設定了初始定位時顯示的圓圈半徑（單位：公尺） ***
+                const radius = 5000; 
                 
                 const circle = new ol.geom.Circle(centerCoords, radius / ol.proj.getPointResolution(projection, resolution, centerCoords));
                 const circleFeature = new ol.Feature(circle);
@@ -896,13 +899,16 @@
                     const initialLonLat = ol.proj.toLonLat(initialAddLocationCoords);
                     const newLonLat = ol.proj.toLonLat(newCoord);
                     
-                    if (ol.sphere.getDistance(initialLonLat, newLonLat) <= 200) { // MODIFIED: Increased radius
+                    // *** 可修改數字：這裡設定了用戶可以拖動標記的最大距離（單位：公尺） ***
+                    const maxDistance = 5000;
+
+                    if (ol.sphere.getDistance(initialLonLat, newLonLat) <= maxDistance) {
                         tempMarker.setPosition(newCoord);
                     } else {
                         // Snap to edge if dragged too far
                         const angle = Math.atan2(newCoord[1] - initialAddLocationCoords[1], newCoord[0] - initialAddLocationCoords[0]);
                         const resolution = map.getView().getResolution();
-                        const radiusInMapUnits = 200 / ol.proj.getPointResolution(map.getView().getProjection(), resolution, initialAddLocationCoords); // MODIFIED: Increased radius
+                        const radiusInMapUnits = maxDistance / ol.proj.getPointResolution(map.getView().getProjection(), resolution, initialAddLocationCoords);
                         const edgeX = initialAddLocationCoords[0] + radiusInMapUnits * Math.cos(angle);
                         const edgeY = initialAddLocationCoords[1] + radiusInMapUnits * Math.sin(angle);
                         tempMarker.setPosition([edgeX, edgeY]);
@@ -1369,9 +1375,12 @@
                     const initialLonLat = ol.proj.toLonLat(initialAddLocationCoords);
                     const finalLonLat = ol.proj.toLonLat(finalCoords);
                     const distance = ol.sphere.getDistance(initialLonLat, finalLonLat);
+                    
+                    // *** 可修改數字：這裡設定了用戶可以拖動標記的最大距離（單位：公尺） ***
+                    const maxDistance = 5000;
 
-                    if (distance > 200) {
-                        showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點200公尺。`, 'error');
+                    if (distance > maxDistance) {
+                        showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點${maxDistance}公尺。`, 'error');
                         return;
                     }
                 }
@@ -1389,7 +1398,8 @@
 
                 const newData = {
                     action: action, rowIndex: rowIndex, originalName: originalName, 
-                    submitterName: userProfile.name || 'N/A', submitterEmail: userProfile.email || 'N/A',
+                    submitterName: currentUserDisplayName || 'N/A',
+                    submitterEmail: userProfile.email || 'N/A',
                     adminEmail: userProfile.email, 
                     name: formData.get('address'), 
                     category: formData.get('category'), 
@@ -1480,10 +1490,28 @@
             window.addEventListener('google-signin-success', (e) => {
                 userProfile = e.detail;
                 isLoggedIn = true;
+                
+                const storedNickname = localStorage.getItem(`nickname_${userProfile.email}`);
+                currentUserDisplayName = storedNickname || userProfile.given_name || userProfile.name;
+
                 $('.g_id_signin').hide();
                 $('#add-info').removeClass('hidden').addClass('flex');
-                $('#user-name').text(userProfile.name);
+                $('#user-name').text(currentUserDisplayName);
                 checkIfAdmin(userProfile.email);
+            });
+
+            $(document).on('click', '#edit-nickname-btn', function() {
+                const currentName = $('#user-name').text();
+                const newName = prompt("請輸入您的新暱稱：", currentName);
+
+                if (newName && newName.trim() !== '' && newName.trim() !== currentName) {
+                    currentUserDisplayName = newName.trim();
+                    localStorage.setItem(`nickname_${userProfile.email}`, currentUserDisplayName);
+                    $('#user-name').text(currentUserDisplayName);
+                    showNotification('暱稱已更新！', 'success');
+                } else if (newName === '') {
+                    showNotification('暱稱不能為空。', 'error');
+                }
             });
 
             $('#sign-out-btn').on('click', (e) => {
@@ -1493,6 +1521,7 @@
                 isLoggedIn = false; 
                 userProfile = {};
                 isAdmin = false;
+                currentUserDisplayName = '';
                 $('.g_id_signin').show();
                 $('#add-info').removeClass('flex').addClass('hidden');
                 $('#review-btn').addClass('hidden');
