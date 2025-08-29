@@ -4,6 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>黑客指南針</title>
+
+    <!-- NEW: Script to force opening in an external browser -->
+    <script>
+        (function() {
+            const ua = navigator.userAgent.toLowerCase();
+            const isFacebookApp = ua.indexOf("fban") > -1 || ua.indexOf("fbav") > -1;
+            const isLineApp = ua.indexOf("line") > -1;
+
+            // 只在 FB 或 LINE App 中執行跳轉
+            if (isFacebookApp || isLineApp) {
+                // 取得目前乾淨的網址 (移除所有參數)
+                const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                
+                if (ua.indexOf("android") > -1) {
+                    // Android → 嘗試用 Chrome Intent 開啟
+                    const intentUrl = "intent://" + cleanUrl.replace(/^(https?:\/\/)/, "") + "#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(cleanUrl) + ";end";
+                    window.location.href = intentUrl;
+                } else {
+                    // iOS 和其他裝置 → 直接導向網址，iOS 會觸發系統提示
+                    window.location.href = cleanUrl;
+                }
+            }
+        })();
+    </script>
+
+    <!-- Script to clean URL parameters from Facebook, etc. -->
+    <script>
+        (function() {
+            const url = new URL(window.location);
+            if (url.searchParams.has('fbclid')) {
+                const newUrl = url.pathname + url.hash;
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        })();
+    </script>
     
     <!-- OpenLayers CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css">
@@ -1447,16 +1482,10 @@
 
             async function initializeUserLocation() {
                 if (!navigator.geolocation) {
-                    showNotification('您的瀏覽器不支援地理定位', 'warning');
                     loadData(); 
                     return;
                 }
                 
-                // --- MODIFIED: More informative error message for in-app browsers ---
-                const ua = navigator.userAgent || navigator.vendor || window.opera;
-                const isFacebookApp = (ua.indexOf("FBAN") > -1) || (ua.indexOf("FBAV") > -1);
-                const isLineApp = (ua.indexOf("Line") > -1);
-
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
                         userPositionCoords = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
@@ -1468,11 +1497,7 @@
                         loadData(city);
                     },
                     (err) => {
-                        if (isFacebookApp || isLineApp) {
-                            showNotification("無法在此應用程式中取得定位。請嘗試使用手機的預設瀏覽器（如 Chrome 或 Safari）開啟。", 'warning');
-                        } else {
-                            showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
-                        }
+                        showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
                         loadData(); // Load all data on error
                     },
                     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
