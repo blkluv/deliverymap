@@ -532,13 +532,24 @@
     <script type="module">
         // --- OpenLayers 地圖設定 ---
         
-        // 工廠分類顏色定義
+        // MODIFIED: New categories and colors
         const categoryColors = {
-            '材料': 'rgba(59, 130, 246, 0.9)', '零件': 'rgba(249, 115, 22, 0.9)', '加工': 'rgba(16, 185, 129, 0.9)',
-            '設備': 'rgba(139, 92, 246, 0.9)', '工具': 'rgba(234, 179, 8, 0.9)', '維修': 'rgba(239, 68, 68, 0.9)',
-            '物流': 'rgba(20, 184, 166, 0.9)', '其他': 'rgba(107, 114, 128, 0.8)',
+            '透天厝': 'rgba(59, 130, 246, 1)',   // Blue
+            '公寓大廈': 'rgba(16, 185, 129, 1)',  // Green
+            '辦公室': 'rgba(249, 115, 22, 1)',   // Orange
+            '飯店': 'rgba(139, 92, 246, 1)',    // Purple
+            '其他': 'rgba(107, 114, 128, 1)',   // Gray
         };
-        const allCategories = ['材料', '零件', '加工', '設備', '工具', '維修', '物流', '其他'];
+        const allCategories = ['透天厝', '公寓大廈', '辦公室', '飯店', '其他'];
+
+        // NEW: SVG Icons for categories
+        const categoryIcons = {
+            '透天厝': `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${categoryColors['透天厝']}" width="28px" height="28px"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>`,
+            '公寓大廈': `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${categoryColors['公寓大廈']}" width="28px" height="28px"><path d="M10 20v-5h4v5h5V10h3L12 3 2 10h3v10h5zM4 12h16v2H4zm0 4h16v2H4z"/></svg>`,
+            '辦公室': `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${categoryColors['辦公室']}" width="28px" height="28px"><path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/></svg>`,
+            '飯店': `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${categoryColors['飯店']}" width="28px" height="28px"><path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2V7c0-2.21-1.79-4-4-4z"/></svg>`,
+            '其他': `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${categoryColors['其他']}" width="24px" height="24px"><circle cx="12" cy="12" r="8"/></svg>`
+        };
         
         const clusterColorPalette = [
             'rgba(2, 132, 199, 0.8)', 'rgba(217, 70, 239, 0.8)', 'rgba(249, 115, 22, 0.8)',
@@ -569,7 +580,6 @@
             })
         });
         
-        // NEW: Layer for the 100m radius circle
         const radiusSource = new ol.source.Vector();
         const radiusLayer = new ol.layer.Vector({
             source: radiusSource,
@@ -584,6 +594,15 @@
             }),
         });
 
+        // NEW: Helper function to format address
+        function formatAddress(address) {
+            if (!address) return '';
+            // Match from the first occurrence of "路", "街", "大道", or "巷"
+            const match = address.match(/([^縣市區鄉鎮鎮]+(?:路|街|大道|巷).*)/);
+            return match ? match[1] : address;
+        }
+
+        // MODIFIED: clusterStyleFunction to use icons and formatted address
         function clusterStyleFunction(feature) {
             const features = feature.get('features');
             const size = features.length;
@@ -605,15 +624,15 @@
                 return styleCache[styleKey];
             } else {
                 const originalFeature = features[0];
-                const category = originalFeature.get('category');
+                const category = originalFeature.get('category') || '其他';
                 const singleStyleKey = `single_${category}`;
                 
                 if (!styleCache[singleStyleKey]) {
                      styleCache[singleStyleKey] = new ol.style.Style({
-                        image: new ol.style.Circle({
-                            radius: 8,
-                            fill: new ol.style.Fill({ color: categoryColors[category] || categoryColors['其他'] }),
-                            stroke: new ol.style.Stroke({ color: '#ffffff', width: 2 }),
+                        image: new ol.style.Icon({
+                            src: categoryIcons[category] || categoryIcons['其他'],
+                            scale: 1.2,
+                            anchor: [0.5, 1], // Anchor at the bottom center
                         })
                     });
                 }
@@ -622,12 +641,16 @@
                 const resolution = map.getView().getResolution();
 
                 if (resolution <= 50) {
-                    let name = originalFeature.get('name');
+                    const shortAddress = formatAddress(originalFeature.get('address'));
                     clonedStyle.setText(new ol.style.Text({
-                        text: name, font: 'bold 13px sans-serif', fill: new ol.style.Fill({ color: '#333' }),
+                        text: shortAddress, 
+                        font: 'bold 13px sans-serif', 
+                        fill: new ol.style.Fill({ color: '#333' }),
                         backgroundFill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.85)' }),
-                        backgroundStroke: new ol.style.Stroke({ color: 'rgba(59, 130, 246, 1)', width: 1 }),
-                        padding: [5, 7, 5, 7], offsetY: 22, overflow: true,
+                        backgroundStroke: new ol.style.Stroke({ color: categoryColors[category] || categoryColors['其他'], width: 1 }),
+                        padding: [5, 7, 5, 7], 
+                        offsetY: 8, // Adjust offset for icon
+                        overflow: true,
                     }));
                 }
                 return clonedStyle;
@@ -795,6 +818,7 @@
                 }
             }
 
+            // MODIFIED: populateFiltersAndLegend to use icons
             function populateFiltersAndLegend() {
                 const $categorySelect = $('#category-select');
                 const $addCategorySelect = $('#add-category');
@@ -807,12 +831,12 @@
                 $storeListFilters.html('<button data-category="" class="store-filter-btn active bg-blue-600 text-white px-2 py-0.5 text-xs rounded-full mr-2 flex-shrink-0">全部</button>');
                 
                 allCategories.forEach(category => {
-                     if (categoryColors[category]) {
+                     if (categoryIcons[category]) {
                         $categorySelect.append(`<option value="${category}">${category}</option>`);
                         $addCategorySelect.append($('<option>', { value: category, text: category }));
-                        const color = categoryColors[category];
-                        $legendContent.append(`<div class="flex items-center"><span class="h-3 w-3 rounded-full mr-1.5 border border-gray-400" style="background-color: ${color}"></span>${category}</div>`);
-                        $storeListFilters.append(`<button data-category="${category}" class="store-filter-btn text-nowrap bg-white text-black px-2 py-0.5 text-xs rounded-full mr-2 flex-shrink-0 border" style="border-color: ${color};">${category}</button>`);
+                        const iconSrc = categoryIcons[category];
+                        $legendContent.append(`<div class="flex items-center"><img src="${iconSrc}" class="h-4 w-4 mr-1.5">${category}</div>`);
+                        $storeListFilters.append(`<button data-category="${category}" class="store-filter-btn text-nowrap bg-white text-black px-2 py-0.5 text-xs rounded-full mr-2 flex-shrink-0 border" style="border-color: ${categoryColors[category]};">${category}</button>`);
                      }
                 });
             }
@@ -1360,7 +1384,7 @@
                 navigator.geolocation.getCurrentPosition(
                     (pos) => {
                         userPositionCoords = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
-                        map.getView().animate({ center: userPositionCoords, zoom: 16, duration: 1500 });
+                        map.getView().animate({ center: userPositionCoords, zoom: 16, duration: 1800 });
                         userLocationOverlay.setPosition(userPositionCoords);
                         $('#user-location').removeClass('hidden');
                     },
