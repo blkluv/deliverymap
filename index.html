@@ -672,6 +672,7 @@
         window.onload = function() {
             const { pinyin } = pinyinPro; 
             let allFeatures = [];
+            let rawReports = []; // NEW: Store for individual reports for admin panel
             let fuse = null; 
             let isLoggedIn = false;
             let userProfile = {};
@@ -734,6 +735,7 @@
                     if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
                     
                     const results = await response.json();
+                    rawReports = results; // Store raw data for admin panel
                     
                     const groupedData = new Map();
                     results.forEach(data => {
@@ -769,7 +771,7 @@
                             dislikes: totalDislikes,
                             lon: lon, 
                             lat: lat,
-                            approved: firstReport['審核'] ? String(firstReport['審核']).toUpperCase() === 'TRUE' : false,
+                            approved: group.some(r => String(r['審核']).toUpperCase() === 'TRUE'), // If any report is approved, the location is shown
                             reports: group, 
                             address_pinyin: pinyin(baseAddress || '', pinyinOptions),
                         });
@@ -1631,7 +1633,7 @@
                 }
             });
 
-            // --- Review Modal Logic ---
+            // --- Review Modal Logic (REFACTORED) ---
 
             $('#review-btn').on('click', function() {
                 $('#review-modal').removeClass('hidden');
@@ -1660,23 +1662,22 @@
                 $listPanel.html('');
                 $detailPanel.html('<p class="text-gray-500">請從左側列表選擇一個地點以查看詳細資訊。</p>');
 
-                const storesToReview = allFeatures.filter(f => {
-                    const isApproved = f.get('approved');
+                const reportsToReview = rawReports.filter(report => {
+                    const isApproved = String(report['審核']).toUpperCase() === 'TRUE';
                     return status === 'pending' ? !isApproved : isApproved;
                 });
 
-                if (storesToReview.length === 0) {
+                if (reportsToReview.length === 0) {
                     $listPanel.html(`<p class="p-4 text-sm text-gray-500">沒有${status === 'pending' ? '待審核' : '已審核'}的地點。</p>`);
                     return;
                 }
 
-                storesToReview.forEach(feature => {
-                    const data = feature.getProperties();
+                reportsToReview.forEach(report => {
                     const listItem = $(`
-                        <div class="p-4 border-b cursor-pointer hover:bg-gray-100 review-item" data-id="${feature.getId()}">
-                            <p class="font-semibold text-gray-800">${data.name}</p>
-                            <p class="text-sm text-gray-600 truncate">${data.address}</p>
-                            <p class="text-xs text-gray-400 mt-1">提交者: ${data.submitterEmail || 'N/A'}</p>
+                        <div class="p-4 border-b cursor-pointer hover:bg-gray-100 review-item" data-row-index="${report.rowIndex}">
+                            <p class="font-semibold text-gray-800">${report['地址']}</p>
+                            <p class="text-sm text-gray-600 truncate">${report['黑名原因'] || '無原因'}</p>
+                            <p class="text-xs text-gray-400 mt-1">提交者: ${report.submitterEmail || 'N/A'}</p>
                         </div>
                     `);
                     $listPanel.append(listItem);
@@ -1686,50 +1687,47 @@
             $('#review-list-panel').on('click', '.review-item', function() {
                 $('.review-item').removeClass('bg-indigo-50');
                 $(this).addClass('bg-indigo-50');
-                const featureId = $(this).data('id');
-                const feature = allFeatures.find(f => f.getId() == featureId);
-                if (feature) {
-                    displayReviewDetails(feature);
+                const rowIndex = $(this).data('row-index');
+                const report = rawReports.find(r => r.rowIndex == rowIndex);
+                if (report) {
+                    displayReviewDetails(report);
                 }
             });
 
-            function displayReviewDetails(feature) {
+            function displayReviewDetails(report) {
                 const $detailPanel = $('#review-detail-panel');
-                const data = feature.getProperties();
-                const formatOptional = (label, value) => value ? `<p><strong>${label}:</strong> ${value}</p>` : '';
                 
                 let actionButtons = '';
-                if (!data.approved) { // 待審核
+                const isApproved = String(report['審核']).toUpperCase() === 'TRUE';
+
+                if (!isApproved) { // 待審核
                     actionButtons = `
-                        <button class="admin-action-btn flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700" data-action="approve" data-row-index="${data.rowIndex}">審核通過</button>
-                        <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${data.rowIndex}">不通過</button>
+                        <button class="admin-action-btn flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700" data-action="approve" data-row-index="${report.rowIndex}">審核通過</button>
+                        <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${report.rowIndex}">不通過</button>
                     `;
                 } else { // 已審核
                     actionButtons = `
-                        <button id="edit-in-review-btn" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700" data-id="${feature.getId()}">編輯</button>
-                        <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${data.rowIndex}">刪除</button>
+                        <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${report.rowIndex}">刪除</button>
                     `;
                 }
+                
+                const submissionDate = report.timestamp ? 
+                    new Date(report.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) : 
+                    '日期不明';
 
                 const detailHtml = `
                     <div class="space-y-3 text-sm">
-                        <h3 class="text-xl font-bold text-gray-900">${data.name}</h3>
-                        <p class="font-semibold" style="color: ${categoryColors[data.category] || categoryColors['其他']}">${data.category}</p>
+                        <h3 class="text-xl font-bold text-gray-900">${report['地址']}</h3>
+                        <p class="font-semibold" style="color: ${categoryColors[report['分類']] || categoryColors['其他']}">${report['分類']}</p>
                         <hr>
-                        <p><strong>地址:</strong> ${data.address}</p>
-                        <p><strong>聯絡方式:</strong> ${data.contact}</p>
-                        <p><strong>營業時間:</strong> ${data.hours || '未提供'}</p>
-                        <p><strong>公司產品:</strong></p>
-                        <p class="whitespace-pre-wrap bg-gray-50 p-2 rounded">${data.product}</p>
+                        <p><strong>黑名類別:</strong> ${report['黑名類別']}</p>
+                        <p><strong>黑名原因:</strong></p>
+                        <p class="whitespace-pre-wrap bg-gray-50 p-2 rounded">${report['黑名原因']}</p>
                         <hr>
-                        ${formatOptional('信箱', data.email)}
-                        ${formatOptional('網頁', data.website)}
-                        ${formatOptional('LINE帳號', data.line)}
-                        <hr>
-                        <p><strong>座標:</strong> ${data.lon ? data.lon.toFixed(5) : 'N/A'}, ${data.lat ? data.lat.toFixed(5) : 'N/A'}</p>
-                        <p><strong>提交者:</strong> ${data.submitterName || 'N/A'} (${data.submitterEmail || 'N/A'})</p>
-                        <p><strong>提交時間:</strong> ${new Date(data.submissionId).toLocaleString()}</p>
-                        <p><strong>試算表列數:</strong> ${data.rowIndex}</p>
+                        <p><strong>座標:</strong> ${parseFloat(report['經度']).toFixed(5)}, ${parseFloat(report['緯度']).toFixed(5)}</p>
+                        <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || 'N/A'})</p>
+                        <p><strong>提交時間:</strong> ${submissionDate}</p>
+                        <p><strong>試算表列數:</strong> ${report.rowIndex}</p>
                     </div>
                     <div class="mt-6 flex space-x-4">
                         ${actionButtons}
@@ -1748,15 +1746,6 @@
                     }
                 }
                 sendAdminAction(action, rowIndex);
-            });
-
-            $('#review-detail-panel').on('click', '#edit-in-review-btn', function() {
-                const featureId = $(this).data('id');
-                const featureToEdit = allFeatures.find(f => f.getId() == featureId);
-                if (featureToEdit) {
-                    $('#review-modal').addClass('hidden');
-                    openEditModalForAdmin(featureToEdit);
-                }
             });
             
             function sendAdminAction(action, rowIndex) {
