@@ -259,6 +259,8 @@
                                     <option value="奧客">奧客</option>
                                     <option value="送上樓">送上樓</option>
                                     <option value="拖吊">拖吊</option>
+                                    <option value="騙餐">騙餐</option>
+                                    <option value="奇怪">奇怪</option>
                                     <option value="其他">其他</option>
                                 </select>
                             </div>
@@ -864,7 +866,7 @@
             $('#close-product-modal').on('click', () => $('#product-modal').addClass('hidden'));
 
             $('#center-on-me-btn').on('click', () => {
-                if (userPositionCoords) map.getView().animate({ center: userPositionCoords, zoom: 20, duration: 300 });
+                if (userPositionCoords) map.getView().animate({ center: userPositionCoords, zoom: 16, duration: 800 });
                 else showNotification('無法定位您的位置。', 'warning');
             });
             $(document).on('click', '#show-more-product', function() {
