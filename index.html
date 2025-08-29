@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超認真工業指南針</title>
+    
+    <!-- OpenLayers CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
+    
+    <!-- OpenLayers JS -->
+    <script src="https://cdn.jsdelivr.net/npm/ol@v9.2.4/dist/ol.js"></script>
+    
+    <!-- Google Identity Services Library -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <!-- NEW: Fuse.js for fuzzy search -->
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
+    
+    <!-- MODIFIED: pinyin-pro for Chinese to Pinyin conversion -->
+    <script src="https://unpkg.com/pinyin-pro@3.18.2/dist/index.js"></script>
+
+
+    <style>
+        /* 自定義樣式 */
+        :root {
+            /* 手機版底部安全距離 (可調整此數值) */
+            --mobile-bottom-offset: 6rem; 
+            /* 手機版店家列表寬度 (可調整此數值) */
+            --mobile-panel-width: 90vw;
+        }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            overflow: hidden; /* 防止滾動 */
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #f0f0f0;
+        }
+        /* OpenLayers 彈出視窗樣式 */
+        .ol-popup {
+            position: absolute;
+            background-color: white;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #cccccc;
+            bottom: 12px;
+            left: -50px;
+            min-width: 300px;
+            max-width: 350px;
+            transform: translateX(-50%);
+        }
+        .ol-popup:after, .ol-popup:before {
+            top: 100%;
+            border: solid transparent;
+            content: " ";
+            height: 0;
+            width: 0;
+            position: absolute;
+            pointer-events: none;
+        }
+        .ol-popup:after {
+            border-top-color: white;
+            border-width: 10px;
+            left: 50%;
+            margin-left: -10px;
+        }
+        .ol-popup:before {
+            border-top-color: #cccccc;
+            border-width: 11px;
+            left: 50%;
+            margin-left: -11px;
+        }
+        .ol-popup-closer {
+            text-decoration: none;
+            position: absolute;
+            top: 2px;
+            right: 8px;
+            font-size: 20px;
+        }
+        .ol-popup-closer:after {
+            content: "✖";
+        }
+        /* 避免 Tailwind CSS 影響 OpenLayers 控制項 */
+        .ol-control button {
+            background-color: rgba(255,255,255,0.8) !important;
+            color: #333 !important;
+            border: 1px solid #ccc !important;
+        }
+        .ol-control button:hover {
+            background-color: rgba(255,255,255,1) !important;
+        }
+        /* 滾動條樣式 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        #store-list-filters::-webkit-scrollbar {
+            height: 9px; /* For horizontal scrollbar */
+        }
+        #store-list-filters::-webkit-scrollbar-thumb {
+            background: #bbb;
+            border-radius: 4px;
+        }
+        #store-list-filters::-webkit-scrollbar-track {
+            background: #eee;
+            border-radius: 4px;
+        }
+        /* 當前位置標記動畫 */
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        /* 新增地點的標記樣式 */
+        .new-location-marker {
+             width: 32px;
+             height: 32px;
+             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ef4444" width="32px" height="32px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>');
+             background-size: contain;
+             cursor: grab;
+             transform: translate(-50%, -100%);
+        }
+        .new-location-marker:active {
+            cursor: grabbing;
+        }
+        /* Responsive positioning for bottom elements */
+        #store-list-panel, #legend {
+            bottom: 1rem; /* 桌面版的預設值 (Tailwind class: bottom-4) */
+        }
+        /* 在小於 768px 的螢幕上（手機版）套用較高的底部距離 */
+        @media (max-width: 767px) {
+            #legend {
+                display: none; /* 在手機版上隱藏中間的分類圖例 */
+            }
+            #store-list-panel {
+                bottom: var(--mobile-bottom-offset);
+                width: var(--mobile-panel-width);
+                max-width: 400px; /* 避免在較寬的手機螢幕上過寬 */
+                left: 50%;
+                transform: translateX(-50%);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="app" class="relative h-screen w-screen">
+        <!-- 地圖容器 -->
+        <main class="w-full h-full relative">
+            <div id="map"></div>
+            
+            <!-- 錯誤/提示訊息 -->
+            <div id="notification" class="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-yellow-500 text-white text-sm py-2 px-4 rounded-lg shadow-lg hidden transition-all duration-300">
+                訊息
+            </div>
+
+            <!-- 彈出視窗容器 -->
+            <div id="popup" class="ol-popup">
+                <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+                <div id="popup-content"></div>
+            </div>
+            
+            <!-- 當前位置標記 (HTML Overlay) -->
+            <div id="user-location" class="absolute w-4 h-4 -translate-x-1/2 -translate-y-1/2 hidden">
+                <div class="w-full h-full rounded-full bg-blue-600 border-2 border-white shadow-md pulse-dot"></div>
+            </div>
+
+            <!-- UI 按鈕群組 -->
+            <div class="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2">
+                <!-- 登入/新增說明按鈕 -->
+                <div id="login-status">
+                    <div id="g_id_onload"
+                         data-client_id="35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com"
+                         data-callback="handleCredentialResponse"
+                         data-auto_select="true"
+                         data-use_fedcm_for_prompt="false">
+                    </div>
+                    <div class="g_id_signin" 
+                         data-type="standard"
+                         data-size="large"
+                         data-theme="outline"
+                         data-text="sign_in_with"
+                         data-shape="rectangular"
+                         data-logo_alignment="left">
+                    </div>
+                     <div id="add-info" class="bg-white text-gray-700 py-2 px-4 rounded-lg shadow-lg items-center space-x-2 hidden">
+                        <span id="user-name" class="font-bold"></span>
+                        <button id="manage-btn" class="text-sm text-blue-600 hover:underline">管理</button>
+                        <button id="review-btn" class="text-sm text-red-600 hover:underline hidden">審核</button>
+                        <a href="#" id="sign-out-btn" class="text-xs text-gray-500 hover:underline ml-2">登出</a>
+                    </div>
+                </div>
+                <button id="open-filter-modal" class="bg-blue-600 text-white p-3 rounded-lg shadow-lg hover:bg-blue-700 transition-colors duration-300 flex items-center justify-center" title="篩選">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                 <button id="center-on-me-btn" class="bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="回到我的位置">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                    </svg>
+                </button>
+                <button id="add-location-mode-btn" class="bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="新增店家">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+
+
+            <!-- 圖例 -->
+            <div id="legend" class="absolute left-1/2 -translate-x-1/2 z-10 bg-white/80 backdrop-blur-sm p-3 rounded-lg shadow-md">
+                <div id="legend-content" class="flex items-center justify-center flex-wrap gap-x-4 gap-y-1 text-xs md:text-sm">
+                    <!-- 圖例內容將由 JS 動態生成 -->
+                </div>
+            </div>
+            
+            <!-- 店家列表面板 -->
+            <div id="store-list-panel" class="absolute left-4 w-64 z-10 bg-white/80 backdrop-blur-sm p-3 rounded-lg shadow-md flex flex-col transition-all duration-300 ease-in-out" style="max-height: 14rem;">
+                <div class="flex justify-between items-start flex-shrink-0 mb-2">
+                    <div id="store-list-filters" class="flex-grow flex overflow-x-auto pb-1 custom-scrollbar">
+                        <!-- 分類按鈕將由 JS 動態生成 -->
+                    </div>
+                    <button id="toggle-store-list-btn" class="flex-shrink-0 ml-2 p-1 -mr-1 rounded-full hover:bg-gray-200 focus:outline-none" title="收合/展開列表">
+                        <svg id="minimize-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                        <svg id="maximize-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                        </svg>
+                    </button>
+                </div>
+                <div id="store-list-content" class="flex-grow overflow-y-auto custom-scrollbar pr-2 transition-all duration-300">
+                    <!-- 店家列表將由 JS 動態生成 -->
+                </div>
+            </div>
+        </main>
+        
+        <!-- 新增/編輯店家 Modal -->
+        <div id="add-location-modal" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4">
+            <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col" style="max-height: calc(100vh - 5rem);">
+                <form id="add-location-form" class="flex-grow flex flex-col overflow-hidden">
+                    <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
+                        <h2 id="modal-title" class="text-xl font-bold text-gray-800">新增店家</h2>
+                        <div class="flex items-center space-x-2">
+                             <button id="submit-location-btn" type="submit" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center w-28">
+                                <span class="submit-text">送出審核</span>
+                                <span class="spinner hidden animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
+                            </button>
+                            <button id="close-add-location-modal" type="button" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+                        </div>
+                    </div>
+                    <div class="px-6 pt-2 pb-16 space-y-4 overflow-y-auto custom-scrollbar flex-grow">
+                        <input type="hidden" id="edit-row-index" name="rowIndex">
+                        <input type="hidden" id="edit-original-name" name="originalName">
+                        <p class="text-sm text-gray-600">請填寫店家資訊，或在地圖上拖曳圖釘以調整位置。</p>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">店名 <span class="text-red-500">*</span></label>
+                            <input type="text" id="add-name" name="name" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">類別 <span class="text-red-500">*</span></label>
+                            <select id="add-category" name="category" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required></select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">地址 <span class="text-red-500">*</span></label>
+                            <input type="text" id="add-address" name="address" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">聯絡方式(電話) <span class="text-red-500">*</span></label>
+                            <input type="text" id="add-contact" name="contact" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="格式: 0912345678 或 02-12345678" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">營業時間 <span class="text-red-500">*</span></label>
+                            <div id="hours-container" class="space-y-2">
+                                <!-- JS will generate time slots here -->
+                            </div>
+                            <button type="button" id="add-time-slot-btn" class="mt-2 text-sm text-blue-600 hover:text-blue-800">+ 新增時段</button>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">公司產品 <span class="text-red-500">*</span></label>
+                            <textarea id="add-product" name="product" rows="3" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required></textarea>
+                        </div>
+                        <hr>
+                        <p class="text-sm text-gray-500">以下為選填項目</p>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">信箱</label>
+                            <input type="email" id="add-email" name="email" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">網頁</label>
+                            <input type="url" id="add-website" name="website" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="https://example.com">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">LINE帳號</label>
+                            <input type="text" id="add-line" name="line" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    <!-- 篩選 Modal -->
+    <div id="filter-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div class="p-6 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-800">工廠篩選</h2>
+                <button id="close-filter-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                <!-- 分類篩選 -->
+                <div class="mb-4">
+                    <label for="category-select" class="block text-sm font-medium text-gray-700 mb-1">工廠分類</label>
+                    <select id="category-select" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">所有分類</option>
+                    </select>
+                </div>
+                <!-- 關鍵字搜尋 -->
+                <div class="mb-4">
+                    <label for="keyword-search" class="block text-sm font-medium text-gray-700 mb-1">關鍵字搜尋</label>
+                    <input type="text" id="keyword-search" placeholder="名稱、地址、產品" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                 <!-- 營業中篩選 -->
+                <div class="mb-4 space-y-2">
+                    <div class="flex items-center">
+                        <input id="is-open-checkbox" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <label for="is-open-checkbox" class="ml-2 block text-sm text-gray-900">僅顯示目前營業中</label>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 bg-gray-50 border-t rounded-b-lg flex space-x-2">
+                <button id="filter-btn" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    套用篩選
+                </button>
+                <button id="reset-btn" class="w-full bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400">
+                    重設
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 公司產品 Modal -->
+    <div id="product-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
+            <div class="p-6 border-b flex justify-between items-center">
+                <h2 id="product-modal-title" class="text-xl font-bold text-gray-800">公司產品</h2>
+                <button id="close-product-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+            </div>
+            <div id="product-modal-content" class="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar whitespace-pre-wrap"></div>
+        </div>
+    </div>
+
+    <!-- 營業時間 Modal -->
+    <div id="hours-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div class="p-6 border-b flex justify-between items-center">
+                <h2 id="hours-modal-title" class="text-xl font-bold text-gray-800">營業時間</h2>
+                <button id="close-hours-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+            </div>
+            <div id="hours-modal-content" class="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar whitespace-pre-wrap"></div>
+        </div>
+    </div>
+    
+    <!-- 管理 Modal -->
+    <div id="management-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
+            <div class="p-6 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-800">我的店家管理</h2>
+                <button id="close-management-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+            </div>
+            <div id="management-list-content" class="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                <!-- User's stores will be listed here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Review Modal -->
+    <div id="review-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col" style="height: 90vh;">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-800">審核店家</h2>
+                <button id="close-review-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+            </div>
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-6 px-6" aria-label="Tabs">
+                    <button id="pending-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-indigo-500 text-indigo-600">待審核</button>
+                    <button id="approved-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">已審核</button>
+                </nav>
+            </div>
+            <div class="flex-grow overflow-y-hidden flex">
+                <!-- List Panel -->
+                <div id="review-list-panel" class="w-1/3 border-r overflow-y-auto custom-scrollbar bg-gray-50">
+                    <!-- List items will be injected here -->
+                </div>
+                <!-- Detail Panel -->
+                <div id="review-detail-panel" class="w-2/3 p-6 overflow-y-auto custom-scrollbar">
+                    <p class="text-gray-500">請從左側列表選擇一個店家以查看詳細資訊。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // This function needs to be in the global scope for the Google API to call it.
+        function handleCredentialResponse(response) {
+            // Decode the JWT to get user profile
+            const base64Url = response.credential.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            
+            const profile = JSON.parse(jsonPayload);
+            
+            const event = new CustomEvent('google-signin-success', { detail: profile });
+            window.dispatchEvent(event);
+        }
+        // Make it globally accessible
+        window.handleCredentialResponse = handleCredentialResponse;
+    </script>
+    
+    <script type="module">
+        // --- OpenLayers 地圖設定 ---
+        
+        // 工廠分類顏色定義
+        const categoryColors = {
+            '材料': 'rgba(59, 130, 246, 0.9)', '零件': 'rgba(249, 115, 22, 0.9)', '加工': 'rgba(16, 185, 129, 0.9)',
+            '設備': 'rgba(139, 92, 246, 0.9)', '工具': 'rgba(234, 179, 8, 0.9)', '維修': 'rgba(239, 68, 68, 0.9)',
+            '物流': 'rgba(20, 184, 166, 0.9)', '其他': 'rgba(107, 114, 128, 0.8)',
+        };
+        const allCategories = ['材料', '零件', '加工', '設備', '工具', '維修', '物流', '其他'];
+        
+        const clusterColorPalette = [
+            'rgba(2, 132, 199, 0.8)', 'rgba(217, 70, 239, 0.8)', 'rgba(249, 115, 22, 0.8)',
+            'rgba(132, 204, 22, 0.8)', 'rgba(168, 85, 247, 0.8)', 'rgba(239, 68, 68, 0.8)',
+        ];
+
+        const styleCache = {};
+
+        const nlscLayer = new ol.layer.Tile({
+            source: new ol.source.XYZ({
+                url: 'https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}.png',
+                attributions: '超認真少年 X 國土測繪中心', crossOrigin: 'anonymous'
+            })
+        });
+
+        const vectorSource = new ol.source.Vector();
+        const clusterSource = new ol.source.Cluster({ distance: 50, minDistance: 25, source: vectorSource });
+
+        const lineSource = new ol.source.Vector();
+        const lineLayer = new ol.layer.Vector({
+            source: lineSource,
+            style: new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: 'rgba(50, 50, 50, 0.7)',
+                    width: 1.5,
+                    lineDash: [4, 4]
+                })
+            })
+        });
+
+        function clusterStyleFunction(feature) {
+            const features = feature.get('features');
+            const size = features.length;
+            
+            if (size > 1) {
+                const styleKey = `cluster_${size}`;
+                if (!styleCache[styleKey]) {
+                    const colorIndex = (size * 5) % clusterColorPalette.length;
+                    const clusterColor = clusterColorPalette[colorIndex];
+                    styleCache[styleKey] = new ol.style.Style({
+                        image: new ol.style.Circle({
+                            radius: 12 + Math.min(size, 20),
+                            fill: new ol.style.Fill({ color: clusterColor }),
+                            stroke: new ol.style.Stroke({ color: '#fff', width: 2 }),
+                        }),
+                        text: new ol.style.Text({ text: size.toString(), fill: new ol.style.Fill({ color: '#fff' }), font: 'bold 12px sans-serif' }),
+                    });
+                }
+                return styleCache[styleKey];
+            } else {
+                const originalFeature = features[0];
+                const category = originalFeature.get('category');
+                const singleStyleKey = `single_${category}`;
+                
+                if (!styleCache[singleStyleKey]) {
+                     styleCache[singleStyleKey] = new ol.style.Style({
+                        image: new ol.style.Circle({
+                            radius: 8,
+                            fill: new ol.style.Fill({ color: categoryColors[category] || categoryColors['其他'] }),
+                            stroke: new ol.style.Stroke({ color: '#ffffff', width: 2 }),
+                        })
+                    });
+                }
+
+                const clonedStyle = styleCache[singleStyleKey].clone();
+                const resolution = map.getView().getResolution();
+
+                if (resolution <= 50) {
+                    let name = originalFeature.get('name');
+                    clonedStyle.setText(new ol.style.Text({
+                        text: name, font: 'bold 13px sans-serif', fill: new ol.style.Fill({ color: '#333' }),
+                        backgroundFill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.85)' }),
+                        backgroundStroke: new ol.style.Stroke({ color: 'rgba(59, 130, 246, 1)', width: 1 }),
+                        padding: [5, 7, 5, 7], offsetY: 22, overflow: true,
+                    }));
+                }
+                return clonedStyle;
+            }
+        }
+
+        const clusterLayer = new ol.layer.Vector({ source: clusterSource, style: clusterStyleFunction });
+
+        const map = new ol.Map({
+            target: 'map', 
+            layers: [nlscLayer, lineLayer, clusterLayer],
+            view: new ol.View({ center: ol.proj.fromLonLat([120.9, 23.9]), zoom: 8 }),
+            controls: [
+                new ol.control.Zoom(),
+                new ol.control.Rotate(),
+                new ol.control.Attribution({
+                    collapsible: false
+                })
+            ]
+        });
+
+        const popupContainer = document.getElementById('popup');
+        const popupContent = document.getElementById('popup-content');
+        const popupCloser = document.getElementById('popup-closer');
+
+        const infoOverlay = new ol.Overlay({
+            element: popupContainer,
+            autoPan: { animation: { duration: 250 } },
+        });
+        map.addOverlay(infoOverlay);
+
+        popupCloser.onclick = function () {
+            infoOverlay.setPosition(undefined);
+            popupCloser.blur();
+            return false;
+        };
+        
+        const userLocationElement = document.getElementById('user-location');
+        let userPositionCoords = null;
+        const userLocationOverlay = new ol.Overlay({ element: userLocationElement, positioning: 'center-center', stopEvent: false });
+        map.addOverlay(userLocationOverlay);
+
+        window.onload = function() {
+            const { pinyin } = pinyinPro; 
+            let allFeatures = [];
+            let fuse = null; 
+            let isLoggedIn = false;
+            let userProfile = {};
+            let isAdmin = false; 
+            
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzCvwSU0lm6r01UxVtljbKAEEhn6dbW6KaUcwy0m40aGHC1NF3Z3T3CPitVjNk_HP4JQw/exec';
+            
+            const visibilityThreshold = 16.5; 
+
+            function showNotification(message, type = 'info') {
+                const $notification = $('#notification');
+                $notification.text(message).removeClass('hidden');
+                $notification.removeClass('bg-blue-500 bg-green-500 bg-red-500 bg-yellow-500');
+                switch(type) {
+                    case 'error': $notification.addClass('bg-red-500'); break;
+                    case 'success': $notification.addClass('bg-green-500'); break;
+                    case 'warning': $notification.addClass('bg-yellow-500'); break;
+                    default: $notification.addClass('bg-blue-500');
+                }
+                setTimeout(() => $notification.addClass('hidden'), 5000);
+            }
+            
+            function getOffsetForIndex(index) {
+                if (index === 0) return { dx: 0, dy: 0 };
+                let x = 0, y = 0, dx = 0, dy = -1;
+                for (let i = 0; i < index; i++) {
+                    if (x === y || (x < 0 && x === -y) || (x > 0 && x === 1 - y)) {
+                        [dx, dy] = [-dy, dx];
+                    }
+                    x += dx;
+                    y += dy;
+                }
+                return { dx: x, dy: y };
+            }
+
+            async function loadData() {
+                showNotification('正在搜尋附近店家');
+                try {
+                    const response = await fetch(`${APPS_SCRIPT_URL}?action=getData&t=${new Date().getTime()}`);
+                    if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
+                    
+                    const results = await response.json();
+                    
+                    const coordCounts = new Map();
+                    vectorSource.clear();
+                    allFeatures = [];
+                    const pinyinOptions = { pattern: 'pinyin', toneType: 'none', removeNonZh: true };
+
+                    results.forEach((data, index) => {
+                        if (data['工廠名稱']) {
+                            const lon = parseFloat(data['經度']);
+                            const lat = parseFloat(data['緯度']);
+                            if (!isNaN(lon) && !isNaN(lat)) {
+                                
+                                const coordKey = `${lon.toFixed(5)},${lat.toFixed(5)}`;
+                                const count = coordCounts.get(coordKey) || 0;
+                                
+                                const { dx, dy } = getOffsetForIndex(count);
+                                const baseOffset = 0.00015;
+                                const finalLon = lon + dx * baseOffset;
+                                const finalLat = lat + dy * baseOffset;
+
+                                coordCounts.set(coordKey, count + 1);
+
+                                const feature = new ol.Feature({
+                                    geometry: new ol.geom.Point(ol.proj.fromLonLat([finalLon, finalLat])),
+                                    name: data['工廠名稱'], 
+                                    category: data['分類'] || '其他', 
+                                    address: data['地址'],
+                                    contact: data['聯絡方式'], 
+                                    hours: data['營業時間'], 
+                                    product: data['公司產品'],
+                                    line: data['LINE帳號'],
+                                    email: data['信箱'],
+                                    website: data['網頁'], 
+                                    lon: lon, 
+                                    lat: lat,
+                                    submissionId: data['Timestamp'], 
+                                    submitterEmail: data['submitterEmail'],
+                                    submitterName: data['submitterName'],
+                                    approved: data['審核'] ? String(data['審核']).toUpperCase() === 'TRUE' : false,
+                                    rowIndex: data.rowIndex, // Get rowIndex from backend
+                                    name_pinyin: pinyin(data['工廠名稱'] || '', pinyinOptions),
+                                    address_pinyin: pinyin(data['地址'] || '', pinyinOptions),
+                                    product_pinyin: pinyin(data['公司產品'] || '', pinyinOptions)
+                                });
+                                feature.setId(data.rowIndex);
+                                allFeatures.push(feature);
+                            }
+                        }
+                    });
+                    
+                    const approvedFeatures = allFeatures.filter(f => f.get('approved'));
+                    vectorSource.addFeatures(approvedFeatures);
+                    
+                    const fuseOptions = {
+                        includeScore: true,
+                        threshold: 0.1, 
+                        minMatchCharLength: 2,
+                        ignoreLocation: true,
+                        keys: [
+                            'values_.name_pinyin',
+                            'values_.address_pinyin',
+                            'values_.product_pinyin'
+                        ]
+                    };
+                    fuse = new Fuse(allFeatures, fuseOptions);
+
+                    populateFiltersAndLegend();
+                    updateStoreList(); 
+                    $('#notification').addClass('hidden');
+
+                } catch (error) {
+                    showNotification('無法載入資料！請稍後再試。', 'error');
+                }
+            }
+
+            function populateFiltersAndLegend() {
+                const $categorySelect = $('#category-select');
+                const $addCategorySelect = $('#add-category');
+                const $legendContent = $('#legend-content');
+                const $storeListFilters = $('#store-list-filters');
+                
+                $categorySelect.html('<option value="">所有分類</option>');
+                $addCategorySelect.html('');
+                $legendContent.html('');
+                $storeListFilters.html('<button data-category="" class="store-filter-btn active bg-blue-600 text-white px-2 py-0.5 text-xs rounded-full mr-2 flex-shrink-0">全部</button>');
+                
+                allCategories.forEach(category => {
+                     if (categoryColors[category]) {
+                        $categorySelect.append(`<option value="${category}">${category}</option>`);
+                        $addCategorySelect.append($('<option>', { value: category, text: category }));
+                        const color = categoryColors[category];
+                        $legendContent.append(`<div class="flex items-center"><span class="h-3 w-3 rounded-full mr-1.5 border border-gray-400" style="background-color: ${color}"></span>${category}</div>`);
+                        $storeListFilters.append(`<button data-category="${category}" class="store-filter-btn text-nowrap bg-white text-black px-2 py-0.5 text-xs rounded-full mr-2 flex-shrink-0 border" style="border-color: ${color};">${category}</button>`);
+                     }
+                });
+            }
+            
+            function getOpeningStatus(hoursString) {
+                if (!hoursString || typeof hoursString !== 'string') {
+                    return { status: 'unknown', message: '未提供', color: 'text-gray-500' };
+                }
+
+                const dayMap = { '日': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 };
+                const dayNameMap = ['日', '一', '二', '三', '四', '五', '六'];
+                const now = new Date();
+                const currentDay = now.getDay();
+                const currentTime = now.getHours() * 100 + now.getMinutes();
+
+                const timeSlots = hoursString.split(/;|\n/).filter(p => p.trim()).map(part => {
+                    const match = part.match(/週([一二三四五六日])[~-]週([一二三四五六日])\s*(\d{2}):(\d{2})-(\d{2}):(\d{2})/);
+                    if (!match) return null;
+                    return {
+                        startDay: dayMap[match[1]],
+                        endDay: dayMap[match[2]],
+                        startTime: parseInt(match[3]) * 100 + parseInt(match[4]),
+                        endTime: parseInt(match[5]) * 100 + parseInt(match[6]),
+                        startTimeStr: `${match[3]}:${match[4]}`,
+                        endTimeStr: `${match[5]}:${match[6]}`,
+                    };
+                }).filter(Boolean);
+
+                if (timeSlots.length === 0) {
+                     return { status: 'unknown', message: '未提供', color: 'text-gray-500' };
+                }
+
+                // Check if currently open
+                for (const slot of timeSlots) {
+                    let inDayRange = false;
+                    if (slot.endDay < slot.startDay) { // Wraps around the week (e.g., Fri-Tue)
+                        if (currentDay >= slot.startDay || currentDay <= slot.endDay) {
+                            inDayRange = true;
+                        }
+                    } else { // Normal range (e.g., Mon-Fri)
+                        if (currentDay >= slot.startDay && currentDay <= slot.endDay) {
+                            inDayRange = true;
+                        }
+                    }
+
+                    if (inDayRange) {
+                         let inTimeRange = false;
+                         if(slot.endTime < slot.startTime) { // Overnight
+                             if(currentTime >= slot.startTime || currentTime < slot.endTime) {
+                                 inTimeRange = true;
+                             }
+                         } else { // Same day
+                             if(currentTime >= slot.startTime && currentTime < slot.endTime) {
+                                 inTimeRange = true;
+                             }
+                         }
+                         if(inTimeRange) {
+                             return { status: 'open', message: `營業中，最後營業時間：${slot.endTimeStr}`, color: 'text-green-600' };
+                         }
+                    }
+                }
+
+                // If not open, find next opening time
+                for (let i = 0; i < 7; i++) {
+                    const nextDay = (currentDay + i) % 7;
+                    for (const slot of timeSlots) {
+                        let inDayRange = false;
+                        if (slot.endDay < slot.startDay) {
+                            if (nextDay >= slot.startDay || nextDay <= slot.endDay) inDayRange = true;
+                        } else {
+                            if (nextDay >= slot.startDay && nextDay <= slot.endDay) inDayRange = true;
+                        }
+
+                        if (inDayRange) {
+                            if (i > 0 || (i === 0 && currentTime < slot.startTime)) {
+                                const dayPrefix = i === 0 ? '' : `週${dayNameMap[nextDay]} `;
+                                return { status: 'closed', message: `已打烊 <br>下次開始營業時間： ${dayPrefix}${slot.startTimeStr}`, color: 'text-red-600'};
+                            }
+                        }
+                    }
+                }
+
+                return { status: 'closed', message: '已打烊', color: 'text-red-600' };
+            }
+
+            
+            function applyFilters() {
+                const category = $('#category-select').val();
+                const keyword = $('#keyword-search').val();
+                const isOpenOnly = $('#is-open-checkbox').is(':checked');
+
+                let results = allFeatures;
+
+                if (keyword && fuse) {
+                    const pinyinKeyword = pinyin(keyword, { pattern: 'pinyin', toneType: 'none', removeNonZh: true });
+                    const fuseResult = fuse.search(pinyinKeyword);
+                    results = fuseResult.map(result => result.item);
+                }
+
+                const finalFeatures = results.filter(feature => {
+                    if (!feature.get('approved')) return false;
+                    if (category && feature.get('category') !== category) return false;
+                    if (isOpenOnly && getOpeningStatus(feature.get('hours')).status !== 'open') return false;
+                    return true;
+                });
+                
+                vectorSource.clear();
+                vectorSource.addFeatures(finalFeatures);
+                updateStoreList(); 
+                $('#filter-modal').addClass('hidden');
+            }
+            
+            $('#open-filter-modal').on('click', () => $('#filter-modal').removeClass('hidden'));
+            $('#close-filter-modal, #filter-btn').on('click', () => $('#filter-modal').addClass('hidden'));
+            $('#filter-btn').on('click', applyFilters);
+            $('#reset-btn').on('click', () => {
+                $('#category-select, #keyword-search').val('');
+                $('#is-open-checkbox').prop('checked', false);
+                const approvedFeatures = allFeatures.filter(f => f.get('approved'));
+                vectorSource.clear();
+                vectorSource.addFeatures(approvedFeatures);
+                updateStoreList(); 
+            });
+            $('#close-product-modal').on('click', () => $('#product-modal').addClass('hidden'));
+            $('#close-hours-modal').on('click', () => $('#hours-modal').addClass('hidden'));
+
+            $(document).on('click', '.open-hours-modal', function() {
+                const fullHours = $(this).data('full-hours').replace(/;/g, '\n');
+                $('#hours-modal-title').text($(this).data('name') + ' - 營業時間');
+                $('#hours-modal-content').text(fullHours);
+                $('#hours-modal').removeClass('hidden');
+            });
+
+            $('#center-on-me-btn').on('click', () => {
+                if (userPositionCoords) map.getView().animate({ center: userPositionCoords, zoom: 16, duration: 800 });
+                else showNotification('無法定位您的位置。', 'warning');
+            });
+            $(document).on('click', '#show-more-product', function() {
+                $('#product-modal-title').text($(this).data('name') + ' - 公司產品');
+                $('#product-modal-content').text($(this).data('fulltext'));
+                $('#product-modal').removeClass('hidden');
+            });
+            
+            let tempMarker = null;
+            let isAddModeActive = false;
+            let isDraggingMarker = false;
+
+            function startAddLocationProcess(coordinate) {
+                if (!isLoggedIn) {
+                    showNotification('請先登入才能新增店家！', 'warning');
+                    return;
+                }
+                if(tempMarker) map.removeOverlay(tempMarker);
+                
+                const lonLat = ol.proj.toLonLat(coordinate);
+                const markerEl = document.createElement('div');
+                markerEl.className = 'new-location-marker';
+                
+                tempMarker = new ol.Overlay({
+                    element: markerEl, position: coordinate, positioning: 'bottom-center', stopEvent: false,
+                });
+                map.addOverlay(tempMarker);
+                
+                markerEl.addEventListener('pointerdown', (e) => {
+                    isDraggingMarker = true;
+                    map.getInteractions().forEach(i => { if(i instanceof ol.interaction.DragPan) i.setActive(false); });
+                    document.addEventListener('pointermove', handlePointerMove);
+                    document.addEventListener('pointerup', handlePointerUp);
+                    e.stopPropagation();
+                });
+
+                $('#add-location-form')[0].reset();
+                $('#edit-row-index').val('');
+                $('#edit-original-name').val('');
+                $('#hours-container').empty();
+                createTimeSlot();
+                reverseGeocode(lonLat[0], lonLat[1]);
+                $('#modal-title').text('新增店家');
+                $('#add-location-modal').removeClass('hidden');
+                
+                map.getView().animate({
+                    center: coordinate,
+                    zoom: 17,
+                    duration: 500
+                });
+            }
+
+            function handlePointerMove(e) {
+                if (isDraggingMarker) {
+                    const coordinate = map.getEventCoordinate(e);
+                    tempMarker.setPosition(coordinate);
+                }
+            }
+
+            function handlePointerUp(e) {
+                if (isDraggingMarker) {
+                    map.getInteractions().forEach(i => { if(i instanceof ol.interaction.DragPan) i.setActive(true); });
+                    document.removeEventListener('pointermove', handlePointerMove);
+                    document.removeEventListener('pointerup', handlePointerUp);
+                    
+                    const coordinate = map.getEventCoordinate(e);
+                    const lonLat = ol.proj.toLonLat(coordinate);
+                    reverseGeocode(lonLat[0], lonLat[1]);
+                    
+                    isDraggingMarker = false;
+                }
+            }
+            
+            $('#close-add-location-modal').on('click', () => {
+                $('#add-location-modal').addClass('hidden');
+                if(tempMarker) map.removeOverlay(tempMarker);
+                tempMarker = null;
+            });
+
+            const $addModeBtn = $('#add-location-mode-btn');
+            $addModeBtn.on('click', function() {
+                isAddModeActive = !isAddModeActive;
+                if (isAddModeActive) {
+                    $(this).removeClass('bg-white text-gray-700').addClass('bg-blue-600 text-white');
+                    showNotification('進入新增模式：請點擊地圖上您想新增的位置。');
+                    map.getTargetElement().style.cursor = 'crosshair';
+                } else {
+                    $(this).removeClass('bg-white text-gray-700').addClass('bg-white text-gray-700');
+                    showNotification('已取消新增模式。', 'info');
+                    map.getTargetElement().style.cursor = '';
+                }
+            });
+
+            map.on('dblclick', function(evt) {
+                if (window.innerWidth < 768) {
+                    return;
+                }
+                startAddLocationProcess(evt.coordinate);
+            });
+
+            function animateSpiderLines(clusterFeatures) {
+                const originalLon = clusterFeatures[0].get('lon');
+                const originalLat = clusterFeatures[0].get('lat');
+                if (originalLon === undefined || originalLat === undefined) return;
+
+                const centerCoord = ol.proj.fromLonLat([originalLon, originalLat]);
+                
+                clusterFeatures.forEach((pointFeature, index) => {
+                    setTimeout(() => {
+                        const line = new ol.Feature({
+                            geometry: new ol.geom.LineString([centerCoord, pointFeature.getGeometry().getCoordinates()])
+                        });
+                        lineSource.addFeature(line);
+                    }, index * 100); 
+                });
+            }
+
+            map.on('singleclick', function (evt) {
+                if (isAddModeActive) {
+                    startAddLocationProcess(evt.coordinate);
+                    isAddModeActive = false;
+                    $addModeBtn.removeClass('bg-blue-600 text-white').addClass('bg-white text-gray-700');
+                    map.getTargetElement().style.cursor = '';
+                    return;
+                }
+                
+                const feature = map.forEachFeatureAtPixel(evt.pixel, f => f);
+                infoOverlay.setPosition(undefined);
+                if (feature) {
+                    const features = feature.get('features');
+                    if (features.length > 1) {
+                        const extent = ol.extent.createEmpty();
+                        features.forEach(function(feature) {
+                            ol.extent.extend(extent, feature.getGeometry().getExtent());
+                        });
+
+                        map.getView().fit(extent, {
+                            duration: 500,
+                            padding: [50, 50, 50, 50],
+                            callback: (completed) => {
+                                if (completed) {
+                                    const newZoom = map.getView().getZoom();
+                                    lineSource.clear(); 
+                                    if (newZoom > visibilityThreshold) {
+                                        animateSpiderLines(features);
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        const originalFeature = features[0];
+                        const coordinates = originalFeature.getGeometry().getCoordinates();
+                        const data = originalFeature.getProperties();
+                        
+                        map.getView().animate({ center: coordinates, zoom: 13, duration: 800 });
+
+                        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lon}`;
+                        let productText = data.product || '';
+                        let productDisplay = productText.length > 50 ? productText.substring(0, 50) + '...' : productText;
+                        let showMoreBtn = productText.length > 50 ? `<button id="show-more-product" data-fulltext="${productText}" data-name="${data.name}" class="text-blue-500 hover:underline text-sm ml-1">顯示更多</button>` : '';
+                        
+                        const openingStatus = getOpeningStatus(data.hours);
+                        const hoursHtml = `<p><strong>營業時間:</strong> <span class="font-bold ${openingStatus.color} cursor-pointer open-hours-modal" data-full-hours="${data.hours || ''}" data-name="${data.name}">${openingStatus.message}</span></p>`;
+
+                        const buttonClass = "flex-1 flex items-center justify-center p-2 rounded-md transition-colors text-sm";
+                        const activeClass = "bg-gray-200 hover:bg-gray-300 text-gray-800";
+                        let buttonsHtml = `<a href="${googleMapsUrl}" target="_blank" class="${buttonClass} ${activeClass}" title="導航"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></a>`;
+                        
+                        if(data.contact) {
+                            buttonsHtml += `<a href="tel:${data.contact}" class="${buttonClass} ${activeClass}" title="電話"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg></a>`;
+                        }
+                        if(data.email) {
+                            buttonsHtml += `<a href="mailto:${data.email}" class="${buttonClass} ${activeClass}" title="信箱"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></a>`;
+                        }
+                        if(data.website) {
+                            buttonsHtml += `<a href="${data.website}" target="_blank" class="${buttonClass} ${activeClass}" title="網站"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/></svg></a>`;
+                        }
+                        if(data.line) {
+                            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                            const lineUrl = isMobile ? `line://ti/p/~${data.line}` : `https://line.me/ti/p/~${data.line}`;
+                            buttonsHtml += `<a href="${lineUrl}" target="_blank" class="${buttonClass} bg-green-100 hover:bg-green-200" title="LINE">
+                                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="12" cy="12" r="10" fill="#06C755"/>
+                                    <text x="12" y="15" font-family="Arial, sans-serif" font-size="8" fill="white" text-anchor="middle" font-weight="bold">LINE</text>
+                                </svg>
+                            </a>`;
+                        }
+
+                        popupContent.innerHTML = `
+                            <h3 class="text-lg font-bold text-gray-800">${data.name}</h3>
+                            <p class="text-sm font-semibold mb-2" style="color: ${categoryColors[data.category] || categoryColors['其他']}">${data.category}</p>
+                            <div class="space-y-1 text-sm">
+                                <p><strong>地址:</strong> ${data.address}</p>
+                                <p><strong>聯絡方式:</strong> ${data.contact || '未提供'}</p>
+                                ${hoursHtml}
+                                <div><strong>公司產品:</strong> <span>${productDisplay}</span> ${showMoreBtn}</div>
+                            </div>
+                            <div class="mt-3 flex items-center gap-2">${buttonsHtml}</div>
+                        `;
+                        infoOverlay.setPosition(coordinates);
+                    }
+                }
+            });
+            
+            const createTimeSlot = () => {
+                $('#hours-container').append(`<div class="time-slot-row flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1"><select name="start_day" class="p-2 border border-gray-300 rounded-md text-sm w-20" required><option value="一">一</option><option value="二">二</option><option value="三">三</option><option value="四">四</option><option value="五">五</option><option value="六">六</option><option value="日">日</option></select><span class="hidden sm:inline">-</span><select name="end_day" class="p-2 border border-gray-300 rounded-md text-sm w-20" required><option value="一">一</option><option value="二">二</option><option value="三">三</option><option value="四">四</option><option value="五" selected>五</option><option value="六">六</option><option value="日">日</option></select><input type="time" name="start_time" class="flex-grow p-2 border border-gray-300 rounded-md" value="09:00" required><span class="hidden sm:inline">-</span><input type="time" name="end_time" class="flex-grow p-2 border border-gray-300 rounded-md" value="18:00" required><button type="button" class="remove-time-slot-btn text-red-500 hover:text-red-700 p-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button></div>`);
+            };
+            $('#add-time-slot-btn').on('click', createTimeSlot);
+            $('#hours-container').on('click', '.remove-time-slot-btn', function() {
+                if ($('.time-slot-row').length <= 1) {
+                    showNotification('至少需要一個營業時段。', 'warning');
+                    return;
+                }
+                $(this).closest('.time-slot-row').remove();
+            });
+            
+            async function reverseGeocode(lon, lat) {
+                const apiKey = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
+                try {
+                    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${apiKey}&language=zh-TW`);
+                    if (!response.ok) throw new Error('Geocoding API response not OK');
+                    const data = await response.json();
+                    $('#add-address').val(data.results && data.results.length > 0 ? data.results[0].formatted_address : '無法自動定位地址');
+                } catch (error) {
+                    $('#add-address').val('無法自動定位地址');
+                    showNotification('無法解析地址，請手動輸入。', 'warning');
+                }
+            }
+            $('#add-address').on('change', function() {
+                if ($(this).val()) {
+                    const apiKey = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
+                    fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent($(this).val())}&key=${apiKey}&region=TW`)
+                    .then(res => res.json()).then(data => {
+                        if (data.results && data.results.length > 0) {
+                            const location = data.results[0].geometry.location;
+                            const coords = ol.proj.fromLonLat([location.lng, location.lat]);
+                            if (tempMarker) tempMarker.setPosition(coords);
+                            map.getView().animate({ center: coords, zoom: 17 });
+                        } else showNotification('找不到輸入的地址', 'error');
+                    }).catch(err => showNotification('地址解析失敗', 'error'));
+                }
+            });
+
+            $('#add-location-form').on('submit', function(e) {
+                e.preventDefault(); 
+                const $submitBtn = $('#submit-location-btn');
+                
+                let isValid = true;
+                
+                // --- Validation Logic ---
+
+                // 1. Contact Number Validation
+                const $contactInput = $('#add-contact');
+                const contactValue = $contactInput.val();
+                const phoneRegex = /^(09\d{8}|0\d{1,2}-?\d{6,8})$/;
+                $contactInput.removeClass('border-red-500');
+
+                if (!phoneRegex.test(contactValue)) {
+                    showNotification('聯絡方式格式不正確，請檢查手機或市話號碼。', 'error');
+                    $contactInput.addClass('border-red-500');
+                    isValid = false;
+                }
+
+                // 2. Product Info Validation
+                const $productInput = $('#add-product');
+                $productInput.removeClass('border-red-500');
+                const productValue = $productInput.val().trim();
+                if (productValue.length < 6) {
+                    showNotification('公司產品至少需要6個文字。', 'error');
+                    $productInput.addClass('border-red-500');
+                    isValid = false;
+                }
+
+                // 3. Business Hours Overlap Validation
+                const dayMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7 };
+                const selectedDays = new Set();
+                let hoursAreValid = true;
+
+                $('.time-slot-row').each(function() {
+                    const startDayStr = $(this).find('[name="start_day"]').val();
+                    const endDayStr = $(this).find('[name="end_day"]').val();
+                    const startTime = $(this).find('[name="start_time"]').val();
+                    const endTime = $(this).find('[name="end_time"]').val();
+
+                    if(!startDayStr || !endDayStr || !startTime || !endTime) {
+                        hoursAreValid = false; // Incomplete row
+                        return false; 
+                    }
+
+                    let startDay = dayMap[startDayStr];
+                    let endDay = dayMap[endDayStr];
+
+                    if (endDay < startDay) { // Week wrap-around (e.g., Fri to Tue)
+                        for (let i = startDay; i <= 7; i++) {
+                            if (selectedDays.has(i)) { hoursAreValid = false; return false; }
+                            selectedDays.add(i);
+                        }
+                        for (let i = 1; i <= endDay; i++) {
+                             if (selectedDays.has(i)) { hoursAreValid = false; return false; }
+                            selectedDays.add(i);
+                        }
+                    } else { // Normal range (e.g., Mon to Fri)
+                        for (let i = startDay; i <= endDay; i++) {
+                            if (selectedDays.has(i)) { hoursAreValid = false; return false; }
+                            selectedDays.add(i);
+                        }
+                    }
+                });
+
+                if (!hoursAreValid) {
+                    showNotification('營業時間的星期有重疊或未填寫完整，請重新設定。', 'error');
+                    isValid = false;
+                }
+
+                if (!isValid) {
+                    return; // Stop submission if any validation fails
+                }
+
+                // --- End of Validation Logic ---
+
+                $submitBtn.prop('disabled', true).find('.submit-text').addClass('hidden');
+                $submitBtn.find('.spinner').removeClass('hidden');
+                let hoursStrings = [];
+                $('.time-slot-row').each(function() {
+                    const startDay = $(this).find('[name="start_day"]').val(), endDay = $(this).find('[name="end_day"]').val(),
+                          startTime = $(this).find('[name="start_time"]').val(), endTime = $(this).find('[name="end_time"]').val();
+                    hoursStrings.push(`週${startDay}~週${endDay} ${startTime}-${endTime}`);
+                });
+
+                const lonLat = ol.proj.toLonLat(tempMarker.getPosition());
+                const formData = new FormData(this);
+                const rowIndex = $('#edit-row-index').val();
+                const originalName = $('#edit-original-name').val();
+                
+                let action = 'create';
+                if (rowIndex) { // If there's a rowIndex, it's an admin edit
+                    action = 'admin_modify';
+                } else if (originalName) { // If there's an original name, it's a user update
+                    action = 'update';
+                }
+
+                const newData = {
+                    action: action,
+                    rowIndex: rowIndex, 
+                    originalName: originalName, 
+                    submitterName: userProfile.name || 'N/A', 
+                    submitterEmail: userProfile.email || 'N/A',
+                    adminEmail: userProfile.email, 
+                    name: formData.get('name'), category: formData.get('category'), address: formData.get('address'),
+                    contact: formData.get('contact'), product: formData.get('product'), 
+                    line: formData.get('line'),
+                    email: formData.get('email'), website: formData.get('website'), hours: hoursStrings.join('; '),
+                    lon: lonLat[0], lat: lonLat[1],
+                };
+                
+                fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(newData) })
+                .then(() => {
+                    showNotification("資料已成功送出！感謝您的貢獻。", 'success');
+                    $('#add-location-modal').addClass('hidden');
+                    if(tempMarker) map.removeOverlay(tempMarker);
+                    tempMarker = null;
+                    setTimeout(loadData, 2000);
+                }).catch(error => {
+                    showNotification('送出失敗，請稍後再試。', 'error');
+                }).finally(() => {
+                    $submitBtn.prop('disabled', false).find('.submit-text').removeClass('hidden').end().find('.spinner').addClass('hidden');
+                });
+            });
+
+            function initializeUserLocation() {
+                if (!navigator.geolocation) return showNotification('您的瀏覽器不支援地理定位', 'warning');
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        userPositionCoords = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
+                        map.getView().animate({ center: userPositionCoords, zoom: 13, duration: 1500 });
+                        userLocationOverlay.setPosition(userPositionCoords);
+                        $('#user-location').removeClass('hidden');
+                    },
+                    (err) => showNotification('無法取得您的位置，將顯示全台地圖。'),
+                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                );
+            }
+            
+            async function checkIfAdmin(email) {
+                try {
+                    const response = await fetch(`${APPS_SCRIPT_URL}?action=checkAdmin&email=${encodeURIComponent(email)}`);
+                    if (!response.ok) throw new Error('Admin check failed');
+                    const result = await response.json();
+                    
+                    if (result.isAdmin) {
+                        isAdmin = true;
+                        $('#review-btn').removeClass('hidden');
+                    } else {
+                        isAdmin = false;
+                        $('#review-btn').addClass('hidden');
+                    }
+                } catch (error) {
+                    showNotification('無法驗證管理員身份', 'error');
+                }
+            }
+
+            window.addEventListener('google-signin-success', (e) => {
+                userProfile = e.detail;
+                isLoggedIn = true;
+                $('.g_id_signin').hide();
+                $('#add-info').removeClass('hidden').addClass('flex');
+                $('#user-name').text(userProfile.name);
+                checkIfAdmin(userProfile.email);
+            });
+
+            $('#sign-out-btn').on('click', (e) => {
+                e.preventDefault();
+                google.accounts.id.disableAutoSelect();
+                google.accounts.id.revoke(userProfile.email, () => {});
+                isLoggedIn = false; 
+                userProfile = {};
+                isAdmin = false;
+                $('.g_id_signin').show();
+                $('#add-info').removeClass('flex').addClass('hidden');
+                $('#review-btn').addClass('hidden');
+                showNotification('您已成功登出。');
+            });
+            
+            function updateStoreList() {
+                const extent = map.getView().calculateExtent(map.getSize());
+                const $listContent = $('#store-list-content');
+                const activeCategory = $('#store-list-filters .active').data('category');
+                $listContent.html('');
+                
+                let count = 0;
+                vectorSource.forEachFeatureInExtent(extent, function(feature) {
+                    if (count < 200) { 
+                        const category = feature.get('category');
+                        if (!activeCategory || category === activeCategory) {
+                             const name = feature.get('name');
+                             const color = categoryColors[category] || categoryColors['其他'];
+                             const listItem = $(`
+                                <div class="flex items-center text-sm py-1.5 px-2 cursor-pointer hover:bg-gray-200 rounded-md">
+                                    <span class="h-2.5 w-2.5 rounded-full mr-2 flex-shrink-0" style="background-color: ${color}"></span>
+                                    <span class="truncate">${name}</span>
+                                </div>
+                             `);
+                             listItem.on('click', () => {
+                                 const coordinates = feature.getGeometry().getCoordinates();
+                                 map.getView().animate({ center: coordinates, zoom: 18, duration: 800 });
+                                 setTimeout(() => {
+                                     infoOverlay.setPosition(coordinates);
+                                     const data = feature.getProperties();
+                                     const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lon}`;
+                                     let productText = data.product || '';
+                                     let productDisplay = productText.length > 50 ? productText.substring(0, 50) + '...' : productText;
+                                     let showMoreBtn = productText.length > 50 ? `<button id="show-more-product" data-fulltext="${productText}" data-name="${data.name}" class="text-blue-500 hover:underline text-sm ml-1">顯示更多</button>` : '';
+                                     const openingStatus = getOpeningStatus(data.hours);
+                                     const hoursHtml = `<p><strong>營業時間:</strong> <span class="font-bold ${openingStatus.color} cursor-pointer open-hours-modal" data-full-hours="${data.hours || ''}" data-name="${data.name}">${openingStatus.message}</span></p>`;
+                                     const buttonClass = "flex-1 flex items-center justify-center p-2 rounded-md transition-colors text-sm";
+                                     const activeClass = "bg-gray-200 hover:bg-gray-300 text-gray-800";
+                                     let buttonsHtml = `<a href="${googleMapsUrl}" target="_blank" class="${buttonClass} ${activeClass}" title="導航"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></a>`;
+                                     if(data.contact) {
+                                        buttonsHtml += `<a href="tel:${data.contact}" class="${buttonClass} ${activeClass}" title="電話"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg></a>`;
+                                     }
+                                     if(data.email) {
+                                        buttonsHtml += `<a href="mailto:${data.email}" class="${buttonClass} ${activeClass}" title="信箱"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></a>`;
+                                     }
+                                     if(data.website) {
+                                        buttonsHtml += `<a href="${data.website}" target="_blank" class="${buttonClass} ${activeClass}" title="網站"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/></svg></a>`;
+                                     }
+                                     if(data.line) {
+                                        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                                        const lineUrl = isMobile ? `line://ti/p/~${data.line}` : `https://line.me/ti/p/~${data.line}`;
+                                        buttonsHtml += `<a href="${lineUrl}" target="_blank" class="${buttonClass} bg-green-100 hover:bg-green-200" title="LINE">
+                                            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <circle cx="12" cy="12" r="10" fill="#06C755"/>
+                                                <text x="12" y="15" font-family="Arial, sans-serif" font-size="8" fill="white" text-anchor="middle" font-weight="bold">LINE</text>
+                                            </svg>
+                                        </a>`;
+                                     }
+                                     popupContent.innerHTML = `<h3 class="text-lg font-bold text-gray-800">${data.name}</h3><p class="text-sm font-semibold mb-2" style="color: ${categoryColors[data.category] || categoryColors['其他']}">${data.category}</p><div class="space-y-1 text-sm"><p><strong>地址:</strong> ${data.address}</p><p><strong>聯絡方式:</strong> ${data.contact || '未提供'}</p>${hoursHtml}<div><strong>公司產品:</strong> <span>${productDisplay}</span> ${showMoreBtn}</div></div><div class="mt-3 flex items-center gap-2">${buttonsHtml}</div>`;
+                                 }, 200);
+                             });
+                             $listContent.append(listItem);
+                             count++;
+                        }
+                    }
+                });
+            }
+
+            map.on('moveend', updateStoreList);
+
+            $('#store-list-filters').on('click', '.store-filter-btn', function() {
+                const $clickedBtn = $(this);
+                const clickedCategory = $clickedBtn.data('category');
+                
+                $('.store-filter-btn').removeClass('active text-white text-red-600 bg-blue-600').addClass('text-black bg-white');
+
+                $clickedBtn.addClass('active');
+                if (clickedCategory === '') {
+                    $clickedBtn.removeClass('bg-white text-black').addClass('bg-blue-600 text-white');
+                } else {
+                    $clickedBtn.removeClass('text-black').addClass('text-red-600');
+                }
+                
+                updateStoreList();
+            });
+            
+            $('#toggle-store-list-btn').on('click', function() {
+                const $panel = $('#store-list-panel');
+                const $content = $('#store-list-content');
+                
+                $content.toggleClass('hidden');
+                $('#minimize-icon').toggleClass('hidden');
+                $('#maximize-icon').toggleClass('hidden');
+                
+                if ($content.hasClass('hidden')) {
+                    $panel.css('max-height', '55px'); 
+                } else {
+                    $panel.css('max-height', '14rem'); 
+                }
+            });
+
+            map.getView().on('change:resolution', () => {
+                const zoom = map.getView().getZoom();
+                if (zoom <= visibilityThreshold) {
+                    lineSource.clear();
+                }
+            });
+            
+            $('#manage-btn').on('click', function() {
+                const userStores = allFeatures.filter(f => f.get('submitterEmail') === userProfile.email);
+                const $content = $('#management-list-content');
+                $content.html('');
+
+                if (userStores.length === 0) {
+                    $content.html('<p class="text-gray-500">您尚未提交任何店家。</p>');
+                } else {
+                    userStores.forEach(feature => {
+                        const data = feature.getProperties();
+                        const status = data.approved ? '<span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full">已審核</span>' : '<span class="text-xs font-semibold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">審核中</span>';
+                        const itemHtml = `
+                            <div class="flex justify-between items-center py-2 border-b">
+                                <div>
+                                    <p class="font-bold">${data.name}</p>
+                                    <p class="text-sm text-gray-500">${data.address}</p>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    ${status}
+                                    <button class="edit-store-btn text-sm text-blue-600 hover:underline" data-id="${feature.getId()}">編輯</button>
+                                </div>
+                            </div>
+                        `;
+                        $content.append(itemHtml);
+                    });
+                }
+                $('#management-modal').removeClass('hidden');
+            });
+
+            $('#close-management-modal').on('click', () => $('#management-modal').addClass('hidden'));
+            
+            $('#management-list-content').on('click', '.edit-store-btn', function() {
+                const featureId = $(this).data('id');
+                const featureToEdit = allFeatures.find(f => f.getId() == featureId);
+                
+                if (featureToEdit) {
+                    openEditModalForUser(featureToEdit);
+                } else {
+                    showNotification('找不到店家資料，可能已被刪除。', 'error');
+                }
+            });
+
+            // --- Review Modal Logic ---
+
+            $('#review-btn').on('click', function() {
+                $('#review-modal').removeClass('hidden');
+                loadReviewData('pending');
+                $('#pending-tab').addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500');
+                $('#approved-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500');
+            });
+
+            $('#close-review-modal').on('click', () => $('#review-modal').addClass('hidden'));
+            
+            $('#pending-tab').on('click', function() {
+                $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
+                $('#approved-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
+                loadReviewData('pending');
+            });
+
+            $('#approved-tab').on('click', function() {
+                $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
+                $('#pending-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
+                loadReviewData('approved');
+            });
+
+            function loadReviewData(status = 'pending') {
+                const $listPanel = $('#review-list-panel');
+                const $detailPanel = $('#review-detail-panel');
+                $listPanel.html('');
+                $detailPanel.html('<p class="text-gray-500">請從左側列表選擇一個店家以查看詳細資訊。</p>');
+
+                const storesToReview = allFeatures.filter(f => {
+                    const isApproved = f.get('approved');
+                    return status === 'pending' ? !isApproved : isApproved;
+                });
+
+                if (storesToReview.length === 0) {
+                    $listPanel.html(`<p class="p-4 text-sm text-gray-500">沒有${status === 'pending' ? '待審核' : '已審核'}的店家。</p>`);
+                    return;
+                }
+
+                storesToReview.forEach(feature => {
+                    const data = feature.getProperties();
+                    const listItem = $(`
+                        <div class="p-4 border-b cursor-pointer hover:bg-gray-100 review-item" data-id="${feature.getId()}">
+                            <p class="font-semibold text-gray-800">${data.name}</p>
+                            <p class="text-sm text-gray-600 truncate">${data.address}</p>
+                            <p class="text-xs text-gray-400 mt-1">提交者: ${data.submitterEmail || 'N/A'}</p>
+                        </div>
+                    `);
+                    $listPanel.append(listItem);
+                });
+            }
+
+            $('#review-list-panel').on('click', '.review-item', function() {
+                $('.review-item').removeClass('bg-indigo-50');
+                $(this).addClass('bg-indigo-50');
+                const featureId = $(this).data('id');
+                const feature = allFeatures.find(f => f.getId() == featureId);
+                if (feature) {
+                    displayReviewDetails(feature);
+                }
+            });
+
+            function displayReviewDetails(feature) {
+                const $detailPanel = $('#review-detail-panel');
+                const data = feature.getProperties();
+                const formatOptional = (label, value) => value ? `<p><strong>${label}:</strong> ${value}</p>` : '';
+                
+                let actionButtons = '';
+                if (!data.approved) { // 待審核
+                    actionButtons = `
+                        <button class="admin-action-btn flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700" data-action="approve" data-row-index="${data.rowIndex}">審核通過</button>
+                        <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${data.rowIndex}">不通過</button>
+                    `;
+                } else { // 已審核
+                    actionButtons = `
+                        <button id="edit-in-review-btn" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700" data-id="${feature.getId()}">編輯</button>
+                        <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${data.rowIndex}">刪除</button>
+                    `;
+                }
+
+                const detailHtml = `
+                    <div class="space-y-3 text-sm">
+                        <h3 class="text-xl font-bold text-gray-900">${data.name}</h3>
+                        <p class="font-semibold" style="color: ${categoryColors[data.category] || categoryColors['其他']}">${data.category}</p>
+                        <hr>
+                        <p><strong>地址:</strong> ${data.address}</p>
+                        <p><strong>聯絡方式:</strong> ${data.contact}</p>
+                        <p><strong>營業時間:</strong> ${data.hours || '未提供'}</p>
+                        <p><strong>公司產品:</strong></p>
+                        <p class="whitespace-pre-wrap bg-gray-50 p-2 rounded">${data.product}</p>
+                        <hr>
+                        ${formatOptional('信箱', data.email)}
+                        ${formatOptional('網頁', data.website)}
+                        ${formatOptional('LINE帳號', data.line)}
+                        <hr>
+                        <p><strong>座標:</strong> ${data.lon ? data.lon.toFixed(5) : 'N/A'}, ${data.lat ? data.lat.toFixed(5) : 'N/A'}</p>
+                        <p><strong>提交者:</strong> ${data.submitterName || 'N/A'} (${data.submitterEmail || 'N/A'})</p>
+                        <p><strong>提交時間:</strong> ${new Date(data.submissionId).toLocaleString()}</p>
+                        <p><strong>試算表列數:</strong> ${data.rowIndex}</p>
+                    </div>
+                    <div class="mt-6 flex space-x-4">
+                        ${actionButtons}
+                    </div>
+                `;
+                $detailPanel.html(detailHtml);
+            }
+            
+            $('#review-detail-panel').on('click', '.admin-action-btn', function() {
+                const action = $(this).data('action');
+                const rowIndex = $(this).data('row-index');
+                
+                if (action === 'delete') {
+                    if (!window.confirm('確定要刪除這筆資料嗎？此操作將無法復原。')) {
+                        return;
+                    }
+                }
+                sendAdminAction(action, rowIndex);
+            });
+
+            $('#review-detail-panel').on('click', '#edit-in-review-btn', function() {
+                const featureId = $(this).data('id');
+                const featureToEdit = allFeatures.find(f => f.getId() == featureId);
+                if (featureToEdit) {
+                    $('#review-modal').addClass('hidden');
+                    openEditModalForAdmin(featureToEdit);
+                }
+            });
+            
+            function sendAdminAction(action, rowIndex) {
+                showNotification(`正在執行操作...`);
+
+                const payload = {
+                    action: action,
+                    rowIndex: rowIndex,
+                    adminEmail: userProfile.email
+                };
+
+                fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
+                .then(() => {
+                    showNotification("操作成功！資料將在幾分鐘後更新。", 'success');
+                    $('#review-modal').addClass('hidden');
+                    setTimeout(loadData, 2000);
+                }).catch(error => {
+                    showNotification('操作失敗，請稍後再試。', 'error');
+                });
+            }
+
+            function openEditModalForUser(featureToEdit) {
+                const data = featureToEdit.getProperties();
+                $('#edit-row-index').val('');
+                $('#edit-original-name').val(data.name);
+                $('#management-modal').addClass('hidden');
+                fillEditModal(data);
+                $('#modal-title').text('編輯店家');
+            }
+
+            function openEditModalForAdmin(featureToEdit) {
+                const data = featureToEdit.getProperties();
+                $('#edit-original-name').val('');
+                $('#edit-row-index').val(data.rowIndex);
+                fillEditModal(data);
+                $('#modal-title').text('編輯店家 (管理員)');
+            }
+
+            function fillEditModal(data) {
+                $('#add-name').val(data.name);
+                $('#add-category').val(data.category);
+                $('#add-address').val(data.address);
+                $('#add-contact').val(data.contact);
+                $('#add-product').val(data.product);
+                $('#add-email').val(data.email);
+                $('#add-website').val(data.website);
+                $('#add-line').val(data.line);
+
+                $('#hours-container').empty();
+                if (data.hours) {
+                    const hoursParts = data.hours.split(';');
+                    hoursParts.forEach(part => {
+                        createTimeSlot();
+                        const row = $('.time-slot-row:last');
+                        const match = part.match(/週([一二三四五六日])[~-]([一二三四五六日])\s*(\d{2}:\d{2})-(\d{2}:\d{2})/);
+                        if(match) {
+                            row.find('[name="start_day"]').val(match[1]);
+                            row.find('[name="end_day"]').val(match[2]);
+                            row.find('[name="start_time"]').val(match[3]);
+                            row.find('[name="end_time"]').val(match[4]);
+                        }
+                    });
+                } else {
+                     createTimeSlot();
+                }
+
+                if (tempMarker) map.removeOverlay(tempMarker);
+                const coordinate = ol.proj.fromLonLat([data.lon, data.lat]);
+                const markerEl = document.createElement('div');
+                markerEl.className = 'new-location-marker';
+                tempMarker = new ol.Overlay({
+                    element: markerEl, position: coordinate, positioning: 'bottom-center', stopEvent: false,
+                });
+                map.addOverlay(tempMarker);
+
+                $('#add-location-modal').removeClass('hidden');
+                map.getView().animate({ center: coordinate, zoom: 17 });
+            }
+
+            loadData();
+            initializeUserLocation();
+        };
+    </script>
+</body>
+</html>
