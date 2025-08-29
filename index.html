@@ -1451,6 +1451,12 @@
                     loadData(); 
                     return;
                 }
+                
+                // --- MODIFIED: More informative error message for in-app browsers ---
+                const ua = navigator.userAgent || navigator.vendor || window.opera;
+                const isFacebookApp = (ua.indexOf("FBAN") > -1) || (ua.indexOf("FBAV") > -1);
+                const isLineApp = (ua.indexOf("Line") > -1);
+
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
                         userPositionCoords = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
@@ -1462,8 +1468,12 @@
                         loadData(city);
                     },
                     (err) => {
-                        showNotification('無法取得您的位置，將顯示全台地圖。');
-                        loadData(); 
+                        if (isFacebookApp || isLineApp) {
+                            showNotification("無法在此應用程式中取得定位。請嘗試使用手機的預設瀏覽器（如 Chrome 或 Safari）開啟。", 'warning');
+                        } else {
+                            showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
+                        }
+                        loadData(); // Load all data on error
                     },
                     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
                 );
