@@ -211,6 +211,13 @@
                 display: none; /* Hide mobile modal on desktop */
             }
         }
+        /* NEW: Vote button styles */
+        .vote-btn.voted-like svg {
+            fill: #10B981; /* A brighter green */
+        }
+        .vote-btn.voted-dislike svg {
+            fill: #EF4444; /* A brighter red */
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -675,12 +682,33 @@
             let tempMarker = null; // Draggable marker for mobile
             let isDraggingMarker = false;
             
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzMLe7K_kn504EGA6FG4jLS9HPGfpCbBQakaT162dOkxDsHikXFfTVBCKu06UPYHMWXjQ/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwXZc-NRJx1LOtqiCJMRKIpsmOnrUEUbNF6vKCQkuYvOh442VVLErP-C7C-gtgRHNcH/exec';
             
             const visibilityThreshold = 16.5; 
 
-            // --- NEW: Global variable for popup state ---
+            // --- NEW: Global variable for popup state and votes ---
             let currentPopupReports = [];
+            let userVotes = {};
+            const VOTES_STORAGE_KEY = 'userBlacklistVotes';
+
+            function loadUserVotes() {
+                try {
+                    const storedVotes = localStorage.getItem(VOTES_STORAGE_KEY);
+                    userVotes = storedVotes ? JSON.parse(storedVotes) : {};
+                } catch (e) {
+                    console.error("Could not load user votes:", e);
+                    userVotes = {};
+                }
+            }
+
+            function saveUserVotes() {
+                try {
+                    localStorage.setItem(VOTES_STORAGE_KEY, JSON.stringify(userVotes));
+                } catch (e) {
+                    console.error("Could not save user votes:", e);
+                }
+            }
+
 
             function showNotification(message, type = 'info') {
                 const $notification = $('#notification');
@@ -709,16 +737,12 @@
                     
                     const groupedData = new Map();
                     results.forEach(data => {
-                        if (data['地址']) {
-                            const lon = parseFloat(data['經度']);
-                            const lat = parseFloat(data['緯度']);
-                            if (!isNaN(lon) && !isNaN(lat)) {
-                                const key = `${lon.toFixed(5)},${lat.toFixed(5)}`;
-                                if (!groupedData.has(key)) {
-                                    groupedData.set(key, []);
-                                }
-                                groupedData.get(key).push(data);
+                        const baseAddress = (data['地址'] || '').split(/樓|之|-/)[0].trim();
+                        if (baseAddress) {
+                            if (!groupedData.has(baseAddress)) {
+                                groupedData.set(baseAddress, []);
                             }
+                            groupedData.get(baseAddress).push(data);
                         }
                     });
 
@@ -726,29 +750,30 @@
                     allFeatures = [];
                     const pinyinOptions = { pattern: 'pinyin', toneType: 'none', removeNonZh: true };
 
-                    groupedData.forEach((group, key) => {
+                    groupedData.forEach((group, baseAddress) => {
                         const firstReport = group[0];
                         const lon = parseFloat(firstReport['經度']);
                         const lat = parseFloat(firstReport['緯度']);
 
-                        const totalLikes = group.reduce((sum, report) => sum + (report.likes || 0), 0);
-                        const totalDislikes = group.reduce((sum, report) => sum + (report.dislikes || 0), 0);
+                        if (isNaN(lon) || isNaN(lat)) return;
+
+                        const totalLikes = group.reduce((sum, report) => sum + (parseInt(report.likes, 10) || 0), 0);
+                        const totalDislikes = group.reduce((sum, report) => sum + (parseInt(report.dislikes, 10) || 0), 0);
 
                         const feature = new ol.Feature({
                             geometry: new ol.geom.Point(ol.proj.fromLonLat([lon, lat])),
-                            name: firstReport['地址'], 
+                            name: baseAddress, 
                             category: firstReport['分類'] || '其他', 
-                            address: firstReport['地址'],
+                            address: baseAddress,
                             likes: totalLikes,
                             dislikes: totalDislikes,
                             lon: lon, 
                             lat: lat,
                             approved: firstReport['審核'] ? String(firstReport['審核']).toUpperCase() === 'TRUE' : false,
-                            rowIndex: firstReport.rowIndex, // Use first report's rowIndex as an identifier
-                            reports: group, // Store all reports
-                            address_pinyin: pinyin(firstReport['地址'] || '', pinyinOptions),
+                            reports: group, 
+                            address_pinyin: pinyin(baseAddress || '', pinyinOptions),
                         });
-                        feature.setId(firstReport.rowIndex);
+                        feature.setId(baseAddress); // Use base address as a unique ID for the location
                         allFeatures.push(feature);
                     });
                     
@@ -1061,9 +1086,8 @@
             /**
              * Renders the list view in the popup for locations with multiple reports.
              */
-            function renderPopupListView() {
-                const baseReport = currentPopupReports[0];
-                const shortAddress = formatAddress(baseReport['地址']);
+            function renderPopupListView(featureData) {
+                const shortAddress = formatAddress(featureData.address);
 
                 let listHtml = currentPopupReports.map((report, index) => {
                     const fullAddr = report['地址'] || '';
@@ -1081,7 +1105,8 @@
 
                 popupContent.innerHTML = `
                     <h3 class="text-lg font-bold text-gray-800">${shortAddress}</h3>
-                    <p class="text-sm text-gray-600 mb-2">此地點有多筆回報，請選擇查看：</p>
+                    ${renderVoteSection(featureData)}
+                    <p class="text-sm text-gray-600 my-2 border-t pt-2">此地點有多筆回報，請選擇查看：</p>
                     <ul class="text-sm max-h-40 overflow-y-auto custom-scrollbar pr-2">${listHtml}</ul>
                 `;
             }
@@ -1090,7 +1115,7 @@
              * Renders the detail view in the popup for a single report.
              * @param {number} index The index of the report in the currentPopupReports array.
              */
-            function renderPopupDetailView(index) {
+            function renderPopupDetailView(index, featureData) {
                 const report = currentPopupReports[index];
                 if (!report) return;
 
@@ -1099,7 +1124,6 @@
                 // Use encodeURIComponent for safely embedding text in data attributes
                 let showMoreBtn = reason.length > 50 ? `<button id="show-more-product" data-fulltext="${encodeURIComponent(reason)}" class="text-blue-500 hover:underline text-sm ml-1">顯示更多</button>` : '';
                 
-                // Use the new timestamp if available, otherwise fall back to the old one
                 const reportDate = report.timestamp || report.Timestamp;
                 const dateString = reportDate ? new Date(reportDate).toLocaleDateString() : '日期不明';
 
@@ -1107,6 +1131,7 @@
 
                 popupContent.innerHTML = `
                     <h3 class="text-lg font-bold text-gray-800">${formatAddress(report['地址'])}</h3>
+                     ${currentPopupReports.length === 1 ? renderVoteSection(featureData) : ''}
                     ${backButton}
                     <div class="border-t pt-2 mt-2">
                         <p class="text-xs text-gray-500">${report.submitterName || '匿名'} &bull; ${dateString}</p>
@@ -1116,20 +1141,126 @@
                 `;
             }
 
-            // Delegated event listener for popup content (list items and back button)
+            // --- NEW: Vote Section and Logic ---
+            function renderVoteSection(featureData) {
+                const likes = featureData.likes || 0;
+                const dislikes = featureData.dislikes || 0;
+                const score = likes - dislikes;
+                let scoreColor = 'text-gray-600';
+                if (score > 0) scoreColor = 'text-green-600';
+                if (score < 0) scoreColor = 'text-red-600';
+
+                const locationId = featureData.address; // Use base address as ID
+                const userVote = userVotes[locationId];
+                const likeClass = userVote === 'like' ? 'voted-like' : '';
+                const dislikeClass = userVote === 'dislike' ? 'voted-dislike' : '';
+
+                return `
+                    <div class="flex items-center justify-between text-sm mt-2">
+                        <span>總評分 (<span class="score-display ${scoreColor} font-bold">${score}</span>)</span>
+                        <div class="flex items-center space-x-2">
+                            <button class="vote-btn p-1 rounded-full hover:bg-gray-200 ${likeClass}" data-location-id="${locationId}" data-vote-type="like">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.364a1 1 0 00.949-.684l2.121-6.364A1 1 0 0015.364 9H12V4a1 1 0 00-1-1h-1a1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.4 10.333zM6 8h2.545M5 10.5a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 013 0v3a1.5 1.5 0 01-1.5 1.5z"/></svg>
+                            </button>
+                             <span class="likes-count text-sm text-gray-600">${likes}</span>
+                            <button class="vote-btn p-1 rounded-full hover:bg-gray-200 ${dislikeClass}" data-location-id="${locationId}" data-vote-type="dislike">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1h-6.364a1 1 0 00-.949.684L3.565 9H6v7a1 1 0 001 1h1a1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.6-4.8zM14 12h-2.545M15 9.5a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-3 0v-3a1.5 1.5 0 011.5-1.5z"/></svg>
+                            </button>
+                             <span class="dislikes-count text-sm text-gray-600">${dislikes}</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+
+            // Delegated event listener for popup content
             $('#popup').on('click', function(e) {
                 const $target = $(e.target);
+                const featureData = allFeatures.find(f => f.getId() === currentPopupReports[0]['地址'].split(/樓|之|-/)[0].trim())?.getProperties();
                 
                 const $reportItem = $target.closest('.report-item');
                 if ($reportItem.length) {
-                    renderPopupDetailView($reportItem.data('index'));
+                    renderPopupDetailView($reportItem.data('index'), featureData);
                     return;
                 }
 
-                if ($target.hasClass('back-to-list-btn')) {
-                    renderPopupListView();
+                if ($target.closest('.back-to-list-btn').length) {
+                    renderPopupListView(featureData);
+                    return;
+                }
+
+                const $voteBtn = $target.closest('.vote-btn');
+                if ($voteBtn.length) {
+                    if (!isLoggedIn) {
+                        showNotification('請先登入才能評分！', 'warning');
+                        return;
+                    }
+                    
+                    const locationId = $voteBtn.data('location-id');
+                    const voteType = $voteBtn.data('vote-type');
+                    const previousVote = userVotes[locationId];
+
+                    let likeChange = 0;
+                    let dislikeChange = 0;
+
+                    // Determine changes based on previous vote
+                    if (previousVote === voteType) { // Retracting vote
+                        userVotes[locationId] = null;
+                        voteType === 'like' ? likeChange = -1 : dislikeChange = -1;
+                    } else if (previousVote) { // Switching vote
+                        userVotes[locationId] = voteType;
+                        if (voteType === 'like') {
+                            likeChange = 1;
+                            dislikeChange = -1;
+                        } else {
+                            likeChange = -1;
+                            dislikeChange = 1;
+                        }
+                    } else { // New vote
+                        userVotes[locationId] = voteType;
+                        voteType === 'like' ? likeChange = 1 : dislikeChange = 1;
+                    }
+                    
+                    saveUserVotes();
+                    
+                    // Update UI immediately
+                    const $popup = $voteBtn.closest('.ol-popup');
+                    const currentLikes = parseInt($popup.find('.likes-count').text());
+                    const currentDislikes = parseInt($popup.find('.dislikes-count').text());
+                    const newLikes = currentLikes + likeChange;
+                    const newDislikes = currentDislikes + dislikeChange;
+                    
+                    $popup.find('.likes-count').text(newLikes);
+                    $popup.find('.dislikes-count').text(newDislikes);
+                    $popup.find('.score-display').text(newLikes - newDislikes);
+                    
+                    $popup.find('.vote-btn').removeClass('voted-like voted-dislike');
+                    if(userVotes[locationId] === 'like') $popup.find('.vote-btn[data-vote-type="like"]').addClass('voted-like');
+                    if(userVotes[locationId] === 'dislike') $popup.find('.vote-btn[data-vote-type="dislike"]').addClass('voted-dislike');
+
+                    // Send updates to backend
+                    if(likeChange !== 0) sendVote(locationId, 'like', likeChange);
+                    if(dislikeChange !== 0) sendVote(locationId, 'dislike', dislikeChange);
                 }
             });
+
+            function sendVote(locationId, voteType, change) {
+                const feature = allFeatures.find(f => f.getId() === locationId);
+                if (!feature) return;
+
+                // Send vote for each report in the group
+                feature.get('reports').forEach(report => {
+                    const payload = {
+                        action: 'vote',
+                        rowIndex: report.rowIndex,
+                        voteType: voteType,
+                        change: change
+                    };
+                    fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
+                    .catch(error => console.error('Vote submission failed:', error));
+                });
+            }
+
 
             // REFACTORED: map click handler
             map.on('singleclick', function (evt) {
@@ -1148,17 +1279,15 @@
                         const coordinates = originalFeature.getGeometry().getCoordinates();
                         const data = originalFeature.getProperties();
                         
-                        // Set global state for the popup
                         currentPopupReports = Array.isArray(data.reports) ? [...data.reports] : [data];
                         currentPopupReports.sort(compareAddresses);
                         
                         map.getView().animate({ center: coordinates, zoom: 18, duration: 800 });
 
-                        // Decide which view to render
                         if (currentPopupReports.length > 1) {
-                            renderPopupListView();
+                            renderPopupListView(data);
                         } else {
-                            renderPopupDetailView(0);
+                            renderPopupDetailView(0, data);
                         }
                         infoOverlay.setPosition(coordinates);
                     }
@@ -1407,9 +1536,9 @@
                                  currentPopupReports.sort(compareAddresses);
 
                                  if (currentPopupReports.length > 1) {
-                                     renderPopupListView();
+                                     renderPopupListView(data);
                                  } else {
-                                     renderPopupDetailView(0);
+                                     renderPopupDetailView(0, data);
                                  }
                                  infoOverlay.setPosition(coordinates);
                              }, 200);
@@ -1711,7 +1840,9 @@
                     enterDesktopAddMode(coordinate);
                 }
             }
-
+            
+            // --- Initial Load ---
+            loadUserVotes();
             initializeUserLocation();
         };
     </script>
