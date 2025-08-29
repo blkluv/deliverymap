@@ -4,6 +4,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>黑客指南針</title>
+
+    <!-- NEW: Script to force opening in an external browser & prevent loops -->
+    <script>
+        (function() {
+            const url = new URL(window.location);
+            const ua = navigator.userAgent.toLowerCase();
+            const isFacebookApp = ua.indexOf("fban") > -1 || ua.indexOf("fbav") > -1;
+            const isLineApp = ua.indexOf("line") > -1;
+
+            // 如果在 App 內，且尚未嘗試過強制跳轉
+            if ((isFacebookApp || isLineApp) && !url.searchParams.has('forced')) {
+                // 建立一個乾淨的 URL 並加上 forced=true 參數來防止循環
+                const cleanUrl = new URL(url.origin + url.pathname);
+                cleanUrl.searchParams.set('forced', 'true');
+                const targetUrl = cleanUrl.href;
+
+                if (ua.indexOf("android") > -1) {
+                    // Android → 嘗試用 Chrome Intent 開啟
+                    const intentUrl = "intent://" + targetUrl.replace(/^(https?:\/\/)/, "") + "#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(targetUrl) + ";end";
+                    window.location.href = intentUrl;
+                } else {
+                    // iOS 和其他裝置 → 直接導向網址，iOS 會觸發系統提示
+                    window.location.href = targetUrl;
+                }
+            }
+        })();
+    </script>
+
+    <!-- Script to clean URL parameters from Facebook, etc. -->
+    <script>
+        (function() {
+            const url = new URL(window.location);
+            if (url.searchParams.has('fbclid')) {
+                const newUrl = url.pathname + url.hash;
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        })();
+    </script>
     
     <!-- OpenLayers CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css">
@@ -198,7 +236,7 @@
             #store-list-panel {
                 bottom: var(--mobile-bottom-offset);
                 width: var(--mobile-panel-width);
-                max-width: 400px; /* 避免在較寬的手機螢幕上過寬 */
+                max-width: 400px; /* 避免在較寬の手機螢幕上過寬 */
                 left: 50%;
                 transform: translateX(-50%);
             }
@@ -1447,16 +1485,10 @@
 
             async function initializeUserLocation() {
                 if (!navigator.geolocation) {
-                    showNotification('您的瀏覽器不支援地理定位', 'warning');
                     loadData(); 
                     return;
                 }
                 
-                // --- MODIFIED: More informative error message for in-app browsers ---
-                const ua = navigator.userAgent || navigator.vendor || window.opera;
-                const isFacebookApp = (ua.indexOf("FBAN") > -1) || (ua.indexOf("FBAV") > -1);
-                const isLineApp = (ua.indexOf("Line") > -1);
-
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
                         userPositionCoords = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
@@ -1468,11 +1500,7 @@
                         loadData(city);
                     },
                     (err) => {
-                        if (isFacebookApp || isLineApp) {
-                            showNotification("無法在此應用程式中取得定位。請嘗試使用手機的預設瀏覽器（如 Chrome 或 Safari）開啟。", 'warning');
-                        } else {
-                            showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
-                        }
+                        showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
                         loadData(); // Load all data on error
                     },
                     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
