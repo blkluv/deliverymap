@@ -479,6 +479,17 @@
                 </div>
             </div>
         </div>
+
+        <!-- NEW: In-App Browser Modal -->
+        <div id="in-app-browser-modal" class="fixed inset-0 bg-black/70 z-[100] flex-col items-center justify-center p-4 hidden">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-sm text-center p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-2">功能受限</h2>
+                <p class="text-gray-600 mb-4">為了獲得完整功能（如定位），請在手機的預設瀏覽器中開啟此網頁。</p>
+                <a id="open-in-browser-link" href="#" target="_blank" class="w-full block bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    在瀏覽器中開啟
+                </a>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1469,7 +1480,8 @@
                     },
                     (err) => {
                         if (isFacebookApp || isLineApp) {
-                            showNotification("無法在此應用程式中取得定位。請嘗試使用手機的預設瀏覽器（如 Chrome 或 Safari）開啟。", 'warning');
+                           $('#open-in-browser-link').attr('href', window.location.href);
+                           $('#in-app-browser-modal').removeClass('hidden').addClass('flex');
                         } else {
                             showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
                         }
