@@ -585,7 +585,7 @@
             // NEW: Variable to store the initial coordinates when adding a location
             let initialAddLocationCoords = null;
             
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzCvwSU0lm6r01UxVtljbKAEEhn6dbW6KaUcwy0m40aGHC1NF3Z3T3CPitVjNk_HP4JQw/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw_7M4VBcErnerr_Mz-1kvxejUBUfnnmX9vc9vcoSfQ-wSd8nUTeL0Q8uRDhqh8FOTnmA/exec';
             
             const visibilityThreshold = 16.5; 
 
@@ -1315,7 +1315,7 @@
                 navigator.geolocation.getCurrentPosition(
                     (pos) => {
                         userPositionCoords = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
-                        map.getView().animate({ center: userPositionCoords, zoom: 13, duration: 1500 });
+                        map.getView().animate({ center: userPositionCoords, zoom: 16, duration: 1500 });
                         userLocationOverlay.setPosition(userPositionCoords);
                         $('#user-location').removeClass('hidden');
                     },
