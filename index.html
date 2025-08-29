@@ -408,13 +408,6 @@
                         <label for="keyword-search" class="block text-sm font-medium text-gray-700 mb-1">關鍵字搜尋</label>
                         <input type="text" id="keyword-search" placeholder="名稱、地址、產品" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                     </div>
-                     <!-- 營業中篩選 -->
-                    <div class="mb-4 space-y-2">
-                        <div class="flex items-center">
-                            <input id="is-open-checkbox" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                            <label for="is-open-checkbox" class="ml-2 block text-sm text-gray-900">僅顯示目前營業中</label>
-                        </div>
-                    </div>
                 </div>
                 <div class="p-6 bg-gray-50 border-t rounded-b-lg flex space-x-2">
                     <button id="filter-btn" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
@@ -524,9 +517,9 @@
         // MODIFIED: SVG Icons for categories with encodeURIComponent and new style
         const mapIcons = {
             '透天厝': `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28px" height="28px"><circle cx="12" cy="12" r="11" fill="${categoryColors['透天厝']}" stroke="white" stroke-width="1.5"/><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill="white"/></svg>`)}`,
-            '公寓大廈': `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28px" height="28px"><circle cx="12" cy="12" r="11" fill="${categoryColors['公寓大廈']}" stroke="white" stroke-width="1.5"/><g transform="scale(0.8) translate(2.4, 2.4)"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" fill="none" stroke-width="1.5" stroke="white"/></g></svg>`)}`,
-            '辦公室': `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28px" height="28px"><circle cx="12" cy="12" r="11" fill="${categoryColors['辦公室']}" stroke="white" stroke-width="1.5"/><g transform="scale(0.8) translate(2.4, 2.4)"><path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z" fill="white"/></g></svg>`)}`,
-            '飯店': `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28px" height="28px"><circle cx="12" cy="12" r="11" fill="${categoryColors['飯店']}" stroke="white" stroke-width="1.5"/><path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2V7c0-2.21-1.79-4-4-4z" fill="white"/></svg>`)}`,
+            '公寓大廈': `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28px" height="28px"><circle cx="12" cy="12" r="11" fill="${categoryColors['公寓大廈']}" stroke="white" stroke-width="1.5"/><g transform="scale(0.7) translate(3.6, 3.6)"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" fill="none" stroke-width="1.8" stroke="white"/></g></svg>`)}`,
+            '辦公室': `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28px" height="28px"><circle cx="12" cy="12" r="11" fill="${categoryColors['辦公室']}" stroke="white" stroke-width="1.5"/><g transform="scale(0.7) translate(3.6, 3.6)"><path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z" fill="white"/></g></svg>`)}`,
+            '飯店': `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28px" height="28px"><circle cx="12" cy="12" r="11" fill="${categoryColors['飯店']}" stroke="white" stroke-width="1.5"/><g transform="scale(0.7) translate(3.6, 3.6)"><path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2V7c0-2.21-1.79-4-4-4z" fill="white"/></g></svg>`)}`,
             '其他': `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28px" height="28px"><circle cx="12" cy="12" r="11" fill="${categoryColors['其他']}" stroke="white" stroke-width="1.5"/><circle cx="12" cy="12" r="5" fill="white"/></svg>`)}`
         };
         
