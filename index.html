@@ -1603,26 +1603,29 @@
                 }
             });
             
+            // --- REFACTORED: Management Modal Logic ---
             $('#manage-btn').on('click', function() {
-                const userStores = allFeatures.filter(f => f.get('submitterEmail') === userProfile.email);
+                const userReports = rawReports.filter(r => r.submitterEmail === userProfile.email);
                 const $content = $('#management-list-content');
                 $content.html('');
 
-                if (userStores.length === 0) {
+                if (userReports.length === 0) {
                     $content.html('<p class="text-gray-500">您尚未提交任何地點。</p>');
                 } else {
-                    userStores.forEach(feature => {
-                        const data = feature.getProperties();
-                        const status = data.approved ? '<span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full">已審核</span>' : '<span class="text-xs font-semibold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">審核中</span>';
+                    userReports.forEach(report => {
+                        const isApproved = String(report['審核']).toUpperCase() === 'TRUE';
+                        const status = isApproved ? '<span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full">已審核</span>' : '<span class="text-xs font-semibold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">審核中</span>';
+                        
                         const itemHtml = `
                             <div class="flex justify-between items-center py-2 border-b">
                                 <div>
-                                    <p class="font-bold">${data.name}</p>
-                                    <p class="text-sm text-gray-500">${data.address}</p>
+                                    <p class="font-bold">${report['地址']}</p>
+                                    <p class="text-sm text-gray-500 truncate">${report['黑名類別']}: ${report['黑名原因']}</p>
                                 </div>
-                                <div class="flex items-center space-x-2">
+                                <div class="flex items-center space-x-2 flex-shrink-0">
                                     ${status}
-                                    <button class="edit-store-btn text-sm text-blue-600 hover:underline" data-id="${feature.getId()}">編輯</button>
+                                    <button class="edit-store-btn text-sm text-blue-600 hover:underline" data-row-index="${report.rowIndex}">修改</button>
+                                    <button class="delete-store-btn text-sm text-red-600 hover:underline" data-row-index="${report.rowIndex}">刪除</button>
                                 </div>
                             </div>
                         `;
@@ -1633,15 +1636,36 @@
             });
 
             $('#close-management-modal').on('click', () => $('#management-modal').addClass('hidden'));
-            
+
             $('#management-list-content').on('click', '.edit-store-btn', function() {
-                const featureId = $(this).data('id');
-                const featureToEdit = allFeatures.find(f => f.getId() == featureId);
+                const rowIndex = $(this).data('row-index');
+                const reportToEdit = rawReports.find(r => r.rowIndex == rowIndex);
                 
-                if (featureToEdit) {
-                    openEditModalForUser(featureToEdit);
+                if (reportToEdit) {
+                    openEditModalForUser(reportToEdit);
                 } else {
-                    showNotification('找不到地點資料，可能已被刪除。', 'error');
+                    showNotification('找不到地點資料，可能已被刪除或更新。', 'error');
+                }
+            });
+
+            $('#management-list-content').on('click', '.delete-store-btn', function() {
+                const rowIndex = $(this).data('row-index');
+                if (window.confirm('確定要刪除這筆您提交的資料嗎？此操作將無法復原。')) {
+                    showNotification('正在刪除...');
+                    const payload = {
+                        action: 'user_delete',
+                        rowIndex: rowIndex,
+                        userEmail: userProfile.email
+                    };
+
+                    fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
+                    .then(() => {
+                        showNotification("資料已成功刪除！", 'success');
+                        $('#management-modal').addClass('hidden');
+                        setTimeout(loadData, 2000);
+                    }).catch(error => {
+                        showNotification('刪除失敗，請稍後再試。', 'error');
+                    });
                 }
             });
 
@@ -1779,64 +1803,47 @@
                 });
             }
 
-            function openEditModalForUser(featureToEdit) {
-                const data = featureToEdit.getProperties();
-                const formId = isMobile ? '#add-location-form-mobile' : '#add-location-form';
-                
-                $(formId).find('#edit-row-index').val('');
-                $(formId).find('#edit-original-name').val(data.name);
+            function openEditModalForUser(report) {
+                const forms = [$('#add-location-form'), $('#add-location-form-mobile')];
+                forms.forEach($f => {
+                    $f.find('#edit-row-index').val('');
+                    $f.find('#edit-original-name').val(report['地址']);
+                    $f.find('#add-address').val(report['地址']);
+                    $f.find('#add-category').val(report['分類']);
+                    $f.find('#add-blacklist-category').val(report['黑名類別']);
+                    $f.find('#add-blacklist-reason').val(report['黑名原因']);
+                    $f.closest('div[id^="add-location-modal"]').find('h2').text('修改地點');
+                });
+
                 $('#management-modal').addClass('hidden');
-                fillEditModal(data);
-                $(formId).closest('div[id^="add-location-modal"]').find('h2').text('編輯地點');
-            }
-
-            function openEditModalForAdmin(featureToEdit) {
-                const data = featureToEdit.getProperties();
-                const formId = isMobile ? '#add-location-form-mobile' : '#add-location-form';
-
-                $(formId).find('#edit-original-name').val('');
-                $(formId).find('#edit-row-index').val(data.rowIndex);
-                fillEditModal(data);
-                $(formId).closest('div[id^="add-location-modal"]').find('h2').text('編輯地點 (管理員)');
-            }
-
-            function fillEditModal(data) {
-                const $form = isMobile ? $('#add-location-form-mobile') : $('#add-location-form');
-                if (isMobile) {
-                    const formContent = $('#add-location-form > .px-6').clone(true, true);
-                    $('#add-location-form-mobile > .px-6').replaceWith(formContent);
-                }
                 
-                $form.find('#add-name').val(data.name);
-                $form.find('#add-category').val(data.category);
-                $form.find('#add-address').val(data.address);
-                $form.find('#add-contact').val(data.contact);
-                $form.find('#add-product').val(data.product);
-                $form.find('#add-email').val(data.email);
-                $form.find('#add-website').val(data.website);
-                $form.find('#add-line').val(data.line);
-
-                $form.find('#hours-container').empty();
-                if (data.hours) {
-                    const hoursParts = data.hours.split(';');
-                    hoursParts.forEach(part => {
-                        createTimeSlot($form);
-                        const row = $form.find('.time-slot-row:last');
-                        const match = part.match(/週([一二三四五六日])[~-]([一二三四五六日])\s*(\d{2}:\d{2})-(\d{2}:\d{2})/);
-                        if(match) {
-                            row.find('[name="start_day"]').val(match[1]);
-                            row.find('[name="end_day"]').val(match[2]);
-                            row.find('[name="start_time"]').val(match[3]);
-                            row.find('[name="end_time"]').val(match[4]);
-                        }
-                    });
-                } else {
-                     createTimeSlot($form);
-                }
-
-                const coordinate = ol.proj.fromLonLat([data.lon, data.lat]);
+                const coordinate = ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]);
                 if (isMobile) {
                     enterMobilePlacementMode(coordinate);
+                    $('#add-location-modal-mobile').removeClass('hidden');
+                    $('#complete-placement-btn').addClass('hidden');
+                } else {
+                    enterDesktopAddMode(coordinate);
+                }
+            }
+
+            function openEditModalForAdmin(report) {
+                const forms = [$('#add-location-form'), $('#add-location-form-mobile')];
+                forms.forEach($f => {
+                    $f.find('#edit-original-name').val('');
+                    $f.find('#edit-row-index').val(report.rowIndex);
+                    $f.find('#add-address').val(report['地址']);
+                    $f.find('#add-category').val(report['分類']);
+                    $f.find('#add-blacklist-category').val(report['黑名類別']);
+                    $f.find('#add-blacklist-reason').val(report['黑名原因']);
+                    $f.closest('div[id^="add-location-modal"]').find('h2').text('修改地點 (管理員)');
+                });
+
+                const coordinate = ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]);
+                if (isMobile) {
+                    enterMobilePlacementMode(coordinate);
+                    $('#add-location-modal-mobile').removeClass('hidden');
+                    $('#complete-placement-btn').addClass('hidden');
                 } else {
                     enterDesktopAddMode(coordinate);
                 }
