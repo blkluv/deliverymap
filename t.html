@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>退出 Facebook 測試</title>
+</head>
+<body>
+  <h2>測試連結</h2>
+  <p>請在 Facebook App / IG App 內點擊下方按鈕：</p>
+
+  <button onclick="openInBrowser()">點我開啟預設瀏覽器</button>
+
+  <script>
+    function openInBrowser() {
+      var ua = navigator.userAgent.toLowerCase();
+
+      if (ua.indexOf("android") > -1) {
+        // 👉 Android 強制用 Chrome 開啟
+        window.location.href = "intent://example.com#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https://example.com;end";
+      } else if (ua.indexOf("iphone") > -1 || ua.indexOf("ipad") > -1) {
+        // 👉 iOS 無法強制指定 Chrome，只能跳 Safari 或預設瀏覽器
+        window.location.href = "https://example.com";
+      } else {
+        // 👉 其他裝置 (PC、平板) 就直接開
+        window.location.href = "https://example.com";
+      }
+    }
+  </script>
+</body>
+</html>
