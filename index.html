@@ -336,7 +336,7 @@
                              data-client_id="35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com"
                              data-callback="handleCredentialResponse"
                              data-auto_select="true"
-                             data-use_fedcm_for_prompt="true">
+                             data-use_fedcm_for_prompt="false">
                         </div>
                         <div class="g_id_signin" 
                              data-type="standard"
@@ -738,6 +738,7 @@
             let userVotes = {};
             let currentUserDisplayName = '';
             const VOTES_STORAGE_KEY = 'userBlacklistVotes';
+            const SESSION_TOKEN_KEY = 'userSessionToken'; // NEW
 
             function loadUserVotes() {
                 try {
@@ -1530,18 +1531,67 @@
                     showNotification('無法驗證管理員身份', 'error');
                 }
             }
+            
+            // --- NEW/MODIFIED Login Logic ---
 
-            window.addEventListener('google-signin-success', (e) => {
-                userProfile = e.detail;
+            function setLoginState(profile) {
                 isLoggedIn = true;
+                userProfile = profile;
                 
                 const storedNickname = localStorage.getItem(`nickname_${userProfile.email}`);
-                currentUserDisplayName = storedNickname || userProfile.given_name || userProfile.name;
+                currentUserDisplayName = storedNickname || profile.name;
 
                 $('.g_id_signin').hide();
                 $('#add-info').removeClass('hidden').addClass('flex');
                 $('#user-name').text(currentUserDisplayName);
                 checkIfAdmin(userProfile.email);
+            }
+
+            async function verifyToken() {
+                const token = localStorage.getItem(SESSION_TOKEN_KEY);
+                if (!token) return;
+
+                try {
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({ action: 'verify_token', token: token })
+                    });
+                    const result = await response.json();
+                    if (result.status === 'success' && result.user) {
+                        setLoginState(result.user);
+                    } else {
+                        localStorage.removeItem(SESSION_TOKEN_KEY);
+                    }
+                } catch(error) {
+                    console.error('Token verification failed:', error);
+                    localStorage.removeItem(SESSION_TOKEN_KEY);
+                }
+            }
+
+            window.addEventListener('google-signin-success', async (e) => {
+                const googleProfile = e.detail;
+                 try {
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({ action: 'google_login', profile: googleProfile })
+                    });
+                    const result = await response.json();
+
+                    if (result.status === 'success' && result.token) {
+                        localStorage.setItem(SESSION_TOKEN_KEY, result.token);
+                        setLoginState({
+                            email: googleProfile.email,
+                            name: googleProfile.given_name || googleProfile.name
+                        });
+                    } else {
+                        showNotification('登入失敗，請稍後再試。', 'error');
+                    }
+                } catch(error) {
+                    console.error('Google login process failed:', error);
+                    showNotification('登入時發生錯誤。', 'error');
+                }
             });
 
             $(document).on('click', '#edit-nickname-btn', function() {
@@ -1553,7 +1603,6 @@
                     localStorage.setItem(`nickname_${userProfile.email}`, currentUserDisplayName);
                     $('#user-name').text(currentUserDisplayName);
                     
-                    // Send update to backend
                     const payload = {
                         action: 'update_nickname',
                         userEmail: userProfile.email,
@@ -1580,12 +1629,24 @@
 
             $('#sign-out-btn').on('click', (e) => {
                 e.preventDefault();
+                
+                const token = localStorage.getItem(SESSION_TOKEN_KEY);
+                fetch(APPS_SCRIPT_URL, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ action: 'logout', token: token })
+                });
+
+                localStorage.removeItem(SESSION_TOKEN_KEY);
+                localStorage.removeItem(`nickname_${userProfile.email}`);
+
                 google.accounts.id.disableAutoSelect();
-                google.accounts.id.revoke(userProfile.email, () => {});
+                
                 isLoggedIn = false; 
                 userProfile = {};
                 isAdmin = false;
                 currentUserDisplayName = '';
+
                 $('.g_id_signin').show();
                 $('#add-info').removeClass('flex').addClass('hidden');
                 $('#review-btn').addClass('hidden');
@@ -1946,8 +2007,10 @@
             
             // --- Initial Load ---
             loadUserVotes();
+            verifyToken(); // NEW: Try to log in with a token on page load
             initializeUserLocation();
         };
     </script>
 </body>
 </html>
+
