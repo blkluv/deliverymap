@@ -332,16 +332,9 @@
                 <div class="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2">
                     <!-- 登入/新增說明按鈕 -->
                     <div id="login-status">
-                        <!-- REMOVED: g_id_onload div is removed to prevent auto-popup -->
-                        <div class="g_id_signin" 
-                             data-type="standard"
-                             data-size="large"
-                             data-theme="outline"
-                             data-text="sign_in_with"
-                             data-shape="rectangular"
-                             data-logo_alignment="left"
-                             style="display: none;"> <!-- MODIFIED: Initially hidden -->
-                        </div>
+                        <!-- MODIFIED: Replaced declarative button with a container for programmatic rendering -->
+                        <div id="google-signin-container" style="display: none;"></div>
+                        
                          <div id="add-info" class="bg-white text-gray-700 py-2 px-4 rounded-lg shadow-lg items-center space-x-2 hidden">
                             <span id="user-name" class="font-bold"></span>
                             <button id="edit-nickname-btn" class="text-xs text-blue-500 hover:underline">[修改]</button>
@@ -1537,7 +1530,7 @@
                 const storedNickname = localStorage.getItem(`nickname_${userProfile.email}`);
                 currentUserDisplayName = storedNickname || profile.name;
 
-                $('.g_id_signin').hide();
+                $('#google-signin-container').hide(); // HIDE the new container
                 $('#add-info').removeClass('hidden').addClass('flex');
                 $('#user-name').text(currentUserDisplayName);
                 checkIfAdmin(userProfile.email);
@@ -1550,8 +1543,18 @@
                         client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
                         callback: handleCredentialResponse
                     });
-                    // The div with class "g_id_signin" will render itself once it's visible after initialization.
-                    $('.g_id_signin').show();
+                    google.accounts.id.renderButton(
+                        document.getElementById('google-signin-container'),
+                        { 
+                            type: 'standard',
+                            size: 'large',
+                            theme: 'outline',
+                            text: 'sign_in_with',
+                            shape: 'rectangular',
+                            logo_alignment: 'left'
+                        } 
+                    );
+                    $('#google-signin-container').show();
                 } else {
                     // Fallback if the script hasn't loaded yet
                     setTimeout(initializeGoogleButton, 200);
@@ -1656,16 +1659,21 @@
                 localStorage.removeItem(SESSION_TOKEN_KEY);
                 localStorage.removeItem(`nickname_${userProfile.email}`);
 
-                google.accounts.id.disableAutoSelect();
+                if (window.google && google.accounts && google.accounts.id) {
+                    google.accounts.id.disableAutoSelect();
+                }
                 
                 isLoggedIn = false; 
                 userProfile = {};
                 isAdmin = false;
                 currentUserDisplayName = '';
 
-                initializeGoogleButton(); // Show the login button again after logout
                 $('#add-info').removeClass('flex').addClass('hidden');
                 $('#review-btn').addClass('hidden');
+                
+                $('#google-signin-container').empty(); 
+                initializeGoogleButton();
+
                 showNotification('您已成功登出。');
             });
             
@@ -2029,4 +2037,5 @@
     </script>
 </body>
 </html>
+" selected in the "黑客指南針 (更新版)" document.
 
