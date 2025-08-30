@@ -344,7 +344,8 @@
                              data-theme="outline"
                              data-text="sign_in_with"
                              data-shape="rectangular"
-                             data-logo_alignment="left">
+                             data-logo_alignment="left"
+                             style="display: none;"> <!-- MODIFIED: Initially hidden -->
                         </div>
                          <div id="add-info" class="bg-white text-gray-700 py-2 px-4 rounded-lg shadow-lg items-center space-x-2 hidden">
                             <span id="user-name" class="font-bold"></span>
@@ -1549,7 +1550,10 @@
 
             async function verifyToken() {
                 const token = localStorage.getItem(SESSION_TOKEN_KEY);
-                if (!token) return;
+                if (!token) {
+                    $('.g_id_signin').show(); // MODIFIED: Show signin button if no token
+                    return;
+                }
 
                 try {
                     const response = await fetch(APPS_SCRIPT_URL, {
@@ -1562,10 +1566,12 @@
                         setLoginState(result.user);
                     } else {
                         localStorage.removeItem(SESSION_TOKEN_KEY);
+                        $('.g_id_signin').show(); // MODIFIED: Show signin button if token is invalid
                     }
                 } catch(error) {
                     console.error('Token verification failed:', error);
                     localStorage.removeItem(SESSION_TOKEN_KEY);
+                    $('.g_id_signin').show(); // MODIFIED: Show signin button on error
                 }
             }
 
