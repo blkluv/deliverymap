@@ -332,12 +332,7 @@
                 <div class="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2">
                     <!-- 登入/新增說明按鈕 -->
                     <div id="login-status">
-                        <div id="g_id_onload"
-                             data-client_id="35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com"
-                             data-callback="handleCredentialResponse"
-                             data-auto_select="false"
-                             data-use_fedcm_for_prompt="false">
-                        </div>
+                        <!-- REMOVED: g_id_onload div is removed to prevent auto-popup -->
                         <div class="g_id_signin" 
                              data-type="standard"
                              data-size="large"
@@ -1548,10 +1543,25 @@
                 checkIfAdmin(userProfile.email);
             }
 
+            // NEW: Function to initialize Google Button only when needed
+            function initializeGoogleButton() {
+                if (window.google && window.google.accounts && window.google.accounts.id) {
+                    google.accounts.id.initialize({
+                        client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
+                        callback: handleCredentialResponse
+                    });
+                    // The div with class "g_id_signin" will render itself once it's visible after initialization.
+                    $('.g_id_signin').show();
+                } else {
+                    // Fallback if the script hasn't loaded yet
+                    setTimeout(initializeGoogleButton, 200);
+                }
+            }
+
             async function verifyToken() {
                 const token = localStorage.getItem(SESSION_TOKEN_KEY);
                 if (!token) {
-                    $('.g_id_signin').show(); // MODIFIED: Show signin button if no token
+                    initializeGoogleButton();
                     return;
                 }
 
@@ -1566,12 +1576,12 @@
                         setLoginState(result.user);
                     } else {
                         localStorage.removeItem(SESSION_TOKEN_KEY);
-                        $('.g_id_signin').show(); // MODIFIED: Show signin button if token is invalid
+                        initializeGoogleButton();
                     }
                 } catch(error) {
                     console.error('Token verification failed:', error);
                     localStorage.removeItem(SESSION_TOKEN_KEY);
-                    $('.g_id_signin').show(); // MODIFIED: Show signin button on error
+                    initializeGoogleButton();
                 }
             }
 
@@ -1653,7 +1663,7 @@
                 isAdmin = false;
                 currentUserDisplayName = '';
 
-                $('.g_id_signin').show();
+                initializeGoogleButton(); // Show the login button again after logout
                 $('#add-info').removeClass('flex').addClass('hidden');
                 $('#review-btn').addClass('hidden');
                 showNotification('您已成功登出。');
