@@ -17,13 +17,13 @@
 
       if (ua.indexOf("android") > -1) {
         // 👉 Android 強制用 Chrome 開啟
-        window.location.href = "intent://example.com#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https://example.com;end";
+        window.location.href = "intent://weibsite.github.io/deliverymap/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https://weibsite.github.io/deliverymap/;end";
       } else if (ua.indexOf("iphone") > -1 || ua.indexOf("ipad") > -1) {
         // 👉 iOS 無法強制指定 Chrome，只能跳 Safari 或預設瀏覽器
-        window.location.href = "https://example.com";
+        window.location.href = "https://weibsite.github.io/deliverymap/";
       } else {
         // 👉 其他裝置 (PC、平板) 就直接開
-        window.location.href = "https://example.com";
+        window.location.href = "https://weibsite.github.io/deliverymap/";
       }
     }
   </script>
