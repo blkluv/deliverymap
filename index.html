@@ -4,6 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>黑客指南針</title>
+
+    <!-- NEW: Script to detect Facebook browser and show overlay -->
+    <script>
+        (function() {
+            const ua = navigator.userAgent.toLowerCase();
+            const isFacebookApp = ua.indexOf("fban") > -1 || ua.indexOf("fbav") > -1;
+
+            // 只在 Facebook App 中執行
+            if (isFacebookApp) {
+                // 等待 DOM 載入完成後再顯示提示，確保元素存在
+                document.addEventListener('DOMContentLoaded', function() {
+                    const modal = document.getElementById('facebook-blocker-modal');
+                    if (modal) {
+                        modal.style.display = 'flex';
+                    }
+                });
+            }
+        })();
+    </script>
+
+    <!-- Script to clean URL parameters from Facebook, etc. -->
+    <script>
+        (function() {
+            const url = new URL(window.location);
+            if (url.searchParams.has('fbclid')) {
+                const newUrl = url.pathname + url.hash;
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        })();
+    </script>
     
     <!-- OpenLayers CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css">
@@ -478,6 +508,19 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- NEW: In-App Browser Blocker for Facebook -->
+        <div id="facebook-blocker-modal" class="fixed inset-0 bg-black/80 z-[200] flex-col items-center justify-center p-8 text-white text-center hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h2 class="text-2xl font-bold mb-4">功能可能受限</h2>
+            <p class="text-lg">
+                您似乎正在使用 Facebook 內建瀏覽器。
+                <br><br>
+                為了獲得最佳體驗，建議您點擊畫面右上角的「<span class="font-bold">•••</span>」選單，然後選擇「<span class="font-bold">在瀏覽器中開啟</span>」。
+            </p>
         </div>
     </div>
 
@@ -1452,11 +1495,6 @@
                     return;
                 }
                 
-                // --- MODIFIED: More informative error message for in-app browsers ---
-                const ua = navigator.userAgent || navigator.vendor || window.opera;
-                const isFacebookApp = (ua.indexOf("FBAN") > -1) || (ua.indexOf("FBAV") > -1);
-                const isLineApp = (ua.indexOf("Line") > -1);
-
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
                         userPositionCoords = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
@@ -1468,11 +1506,7 @@
                         loadData(city);
                     },
                     (err) => {
-                        if (isFacebookApp || isLineApp) {
-                            showNotification("無法在此應用程式中取得定位。請嘗試使用手機的預設瀏覽器（如 Chrome 或 Safari）開啟。", 'warning');
-                        } else {
-                            showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
-                        }
+                        showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
                         loadData(); // Load all data on error
                     },
                     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
