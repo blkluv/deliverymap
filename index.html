@@ -737,6 +737,7 @@
             let currentUserDisplayName = '';
             const VOTES_STORAGE_KEY = 'userBlacklistVotes';
             const SESSION_TOKEN_KEY = 'userSessionToken'; // NEW
+            let loginCheckInterval = null; // 修正: 用於存放定時器的變數
 
             function loadUserVotes() {
                 try {
@@ -2060,44 +2061,36 @@
             
             // --- Initial Load ---
             async function main() {
-                // 修正：將所有邏輯移到一個函式中，以便在 DOMContentLoaded 後執行
                 const initializeApp = async () => {
                     const lineLoginLiffUrl = 'https://liff.line.me/2008020548-lVYKgg0B';
                     
-                    // 1. 優先載入地圖與使用者定位
                     loadUserVotes();
                     initializeUserLocation();
-
-                    // 2. 在背景驗證登入狀態
+                    
                     const isTokenLoggedIn = await verifyToken();
 
-                    // 3. 根據環境和登入狀態決定下一步
-                    if (isLineApp && !isTokenLoggedIn) {
-                        // 在 LINE 環境且未登入，直接導向登入頁
-                        window.location.href = lineLoginLiffUrl;
-                        return; // 導向後停止後續執行
-                    } else if (!isLineApp && !isTokenLoggedIn) {
-                        // 在非 LINE 環境且未登入，才顯示 Google 登入按鈕
-                        initializeGoogleButton();
+                    if (!isTokenLoggedIn) {
+                        if (isLineApp) {
+                            window.location.href = lineLoginLiffUrl;
+                        } else {
+                            initializeGoogleButton();
+                            
+                            // 修正: 啟動定時檢查器
+                            if (loginCheckInterval) clearInterval(loginCheckInterval);
+                            loginCheckInterval = setInterval(async () => {
+                                if (!isLoggedIn) {
+                                    const success = await verifyToken();
+                                    if (success) {
+                                        clearInterval(loginCheckInterval);
+                                    }
+                                } else {
+                                     clearInterval(loginCheckInterval);
+                                }
+                            }, 1000); // 每秒檢查一次
+                        }
                     }
-                    
-                    // 4. 設定視窗焦點事件 (作為備用方案)
-                    window.addEventListener('focus', () => {
-                        if (!isLoggedIn) {
-                            verifyToken();
-                        }
-                    });
-
-                    // 5. 新增：設定 localStorage 變動監聽事件 (主要方案)
-                    window.addEventListener('storage', (event) => {
-                        // 檢查是否有變動，且變動的是我們的 token key
-                        if (event.key === SESSION_TOKEN_KEY && event.newValue && !isLoggedIn) {
-                            verifyToken();
-                        }
-                    });
                 };
                 
-                // 確保 DOM 完全載入後再執行主程式
                 if (document.readyState === 'loading') {
                     document.addEventListener('DOMContentLoaded', initializeApp);
                 } else {
