@@ -2082,14 +2082,16 @@
                         initializeGoogleButton();
                          // 修正: 啟動定時檢查器
                         if (loginCheckInterval) clearInterval(loginCheckInterval);
+                        let attempts = 0; // 防止無限迴圈
                         loginCheckInterval = setInterval(async () => {
+                            attempts++;
                             if (!isLoggedIn) {
                                 const success = await verifyToken();
-                                if (success) {
+                                if (success || attempts > 30) { // 成功或超過30秒後停止
                                     clearInterval(loginCheckInterval);
                                 }
                             } else {
-                                    clearInterval(loginCheckInterval);
+                                     clearInterval(loginCheckInterval);
                             }
                         }, 1000); // 每秒檢查一次
                     }
@@ -2108,3 +2110,4 @@
     </script>
 </body>
 </html>
+
