@@ -1557,16 +1557,8 @@
 
             function initializeGoogleButton() {
                 const $container = $('#google-signin-container');
-                if (isLineApp) {
-                     // 修正: 將按鈕改為 <a> 連結，確保點擊立即反應
-                    const lineLoginButtonHtml = `
-                        <a href="https://liff.line.me/2008020548-lVYKgg0B" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center justify-center w-full hover:bg-green-600 transition-colors no-underline">
-                            <img src="https://weibsite.github.io/deliverymap/btn_base.png" class="w-6 h-6 mr-3" alt="LINE Logo">
-                            <span>透過 LINE 登入</span>
-                        </a>
-                    `;
-                    $container.html(lineLoginButtonHtml).show();
-                } else if (window.google && window.google.accounts && window.google.accounts.id) {
+                // 在非 LINE 環境中，才顯示 Google 登入按鈕
+                if (!isLineApp && window.google && window.google.accounts && window.google.accounts.id) {
                     google.accounts.id.initialize({
                         client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
                         callback: handleCredentialResponse
@@ -1583,40 +1575,14 @@
                         } 
                     );
                     $container.show();
-                } else {
+                } else if (!isLineApp) {
                     setTimeout(initializeGoogleButton, 200);
                 }
             }
             
-            async function performBackendLineLogin(profile) {
-                try {
-                    const response = await fetch(APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify({ action: 'line_login', profile: profile })
-                    });
-                    const result = await response.json();
-                    if (result.status === 'success' && result.user) {
-                        localStorage.setItem(SESSION_TOKEN_KEY, result.token);
-                        setLoginState(result.user);
-                    } else {
-                        showNotification('自動登入失敗，請手動登入。', 'error');
-                        initializeGoogleButton();
-                    }
-                } catch(error) {
-                    console.error('後端 LINE 登入失敗:', error);
-                    showNotification('自動登入失敗，請手動登入。', 'error');
-                    initializeGoogleButton();
-                }
-            }
-
             async function verifyToken() {
                 const token = localStorage.getItem(SESSION_TOKEN_KEY);
                 if (!token) {
-                    // 只有在非 LINE 環境下，才在沒有 token 時顯示 Google 按鈕
-                    if (!isLineApp) {
-                        initializeGoogleButton();
-                    }
                     return false; // 表示沒有 token
                 }
 
@@ -1632,17 +1598,11 @@
                         return true; // 表示 token 驗證成功
                     } else {
                         localStorage.removeItem(SESSION_TOKEN_KEY);
-                         if (!isLineApp) {
-                            initializeGoogleButton();
-                         }
                         return false; // 表示 token 無效
                     }
                 } catch(error) {
                     console.error('Token 驗證失敗:', error);
                     localStorage.removeItem(SESSION_TOKEN_KEY);
-                    if (!isLineApp) {
-                        initializeGoogleButton();
-                    }
                     return false; // 表示驗證過程出錯
                 }
             }
@@ -2100,26 +2060,41 @@
             
             // --- Initial Load ---
             async function main() {
-                 const lineLoginLiffUrl = 'https://liff.line.me/2008020548-lVYKgg0B';
-                const isTokenLoggedIn = await verifyToken();
+                // 修正：將所有邏輯移到一個函式中，以便在 DOMContentLoaded 後執行
+                const initializeApp = async () => {
+                    const lineLoginLiffUrl = 'https://liff.line.me/2008020548-lVYKgg0B';
+                    
+                    // 1. 優先載入地圖與使用者定位
+                    loadUserVotes();
+                    initializeUserLocation();
 
-                if (isLineApp && !isTokenLoggedIn) {
-                    // 在 LINE 環境且未登入，直接導向登入頁
-                    window.location.href = lineLoginLiffUrl;
-                    return; // 停止後續執行
-                } else if (!isTokenLoggedIn) {
-                    // 在非 LINE 環境且未登入，顯示 Google 按鈕
-                    initializeGoogleButton();
-                }
+                    // 2. 在背景驗證登入狀態
+                    const isTokenLoggedIn = await verifyToken();
 
-                loadUserVotes();
-                initializeUserLocation();
-                
-                window.addEventListener('focus', () => {
-                    if (!isLoggedIn) {
-                        verifyToken();
+                    // 3. 根據環境和登入狀態決定下一步
+                    if (isLineApp && !isTokenLoggedIn) {
+                        // 在 LINE 環境且未登入，直接導向登入頁
+                        window.location.href = lineLoginLiffUrl;
+                        return; // 導向後停止後續執行
+                    } else if (!isLineApp && !isTokenLoggedIn) {
+                        // 在非 LINE 環境且未登入，才顯示 Google 登入按鈕
+                        initializeGoogleButton();
                     }
-                });
+                    
+                    // 4. 設定視窗焦點事件
+                    window.addEventListener('focus', () => {
+                        if (!isLoggedIn) {
+                            verifyToken();
+                        }
+                    });
+                };
+                
+                // 確保 DOM 完全載入後再執行主程式
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', initializeApp);
+                } else {
+                    initializeApp();
+                }
             }
 
             main();
