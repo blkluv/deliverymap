@@ -11,11 +11,10 @@
             const ua = navigator.userAgent;
             const isLineApp = ua.includes('Line/');
             const liffUrl = "https://liff.line.me/2008020548-WdyekkEj";
-            const params = new URLSearchParams(window.location.search);
 
-            // 如果在 LINE App 內開啟，且不是從 LIFF 轉址過來的，就導向 LIFF URL
-            // 這樣可以確保使用者總是處於正確的 LIFF 環境中
-            if (isLineApp && !params.has('liff.state')) {
+            // 如果在 LINE App 內開啟，且網址中不包含 'liff.state' 參數，就導向 LIFF URL
+            // 'liff.state' 是 LIFF 轉址回來時會自動附加的參數，用此判斷可避免無限迴圈
+            if (isLineApp && window.location.search.indexOf('liff.state') === -1) {
                 window.location.href = liffUrl;
             }
         })();
@@ -356,7 +355,7 @@
                         <!-- NEW: Container for LINE Login Button -->
                         <div id="line-login-container" style="display: none;">
                             <button id="line-login-btn">
-                                <img src="https://weibsite.github.io/deliverymap/btn_base.png" alt="LINE logo">
+                                <img src="https://developers.line.biz/assets/img/logo/line-icon-24.png" alt="LINE logo">
                                 登入
                             </button>
                         </div>
@@ -2125,4 +2124,5 @@
     </script>
 </body>
 </html>
+
 
