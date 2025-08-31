@@ -3,10 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>黑客指南針1.0</title>
+    <title>黑客指南針</title>
 
     <!-- LIFF SDK -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    
+    <!-- 修正：新的 LIFF 環境判斷與自動重新導向腳本 -->
+    <script>
+        (function() {
+            const liffUrl = 'https://liff.line.me/2008020548-WdyekkEj';
+            const isLineBrowser = /Line\//.test(navigator.userAgent);
+
+            // 僅在 LINE 瀏覽器中執行此邏輯
+            if (isLineBrowser) {
+                // 等待 DOM 載入完成
+                document.addEventListener('DOMContentLoaded', function() {
+                    const observer = new MutationObserver(function(mutations, me) {
+                        const googleButton = document.querySelector('#google-signin-container[style*="display: block"]');
+                        const lineButton = document.querySelector('#line-login-container[style*="display: block"]');
+                        
+                        // 如果出現 Google 登入按鈕，代表不在 LIFF 環境中，執行重新導向
+                        if (googleButton) {
+                            window.location.href = liffUrl;
+                            me.disconnect(); // 停止觀察
+                        } 
+                        // 如果出現 LINE 登入按鈕，代表已在 LIFF 環境中，不做任何事
+                        else if (lineButton) {
+                            me.disconnect(); // 停止觀察
+                        }
+                    });
+
+                    // 設定觀察目標為登入按鈕的容器
+                    const loginStatusNode = document.getElementById('login-status');
+                    if(loginStatusNode) {
+                        observer.observe(loginStatusNode, {
+                            childList: true,
+                            subtree: true,
+                            attributes: true,
+                            attributeFilter: ['style']
+                        });
+                    }
+                });
+            }
+        })();
+    </script>
 
     <!-- Script to clean URL parameters from Facebook, etc. -->
     <script>
@@ -2130,3 +2170,4 @@
     </script>
 </body>
 </html>
+
