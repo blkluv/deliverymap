@@ -5,6 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>黑客指南針</title>
 
+    <!-- NEW: LIFF Redirect Logic -->
+    <script>
+        (function() {
+            const ua = navigator.userAgent;
+            const isLineApp = ua.includes('Line/');
+            const liffUrl = "https://liff.line.me/2008020548-WdyekkEj";
+            const params = new URLSearchParams(window.location.search);
+
+            // 如果在 LINE App 內開啟，且不是從 LIFF 轉址過來的，就導向 LIFF URL
+            // 這樣可以確保使用者總是處於正確的 LIFF 環境中
+            if (isLineApp && !params.has('liff.state')) {
+                window.location.href = liffUrl;
+            }
+        })();
+    </script>
+
     <!-- LIFF SDK -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
@@ -212,7 +228,7 @@
             #store-list-panel {
                 bottom: var(--mobile-bottom-offset);
                 width: var(--mobile-panel-width);
-                max-width: 400px; /* 避免在較寬的手機螢幕上過寬 */
+                max-width: 400px; /* 避免在較寬の手機螢幕上過寬 */
                 left: 50%;
                 transform: translateX(-50%);
             }
