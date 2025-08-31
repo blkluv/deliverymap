@@ -1555,22 +1555,17 @@
                 checkIfAdmin(userProfile.email);
             }
 
+            // 修正: 將按鈕改為 <a> 標籤來確保第一次點擊就能觸發
             function initializeGoogleButton() {
                 const $container = $('#google-signin-container');
                 if (isLineApp) {
                     const lineLoginButtonHtml = `
-                        <button id="line-liff-login-btn" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center justify-center w-full hover:bg-green-600 transition-colors">
+                        <a href="https://liff.line.me/2008020548-lVYKgg0B" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center justify-center w-full hover:bg-green-600 transition-colors no-underline">
                             <img src="https://weibsite.github.io/deliverymap/btn_base.png" class="w-6 h-6 mr-3" alt="LINE Logo">
                             <span>透過 LINE 登入</span>
-                        </button>
+                        </a>
                     `;
                     $container.html(lineLoginButtonHtml).show();
-                    // 修正：直接在此處附加事件處理器
-                    $('#line-liff-login-btn').on('click', function() {
-                        if (liff && liff.isApiAvailable('login')) {
-                           liff.login({ redirectUri: window.location.href });
-                        }
-                    });
                 } else if (window.google && window.google.accounts && window.google.accounts.id) {
                     google.accounts.id.initialize({
                         client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
@@ -1593,6 +1588,7 @@
                 }
             }
             
+            // 新增: 用於處理 LINE 自動登入的後端請求
             async function performBackendLineLogin(profile) {
                 try {
                     const response = await fetch(APPS_SCRIPT_URL, {
@@ -2106,7 +2102,6 @@
             // --- Initial Load ---
             async function main() {
                 const liffId = '2008020548-WdyekkEj';
-                // 檢查是否已透過 session token 登入
                 const isTokenLoggedIn = await verifyToken();
 
                 if (isLineApp && !isTokenLoggedIn) {
@@ -2118,16 +2113,14 @@
                             const lineProfile = await liff.getProfile();
                             await performBackendLineLogin(lineProfile);
                         } else {
-                            // 如果不在 LIFF 中登入，則顯示按鈕
                             initializeGoogleButton();
                         }
                     } catch (error) {
                         console.error('LIFF 初始化失敗:', error);
                         showNotification('LIFF 初始化失敗，請重新開啟頁面。', 'error');
-                        initializeGoogleButton(); // 初始化失敗時也顯示按鈕
+                        initializeGoogleButton();
                     }
                 } else if (!isTokenLoggedIn) {
-                    // 如果不在 LINE 環境且沒有 token，則顯示 Google 按鈕
                     initializeGoogleButton();
                 }
 
