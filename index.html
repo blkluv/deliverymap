@@ -1555,11 +1555,9 @@
                 checkIfAdmin(userProfile.email);
             }
 
-            // MODIFIED: Function to initialize or fake the Google Button
             function initializeGoogleButton() {
                 const $container = $('#google-signin-container');
                 if (isLineApp) {
-                    // 修正: 在 LINE 環境中，點擊登入按鈕直接導向至 LIFF 登入頁面
                     const lineLoginButtonHtml = `
                         <button id="line-liff-login-btn" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center justify-center w-full hover:bg-green-600 transition-colors">
                             <img src="https://weibsite.github.io/deliverymap/btn_base.png" class="w-6 h-6 mr-3" alt="LINE Logo">
@@ -1567,8 +1565,13 @@
                         </button>
                     `;
                     $container.html(lineLoginButtonHtml).show();
+                    // 修正：直接在此處附加事件處理器
+                    $('#line-liff-login-btn').on('click', function() {
+                        if (liff && liff.isApiAvailable('login')) {
+                           liff.login({ redirectUri: window.location.href });
+                        }
+                    });
                 } else if (window.google && window.google.accounts && window.google.accounts.id) {
-                    // Render the real button
                     google.accounts.id.initialize({
                         client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
                         callback: handleCredentialResponse
@@ -1590,16 +1593,36 @@
                 }
             }
             
-            // 修正: 更改點擊事件處理
-            $(document).on('click', '#line-liff-login-btn', function() {
-                window.location.href = 'https://liff.line.me/2008020548-lVYKgg0B';
-            });
+            async function performBackendLineLogin(profile) {
+                try {
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({ action: 'line_login', profile: profile })
+                    });
+                    const result = await response.json();
+                    if (result.status === 'success' && result.user) {
+                        localStorage.setItem(SESSION_TOKEN_KEY, result.token);
+                        setLoginState(result.user);
+                    } else {
+                        showNotification('自動登入失敗，請手動登入。', 'error');
+                        initializeGoogleButton();
+                    }
+                } catch(error) {
+                    console.error('後端 LINE 登入失敗:', error);
+                    showNotification('自動登入失敗，請手動登入。', 'error');
+                    initializeGoogleButton();
+                }
+            }
 
             async function verifyToken() {
                 const token = localStorage.getItem(SESSION_TOKEN_KEY);
                 if (!token) {
-                    initializeGoogleButton();
-                    return;
+                    // 只有在非 LINE 環境下，才在沒有 token 時顯示 Google 按鈕
+                    if (!isLineApp) {
+                        initializeGoogleButton();
+                    }
+                    return false; // 表示沒有 token
                 }
 
                 try {
@@ -1611,14 +1634,21 @@
                     const result = await response.json();
                     if (result.status === 'success' && result.user) {
                         setLoginState(result.user);
+                        return true; // 表示 token 驗證成功
                     } else {
                         localStorage.removeItem(SESSION_TOKEN_KEY);
-                        initializeGoogleButton();
+                         if (!isLineApp) {
+                            initializeGoogleButton();
+                         }
+                        return false; // 表示 token 無效
                     }
                 } catch(error) {
-                    console.error('Token verification failed:', error);
+                    console.error('Token 驗證失敗:', error);
                     localStorage.removeItem(SESSION_TOKEN_KEY);
-                    initializeGoogleButton();
+                    if (!isLineApp) {
+                        initializeGoogleButton();
+                    }
+                    return false; // 表示驗證過程出錯
                 }
             }
 
@@ -2074,18 +2104,44 @@
             }
             
             // --- Initial Load ---
-            // 修正: 增加 focus 事件監聽器
-            window.addEventListener('focus', () => {
-                // 當視窗重新獲得焦點時 (例如從 LIFF 登入頁回來)
-                // 且使用者尚未登入時，重新檢查 token
-                if (!isLoggedIn) {
-                    verifyToken();
-                }
-            });
+            async function main() {
+                const liffId = '2008020548-WdyekkEj';
+                // 檢查是否已透過 session token 登入
+                const isTokenLoggedIn = await verifyToken();
 
-            loadUserVotes();
-            verifyToken(); // NEW: Try to log in with a token on page load
-            initializeUserLocation();
+                if (isLineApp && !isTokenLoggedIn) {
+                    try {
+                        await liff.init({ liffId });
+
+                        if (liff.isLoggedIn()) {
+                            showNotification('已偵測到您的 LINE 帳號，正在自動登入...');
+                            const lineProfile = await liff.getProfile();
+                            await performBackendLineLogin(lineProfile);
+                        } else {
+                            // 如果不在 LIFF 中登入，則顯示按鈕
+                            initializeGoogleButton();
+                        }
+                    } catch (error) {
+                        console.error('LIFF 初始化失敗:', error);
+                        showNotification('LIFF 初始化失敗，請重新開啟頁面。', 'error');
+                        initializeGoogleButton(); // 初始化失敗時也顯示按鈕
+                    }
+                } else if (!isTokenLoggedIn) {
+                    // 如果不在 LINE 環境且沒有 token，則顯示 Google 按鈕
+                    initializeGoogleButton();
+                }
+
+                loadUserVotes();
+                initializeUserLocation();
+                
+                window.addEventListener('focus', () => {
+                    if (!isLoggedIn) {
+                        verifyToken();
+                    }
+                });
+            }
+
+            main();
         };
     </script>
 </body>
