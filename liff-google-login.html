@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LINE 登入1.0</title>
+    <title>LINE登入中</title>
     <!-- LIFF SDK -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <!-- Tailwind CSS -->
@@ -26,8 +26,6 @@
             const LIFF_ID = '2008020548-lVYKgg0B';
             const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzw8E-u-fHvl7cpucn2hmOCRzy_UfyWRrqBsadmZcyUolmH9aJFJHIWYpQXX_IyWbs/exec';
             const SESSION_TOKEN_KEY = 'userSessionToken';
-            // 您的主地圖頁面 URL。window.location.origin 會自動抓取目前網站的根目錄。
-            const MAIN_PAGE_URL = window.location.origin; 
             // ----------------------------------------------------
 
             const $statusTitle = document.getElementById('status-title');
@@ -56,23 +54,18 @@
                     
                     const lineProfile = await liff.getProfile();
                     
-                    // --- 修正開始 ---
-                    // 將資料打包成您的 Apps Script 預期的純文字 JSON 格式
                     const postData = {
                         action: 'line_login',
                         profile: lineProfile
                     };
 
-                    // 將 LINE 個人資料傳送到您的後端 (Google Apps Script)
                     const response = await fetch(APPS_SCRIPT_URL, {
                         method: 'POST',
                         headers: {
-                            // 明確指定 Content-Type 為 text/plain，對應 Apps Script 的處理方式
                             'Content-Type': 'text/plain;charset=utf-8',
                         },
                         body: JSON.stringify(postData)
                     });
-                    // --- 修正結束 ---
 
                     if (!response.ok) {
                          const errorText = await response.text();
@@ -86,12 +79,17 @@
                         localStorage.setItem(SESSION_TOKEN_KEY, result.token);
                         
                         $statusTitle.innerText = '登入成功！';
-                        $statusMessage.innerText = '即將將您導回地圖頁面...';
+                        // --- 修正開始 ---
+                        $statusMessage.innerText = '即將關閉此視窗...';
 
-                        // 短暫延遲後導回主頁面，確保 localStorage 寫入完成
+                        // 短暫延遲後關閉 LIFF 視窗，確保 localStorage 寫入完成
                         setTimeout(() => {
-                            window.location.href = MAIN_PAGE_URL;
+                            // 只有在 LIFF 環境中才執行關閉
+                            if (liff.isInClient()) {
+                                liff.closeWindow();
+                            }
                         }, 1500);
+                        // --- 修正結束 ---
 
                     } else {
                         // 如果後端回傳的 JSON 中有錯誤訊息，就顯示出來
