@@ -57,21 +57,26 @@
                     const lineProfile = await liff.getProfile();
                     
                     // --- 修正開始 ---
-                    // 將資料打包成 FormData 格式
-                    const formData = new FormData();
-                    formData.append('action', 'line_login');
-                    formData.append('profile', JSON.stringify(lineProfile)); // profile 物件較複雜，仍需轉為 JSON 字串
+                    // 將資料打包成您的 Apps Script 預期的純文字 JSON 格式
+                    const postData = {
+                        action: 'line_login',
+                        profile: lineProfile
+                    };
 
                     // 將 LINE 個人資料傳送到您的後端 (Google Apps Script)
                     const response = await fetch(APPS_SCRIPT_URL, {
                         method: 'POST',
-                        // 不需手動設定 headers，瀏覽器會自動為 FormData 設定正確的 Content-Type
-                        body: formData
+                        headers: {
+                            // 明確指定 Content-Type 為 text/plain，對應 Apps Script 的處理方式
+                            'Content-Type': 'text/plain;charset=utf-8',
+                        },
+                        body: JSON.stringify(postData)
                     });
                     // --- 修正結束 ---
 
                     if (!response.ok) {
-                        throw new Error(`伺服器錯誤: ${response.status}`);
+                         const errorText = await response.text();
+                        throw new Error(`伺服器錯誤: ${response.status} - ${errorText}`);
                     }
                     
                     const result = await response.json();
@@ -89,6 +94,7 @@
                         }, 1500);
 
                     } else {
+                        // 如果後端回傳的 JSON 中有錯誤訊息，就顯示出來
                         throw new Error(result.message || '無法從後端取得 Token');
                     }
                 } catch (error) {
