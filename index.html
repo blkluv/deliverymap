@@ -706,6 +706,12 @@
         window.onload = function() {
             const { pinyin } = pinyinPro; 
             const isLineApp = navigator.userAgent.toLowerCase().indexOf("line") > -1;
+            
+            // --- 修正：動態調整 LINE 瀏覽器中的底部距離 ---
+            if (isLineApp) {
+                // 您可以在這裡調整 '4rem' 這個數值
+                document.documentElement.style.setProperty('--mobile-bottom-offset', '4rem');
+            }
 
             let allFeatures = [];
             let rawReports = []; // NEW: Store for individual reports for admin panel
