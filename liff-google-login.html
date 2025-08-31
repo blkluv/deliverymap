@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LINE 登入中</title>
+    <title>LINE 登入</title>
     <!-- LIFF SDK -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <!-- Tailwind CSS -->
@@ -12,7 +12,11 @@
 <body class="bg-gray-100 flex items-center justify-center h-screen">
 
     <div id="container" class="text-center p-8 bg-white rounded-lg shadow-md">
-        <img src="https://weibsite.github.io/deliverymap/btn_base2.png" class="w-16 h-16 mx-auto mb-4" alt="LINE Logo">
+        <!-- 測試用：新增一個區塊來顯示頭像 -->
+        <div id="avatar-container" class="hidden mb-4">
+            <img id="profile-picture" src="" alt="LINE 頭像" class="w-24 h-24 rounded-full mx-auto border-4 border-green-500">
+        </div>
+
         <h1 id="status-title" class="text-2xl font-bold text-gray-800 mb-4">正在處理 LINE 登入</h1>
         <p id="status-message" class="text-gray-600 mb-6">請稍候...</p>
         
@@ -31,6 +35,8 @@
             const $statusTitle = document.getElementById('status-title');
             const $statusMessage = document.getElementById('status-message');
             const $spinner = document.getElementById('loading-spinner');
+            const $avatarContainer = document.getElementById('avatar-container');
+            const $profilePicture = document.getElementById('profile-picture');
 
             try {
                 await liff.init({ liffId: LIFF_ID });
@@ -43,17 +49,24 @@
             }
 
             if (!liff.isLoggedIn()) {
-                // 如果使用者尚未登入，將他們導向至 LINE 的登入頁面
-                // 登入後會自動返回此頁面
                 $statusMessage.innerText = '即將引導您至 LINE 登入頁面...';
                 liff.login({ redirectUri: window.location.href });
             } else {
-                // 使用者已登入，可以開始處理後續流程
                 try {
-                    $statusMessage.innerText = '已取得授權，正在驗證您的身分...';
+                    $statusMessage.innerText = '已取得授權，正在讀取您的個人資料...';
                     
                     const lineProfile = await liff.getProfile();
                     
+                    // --- 測試步驟：顯示使用者頭像 ---
+                    if (lineProfile.pictureUrl) {
+                        $profilePicture.src = lineProfile.pictureUrl;
+                        $avatarContainer.style.display = 'block';
+                        $statusMessage.innerText = '已成功取得您的頭像！正在完成登入...';
+                    } else {
+                        $statusMessage.innerText = '無法取得您的頭像，但仍會繼續登入...';
+                    }
+                    // --- 測試步驟結束 ---
+
                     const postData = {
                         action: 'line_login',
                         profile: lineProfile
@@ -75,24 +88,19 @@
                     const result = await response.json();
 
                     if (result.status === 'success' && result.token) {
-                        // 成功從後端取得 token，將其存儲在 localStorage
                         localStorage.setItem(SESSION_TOKEN_KEY, result.token);
                         
                         $statusTitle.innerText = '登入成功！';
-                        // --- 修正開始 ---
                         $statusMessage.innerText = '即將關閉此視窗...';
 
-                        // 短暫延遲後關閉 LIFF 視窗，確保 localStorage 寫入完成
+                        // 延長一點時間讓使用者能看到頭像
                         setTimeout(() => {
-                            // 只有在 LIFF 環境中才執行關閉
                             if (liff.isInClient()) {
                                 liff.closeWindow();
                             }
-                        }, 1500);
-                        // --- 修正結束 ---
+                        }, 2500); 
 
                     } else {
-                        // 如果後端回傳的 JSON 中有錯誤訊息，就顯示出來
                         throw new Error(result.message || '無法從後端取得 Token');
                     }
                 } catch (error) {
