@@ -1555,10 +1555,10 @@
                 checkIfAdmin(userProfile.email);
             }
 
-            // 修正: 將按鈕改為 <a> 標籤來確保第一次點擊就能觸發
             function initializeGoogleButton() {
                 const $container = $('#google-signin-container');
                 if (isLineApp) {
+                     // 修正: 將按鈕改為 <a> 連結，確保點擊立即反應
                     const lineLoginButtonHtml = `
                         <a href="https://liff.line.me/2008020548-lVYKgg0B" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center justify-center w-full hover:bg-green-600 transition-colors no-underline">
                             <img src="https://weibsite.github.io/deliverymap/btn_base.png" class="w-6 h-6 mr-3" alt="LINE Logo">
@@ -1588,7 +1588,6 @@
                 }
             }
             
-            // 新增: 用於處理 LINE 自動登入的後端請求
             async function performBackendLineLogin(profile) {
                 try {
                     const response = await fetch(APPS_SCRIPT_URL, {
@@ -2101,26 +2100,15 @@
             
             // --- Initial Load ---
             async function main() {
-                const liffId = '2008020548-WdyekkEj';
+                 const lineLoginLiffUrl = 'https://liff.line.me/2008020548-lVYKgg0B';
                 const isTokenLoggedIn = await verifyToken();
 
                 if (isLineApp && !isTokenLoggedIn) {
-                    try {
-                        await liff.init({ liffId });
-
-                        if (liff.isLoggedIn()) {
-                            showNotification('已偵測到您的 LINE 帳號，正在自動登入...');
-                            const lineProfile = await liff.getProfile();
-                            await performBackendLineLogin(lineProfile);
-                        } else {
-                            initializeGoogleButton();
-                        }
-                    } catch (error) {
-                        console.error('LIFF 初始化失敗:', error);
-                        showNotification('LIFF 初始化失敗，請重新開啟頁面。', 'error');
-                        initializeGoogleButton();
-                    }
+                    // 在 LINE 環境且未登入，直接導向登入頁
+                    window.location.href = lineLoginLiffUrl;
+                    return; // 停止後續執行
                 } else if (!isTokenLoggedIn) {
+                    // 在非 LINE 環境且未登入，顯示 Google 按鈕
                     initializeGoogleButton();
                 }
 
