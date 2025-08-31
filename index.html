@@ -2061,36 +2061,41 @@
             
             // --- Initial Load ---
             async function main() {
+                // 修正：將所有邏輯移到一個函式中，以便在 DOMContentLoaded 後執行
                 const initializeApp = async () => {
                     const lineLoginLiffUrl = 'https://liff.line.me/2008020548-lVYKgg0B';
                     
+                    // 1. 優先載入地圖與使用者定位
                     loadUserVotes();
                     initializeUserLocation();
-                    
+
+                    // 2. 在背景驗證登入狀態
                     const isTokenLoggedIn = await verifyToken();
 
-                    if (!isTokenLoggedIn) {
-                        if (isLineApp) {
-                            window.location.href = lineLoginLiffUrl;
-                        } else {
-                            initializeGoogleButton();
-                            
-                            // 修正: 啟動定時檢查器
-                            if (loginCheckInterval) clearInterval(loginCheckInterval);
-                            loginCheckInterval = setInterval(async () => {
-                                if (!isLoggedIn) {
-                                    const success = await verifyToken();
-                                    if (success) {
-                                        clearInterval(loginCheckInterval);
-                                    }
-                                } else {
-                                     clearInterval(loginCheckInterval);
+                    // 3. 根據環境和登入狀態決定下一步
+                    if (isLineApp && !isTokenLoggedIn) {
+                        // 在 LINE 環境且未登入，直接導向登入頁
+                        window.location.href = lineLoginLiffUrl;
+                        return; // 導向後停止後續執行
+                    } else if (!isLineApp && !isTokenLoggedIn) {
+                        // 在非 LINE 環境且未登入，才顯示 Google 登入按鈕
+                        initializeGoogleButton();
+                         // 修正: 啟動定時檢查器
+                        if (loginCheckInterval) clearInterval(loginCheckInterval);
+                        loginCheckInterval = setInterval(async () => {
+                            if (!isLoggedIn) {
+                                const success = await verifyToken();
+                                if (success) {
+                                    clearInterval(loginCheckInterval);
                                 }
-                            }, 1000); // 每秒檢查一次
-                        }
+                            } else {
+                                    clearInterval(loginCheckInterval);
+                            }
+                        }, 1000); // 每秒檢查一次
                     }
                 };
                 
+                // 確保 DOM 完全載入後再執行主程式
                 if (document.readyState === 'loading') {
                     document.addEventListener('DOMContentLoaded', initializeApp);
                 } else {
@@ -2103,4 +2108,3 @@
     </script>
 </body>
 </html>
-
