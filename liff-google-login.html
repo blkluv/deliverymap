@@ -24,7 +24,7 @@
         async function main() {
             // --- 請確認以下變數與您的主頁面 (index.html) 一致 ---
             const LIFF_ID = '2008020548-lVYKgg0B';
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwWzN3B2WXuPBtdfUrnfCMmFEPShTSjppNI1CRupx6D9X690SazrHOb_nKiywlYUYSH/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzw8E-u-fHvl7cpucn2hmOCRzy_UfyWRrqBsadmZcyUolmH9aJFJHIWYpQXX_IyWbs/exec';
             const SESSION_TOKEN_KEY = 'userSessionToken';
             // 您的主地圖頁面 URL。window.location.origin 會自動抓取目前網站的根目錄。
             const MAIN_PAGE_URL = window.location.origin; 
@@ -56,12 +56,19 @@
                     
                     const lineProfile = await liff.getProfile();
                     
+                    // --- 修正開始 ---
+                    // 將資料打包成 FormData 格式
+                    const formData = new FormData();
+                    formData.append('action', 'line_login');
+                    formData.append('profile', JSON.stringify(lineProfile)); // profile 物件較複雜，仍需轉為 JSON 字串
+
                     // 將 LINE 個人資料傳送到您的後端 (Google Apps Script)
                     const response = await fetch(APPS_SCRIPT_URL, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify({ action: 'line_login', profile: lineProfile })
+                        // 不需手動設定 headers，瀏覽器會自動為 FormData 設定正確的 Content-Type
+                        body: formData
                     });
+                    // --- 修正結束 ---
 
                     if (!response.ok) {
                         throw new Error(`伺服器錯誤: ${response.status}`);
@@ -97,3 +104,4 @@
     </script>
 </body>
 </html>
+
