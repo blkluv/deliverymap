@@ -8,45 +8,7 @@
     <!-- LIFF SDK -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     
-    <!-- 修正：新的 LIFF 環境判斷與自動重新導向腳本 -->
-    <script>
-        (function() {
-            const liffUrl = 'https://liff.line.me/2008020548-WdyekkEj';
-            const isLineBrowser = /Line\//.test(navigator.userAgent);
-
-            // 僅在 LINE 瀏覽器中執行此邏輯
-            if (isLineBrowser) {
-                // 等待 DOM 載入完成
-                document.addEventListener('DOMContentLoaded', function() {
-                    const observer = new MutationObserver(function(mutations, me) {
-                        const googleButton = document.querySelector('#google-signin-container[style*="display: block"]');
-                        const lineButton = document.querySelector('#line-login-container[style*="display: block"]');
-                        
-                        // 如果出現 Google 登入按鈕，代表不在 LIFF 環境中，執行重新導向
-                        if (googleButton) {
-                            window.location.href = liffUrl;
-                            me.disconnect(); // 停止觀察
-                        } 
-                        // 如果出現 LINE 登入按鈕，代表已在 LIFF 環境中，不做任何事
-                        else if (lineButton) {
-                            me.disconnect(); // 停止觀察
-                        }
-                    });
-
-                    // 設定觀察目標為登入按鈕的容器
-                    const loginStatusNode = document.getElementById('login-status');
-                    if(loginStatusNode) {
-                        observer.observe(loginStatusNode, {
-                            childList: true,
-                            subtree: true,
-                            attributes: true,
-                            attributeFilter: ['style']
-                        });
-                    }
-                });
-            }
-        })();
-    </script>
+    <!-- 移除舊的自動重新導向腳本 -->
 
     <!-- Script to clean URL parameters from Facebook, etc. -->
     <script>
@@ -1467,7 +1429,7 @@
                     const maxDistance = 5000;
 
                     if (distance > maxDistance) {
-                        showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點${maxDistance}公尺。`, 'error');
+                        showNotification(`修改後の位置(${Math.round(distance)}公尺)不能超過初始定位點${maxDistance}公尺。`, 'error');
                         return;
                     }
                 }
@@ -1594,19 +1556,41 @@
                 checkIfAdmin(userProfile.email); // Admin check still relies on email
             }
 
-            function initializeGoogleButton() {
-                if (window.google && window.google.accounts && window.google.accounts.id) {
-                    google.accounts.id.initialize({
-                        client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
-                        callback: handleCredentialResponse
+            function initializeGoogleButton(isLineEnvironment = false) {
+                const $container = $('#google-signin-container');
+                const googleLoginLiffUrl = 'https://liff.line.me/2008020548-lVYKgg0B';
+
+                if (isLineEnvironment) {
+                    // 在 LINE 環境中，渲染一個自訂按鈕，點擊後打開 LIFF 視窗
+                    const googleButtonHtml = `
+                        <button id="liff-google-login-btn" class="bg-white border border-gray-300 text-gray-700 py-2 px-4 rounded-lg shadow-md flex items-center justify-center w-full hover:bg-gray-50 transition-colors">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" class="w-5 h-5 mr-3" alt="Google Logo">
+                            <span class="font-medium">透過 Google 登入</span>
+                        </button>
+                    `;
+                    $container.html(googleButtonHtml).show();
+                    $('#liff-google-login-btn').on('click', function() {
+                        if (liff && liff.openWindow) {
+                            liff.openWindow({ url: googleLoginLiffUrl });
+                        } else {
+                            showNotification('無法開啟登入視窗，請確認 LIFF 初始化成功。', 'error');
+                        }
                     });
-                    google.accounts.id.renderButton(
-                        document.getElementById('google-signin-container'),
-                        { type: 'standard', size: 'large', theme: 'outline', text: 'sign_in_with', shape: 'rectangular', logo_alignment: 'left' } 
-                    );
-                    $('#google-signin-container').show();
                 } else {
-                    setTimeout(initializeGoogleButton, 200);
+                    // 在 LINE 之外的環境，渲染真正的 Google 登入按鈕
+                    if (window.google && window.google.accounts && window.google.accounts.id) {
+                        google.accounts.id.initialize({
+                            client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
+                            callback: handleCredentialResponse
+                        });
+                        google.accounts.id.renderButton(
+                            $container[0],
+                            { type: 'standard', size: 'large', theme: 'outline', text: 'sign_in_with', shape: 'rectangular', logo_alignment: 'left' } 
+                        );
+                        $container.show();
+                    } else {
+                        setTimeout(() => initializeGoogleButton(false), 200);
+                    }
                 }
             }
             
@@ -1637,7 +1621,10 @@
             async function verifyToken() {
                 const token = localStorage.getItem(SESSION_TOKEN_KEY);
                 if (!token) {
-                    initializeGoogleButton();
+                    // 如果沒有 token，且不在 LINE 環境中，才顯示 Google 登入
+                    if (!liff.isInClient()) {
+                         initializeGoogleButton(false);
+                    }
                     return;
                 }
 
@@ -1652,12 +1639,16 @@
                         setLoginState(result.user);
                     } else {
                         localStorage.removeItem(SESSION_TOKEN_KEY);
-                        initializeGoogleButton();
+                        if (!liff.isInClient()) {
+                            initializeGoogleButton(false);
+                        }
                     }
                 } catch(error) {
                     console.error('Token verification failed:', error);
                     localStorage.removeItem(SESSION_TOKEN_KEY);
-                    initializeGoogleButton();
+                     if (!liff.isInClient()) {
+                        initializeGoogleButton(false);
+                    }
                 }
             }
 
@@ -1753,11 +1744,12 @@
                 
                 if (liff.isInClient()) {
                     $('#line-login-container').show();
-                    $('#google-signin-container').hide();
+                    $('#google-signin-container').empty().show();
+                    initializeGoogleButton(true);
                 } else {
                     $('#line-login-container').hide();
                     $('#google-signin-container').empty().show();
-                    initializeGoogleButton();
+                    initializeGoogleButton(false);
                 }
 
                 showNotification('您已成功登出。');
@@ -2122,47 +2114,46 @@
             // --- Initial Load ---
             async function main() {
                 const liffId = '2008020548-WdyekkEj';
-                const liffUrl = 'https://liff.line.me/2008020548-WdyekkEj';
-
+                
                 try {
                     await liff.init({ liffId });
-
-                    // 新的修正邏輯：
-                    // 在 liff.init() 之後，檢查是否在 LINE 的客戶端中，但卻沒有取得 LIFF 的上下文(context)。
-                    // 這種情況通常發生在使用者直接在 LINE 內建瀏覽器開啟網頁，而不是透過 LIFF URL 進入。
-                    // liff.getContext() 在非 LIFF 環境下會回傳 null。
-                    // 這樣可以確保重新導向只發生在必要時，且因為 LIFF URL 導回後 getContext() 會成功，
-                    // 所以能有效避免無限迴圈。
-                    if (liff.isInClient() && !liff.getContext()) {
-                        window.location.href = liffUrl;
-                        return; // 停止執行後續程式碼，等待重新導向
-                    }
-
                 } catch (e) {
                     console.error('LIFF init failed.', e);
-                    // 如果初始化失敗，且確定是在 LINE 瀏覽器中，也嘗試重新導向
-                    if (/Line\//.test(navigator.userAgent)) {
-                        window.location.href = liffUrl;
-                        return;
-                    }
                 }
 
                 if (liff.isInClient()) {
-                     $('#google-signin-container').hide();
-                     $('#line-login-container').show();
+                    // 在 LINE 環境中
+                    initializeGoogleButton(true); // 渲染自訂的 Google 登入按鈕
+
                     if (liff.isLoggedIn()) {
+                        // 已透過 LINE 登入
+                        $('#google-signin-container').hide();
+                        $('#line-login-container').hide();
                         const lineProfile = await liff.getProfile();
                         await handleLineLogin(lineProfile);
                     } else {
+                        // 尚未登入，顯示 LINE 和 Google 登入選項
+                        $('#google-signin-container').show();
+                        $('#line-login-container').show();
                         $('#line-login-btn').on('click', () => liff.login());
                     }
                 } else {
+                    // 不在 LINE 環境中
                     $('#line-login-container').hide();
+                    initializeGoogleButton(false); // 渲染真正的 Google 登入按鈕
                     await verifyToken();
                 }
 
                 loadUserVotes();
                 initializeUserLocation();
+                
+                // 新增：當視窗重新獲得焦點時（例如從 LIFF 視窗回來），檢查登入狀態
+                window.addEventListener('focus', () => {
+                    // 只在未登入狀態下才重新檢查，避免重複執行
+                    if (!isLoggedIn) {
+                        verifyToken();
+                    }
+                });
             }
 
             main();
