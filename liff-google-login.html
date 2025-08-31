@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google 登入</title>
+    <!-- LIFF SDK -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Identity Services Library -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+
+    <div id="container" class="text-center p-8 bg-white rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold text-gray-800 mb-4">Google 帳號登入</h1>
+        <p id="status-message" class="text-gray-600 mb-6">請點擊下方按鈕以繼續登入流程。</p>
+        
+        <!-- Container for Google Login Button -->
+        <div id="google-signin-container" class="flex justify-center"></div>
+
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="hidden animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+    </div>
+
+    <script>
+        // 將此函式設為全域，以便 Google 的回呼能夠找到它
+        window.handleCredentialResponse = async function(response) {
+            document.getElementById('google-signin-container').style.display = 'none';
+            document.getElementById('loading-spinner').style.display = 'block';
+            document.getElementById('status-message').innerText = '正在驗證您的身分...';
+
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzw8E-u-fHvl7cpucn2hmOCRzy_UfyWRrqBsadmZcyUolmH9aJFJHIWYpQXX_IyWbs/exec';
+            const SESSION_TOKEN_KEY = 'userSessionToken';
+
+            try {
+                // 解碼 JWT 以取得使用者個人資料
+                const base64Url = response.credential.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                const googleProfile = JSON.parse(jsonPayload);
+
+                // 將 Google 個人資料傳送到後端進行驗證並取得 session token
+                const apiResponse = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' }, // 根據您的 Apps Script 設定
+                    body: JSON.stringify({ action: 'google_login', profile: googleProfile })
+                });
+
+                const result = await apiResponse.json();
+
+                if (result.status === 'success' && result.token) {
+                    // 將 token 存儲在 localStorage 中
+                    localStorage.setItem(SESSION_TOKEN_KEY, result.token);
+                    
+                    // 為了確保主頁面能夠讀取到，短暫延遲後再關閉視窗
+                    document.getElementById('status-message').innerText = '登入成功！即將返回地圖...';
+                    setTimeout(() => {
+                        if (liff.isInClient()) {
+                            liff.closeWindow();
+                        }
+                    }, 1000);
+
+                } else {
+                    throw new Error(result.message || '後端驗證失敗');
+                }
+            } catch (error) {
+                console.error('Google 登入流程失敗:', error);
+                document.getElementById('status-message').innerText = `登入失敗：${error.message}。請關閉此視窗再試一次。`;
+                document.getElementById('loading-spinner').style.display = 'none';
+            }
+        };
+
+        // 初始化 LIFF 和 Google 登入按鈕
+        async function initialize() {
+            const liffId = '2008020548-lVYKgg0B'; // 這是您為 Google 登入建立的新 LIFF ID
+            try {
+                await liff.init({ liffId });
+                
+                // 初始化 Google 按鈕
+                if (window.google && window.google.accounts && window.google.accounts.id) {
+                    google.accounts.id.initialize({
+                        client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
+                        callback: window.handleCredentialResponse
+                    });
+                    google.accounts.id.renderButton(
+                        document.getElementById('google-signin-container'),
+                        { type: 'standard', size: 'large', theme: 'outline', text: 'sign_in_with', shape: 'rectangular', logo_alignment: 'left' } 
+                    );
+                } else {
+                   document.getElementById('status-message').innerText = '無法載入 Google 登入服務。';
+                }
+            } catch (error) {
+                console.error('LIFF 初始化失敗', error);
+                document.getElementById('status-message').innerText = '頁面初始化失敗，請關閉此視窗再試一次。';
+            }
+        }
+
+        // 當 Google API 載入完成後執行初始化
+        const gsiScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+        gsiScript.onload = initialize;
+
+    </script>
+</body>
+</html>
