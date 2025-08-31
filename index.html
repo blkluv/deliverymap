@@ -2082,12 +2082,29 @@
             // --- Initial Load ---
             async function main() {
                 const liffId = '2008020548-WdyekkEj';
+                const liffUrl = 'https://liff.line.me/2008020548-WdyekkEj';
+
                 try {
-                    // This will only run if the redirect logic at the top didn't fire,
-                    // meaning we are already in the LIFF context.
                     await liff.init({ liffId });
+
+                    // 新的修正邏輯：
+                    // 在 liff.init() 之後，檢查是否在 LINE 的客戶端中，但卻沒有取得 LIFF 的上下文(context)。
+                    // 這種情況通常發生在使用者直接在 LINE 內建瀏覽器開啟網頁，而不是透過 LIFF URL 進入。
+                    // liff.getContext() 在非 LIFF 環境下會回傳 null。
+                    // 這樣可以確保重新導向只發生在必要時，且因為 LIFF URL 導回後 getContext() 會成功，
+                    // 所以能有效避免無限迴圈。
+                    if (liff.isInClient() && !liff.getContext()) {
+                        window.location.href = liffUrl;
+                        return; // 停止執行後續程式碼，等待重新導向
+                    }
+
                 } catch (e) {
                     console.error('LIFF init failed.', e);
+                    // 如果初始化失敗，且確定是在 LINE 瀏覽器中，也嘗試重新導向
+                    if (/Line\//.test(navigator.userAgent)) {
+                        window.location.href = liffUrl;
+                        return;
+                    }
                 }
 
                 if (liff.isInClient()) {
