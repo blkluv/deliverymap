@@ -3,18 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>黑客指南針1.0</title>
+    <title>黑客指南針</title>
 
-    <!-- LIFF SDK -->
-    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    
-    <!-- 移除舊的自動重新導向腳本 -->
+    <!-- NEW: Script to detect Facebook browser and show overlay -->
+    <script>
+        (function() {
+            const ua = navigator.userAgent.toLowerCase();
+            const isFacebookApp = ua.indexOf("fban") > -1 || ua.indexOf("fbav") > -1;
+
+            // 只在 Facebook App 中執行
+            if (isFacebookApp) {
+                // 等待 DOM 載入完成後再顯示提示，確保元素存在
+                document.addEventListener('DOMContentLoaded', function() {
+                    const modal = document.getElementById('facebook-blocker-modal');
+                    if (modal) {
+                        modal.style.display = 'flex';
+                    }
+                });
+            }
+        })();
+    </script>
 
     <!-- Script to clean URL parameters from Facebook, etc. -->
     <script>
         (function() {
-            // This script runs immediately to clean the URL if necessary,
-            // avoiding issues with reloads or sharing.
             const url = new URL(window.location);
             if (url.searchParams.has('fbclid')) {
                 const newUrl = url.pathname + url.hash;
@@ -211,12 +223,12 @@
         /* 在小於 768px 的螢幕上（手機版）套用較高的底部距離 */
         @media (max-width: 767px) {
             #legend {
-                display: none; /* 在手機版上隱藏中間の分類圖例 */
+                display: none; /* 在手機版上隱藏中間的分類圖例 */
             }
             #store-list-panel {
                 bottom: var(--mobile-bottom-offset);
                 width: var(--mobile-panel-width);
-                max-width: 400px; /* 避免在較寬の手機螢幕上過寬 */
+                max-width: 400px; /* 避免在較寬的手機螢幕上過寬 */
                 left: 50%;
                 transform: translateX(-50%);
             }
@@ -235,26 +247,6 @@
         }
         .vote-btn.voted-dislike svg {
             fill: #EF4444; /* A brighter red */
-        }
-        /* NEW: LINE Login Button Style */
-        #line-login-btn {
-            background-color: #00B900;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            font-weight: bold;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        #line-login-btn:hover {
-            background-color: #00A300;
-        }
-        #line-login-btn img {
-            width: 24px;
-            margin-right: 8px;
         }
     </style>
 </head>
@@ -341,14 +333,7 @@
                 <div class="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2">
                     <!-- 登入/新增說明按鈕 -->
                     <div id="login-status">
-                        <!-- NEW: Container for LINE Login Button -->
-                        <div id="line-login-container" style="display: none;">
-                            <button id="line-login-btn">
-                                <img src="https://weibsite.github.io/deliverymap/btn_base.png" alt="LINE logo">
-                                登入
-                            </button>
-                        </div>
-                        <!-- Container for Google Login Button -->
+                        <!-- MODIFIED: Replaced declarative button with a container for programmatic rendering -->
                         <div id="google-signin-container" style="display: none;"></div>
                         
                          <div id="add-info" class="bg-white text-gray-700 py-2 px-4 rounded-lg shadow-lg items-center space-x-2 hidden">
@@ -526,6 +511,23 @@
                 <br><br>
                 為了獲得最佳體驗，建議您點擊畫面右上角的「<span class="font-bold">•••</span>」選單，然後選擇「<span class="font-bold">在瀏覽器中開啟</span>」。
             </p>
+        </div>
+        <!-- NEW: In-App Browser Blocker for LINE Login -->
+        <div id="line-login-blocker-modal" class="fixed inset-0 bg-black/80 z-[200] flex-col items-center justify-center p-8 text-white text-center hidden">
+            <div class="bg-white text-gray-800 rounded-lg p-8 max-w-sm mx-auto shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-4 mx-auto text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h2 class="text-xl font-bold mb-4">無法在此登入</h2>
+                <p class="text-base mb-6">
+                    您似乎正在使用 LINE 內建瀏覽器。
+                    <br><br>
+                    為了正常登入 Google 帳號，請點擊畫面右下角的「<span class="font-bold">⋮</span>」選單，然後選擇「<span class="font-bold">在瀏覽器中開啟</span>」。
+                </p>
+                <button id="close-line-login-blocker" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
+                    我知道了
+                </button>
+            </div>
         </div>
     </div>
 
@@ -722,6 +724,8 @@
 
         window.onload = function() {
             const { pinyin } = pinyinPro; 
+            const isLineApp = navigator.userAgent.toLowerCase().indexOf("line") > -1;
+
             let allFeatures = [];
             let rawReports = []; // NEW: Store for individual reports for admin panel
             let fuse = null; 
@@ -734,7 +738,7 @@
             let tempMarker = null; // Draggable marker for mobile
             let isDraggingMarker = false;
             
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzw8E-u-fHvl7cpucn2hmOCRzy_UfyWRrqBsadmZcyUolmH9aJFJHIWYpQXX_IyWbs/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwWzN3B2WXuPBtdfUrnfCMmFEPShTSjppNI1CRupx6D9X690SazrHOb_nKiywlYUYSH/exec';
             
             const visibilityThreshold = 16.5; 
 
@@ -1429,7 +1433,7 @@
                     const maxDistance = 5000;
 
                     if (distance > maxDistance) {
-                        showNotification(`修改後の位置(${Math.round(distance)}公尺)不能超過初始定位點${maxDistance}公尺。`, 'error');
+                        showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點${maxDistance}公尺。`, 'error');
                         return;
                     }
                 }
@@ -1448,8 +1452,7 @@
                 const newData = {
                     action: action, rowIndex: rowIndex, originalName: originalName, 
                     submitterName: currentUserDisplayName || 'N/A',
-                    submitterEmail: userProfile.email || null, // Can be null for LINE users
-                    submitterLineId: userProfile.lineUserId || null, // Add new field for LINE users
+                    submitterEmail: userProfile.email || 'N/A',
                     adminEmail: userProfile.email, 
                     name: formData.get('address'), 
                     category: formData.get('category'), 
@@ -1521,7 +1524,6 @@
             }
             
             async function checkIfAdmin(email) {
-                if (!email) return; // Don't check for admin if email is not available (LINE users)
                 try {
                     const response = await fetch(`${APPS_SCRIPT_URL}?action=checkAdmin&email=${encodeURIComponent(email)}`);
                     if (!response.ok) throw new Error('Admin check failed');
@@ -1543,88 +1545,67 @@
 
             function setLoginState(profile) {
                 isLoggedIn = true;
-                userProfile = profile; // This now contains { name, email?, lineUserId? }
+                userProfile = profile;
                 
-                const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
-                const storedNickname = localStorage.getItem(storageKey);
+                const storedNickname = localStorage.getItem(`nickname_${userProfile.email}`);
                 currentUserDisplayName = storedNickname || profile.name;
 
-                $('#google-signin-container').hide();
-                $('#line-login-container').hide();
+                $('#google-signin-container').hide(); // HIDE the new container
                 $('#add-info').removeClass('hidden').addClass('flex');
                 $('#user-name').text(currentUserDisplayName);
-                checkIfAdmin(userProfile.email); // Admin check still relies on email
+                checkIfAdmin(userProfile.email);
             }
 
-            function initializeGoogleButton(isLineEnvironment = false) {
+            // MODIFIED: Function to initialize or fake the Google Button
+            function initializeGoogleButton() {
                 const $container = $('#google-signin-container');
-                const googleLoginLiffUrl = 'https://liff.line.me/2008020548-lVYKgg0B';
-
-                if (isLineEnvironment) {
-                    // 在 LINE 環境中，渲染一個自訂按鈕，點擊後打開 LIFF 視窗
-                    const googleButtonHtml = `
-                        <button id="liff-google-login-btn" class="bg-white border border-gray-300 text-gray-700 py-2 px-4 rounded-lg shadow-md flex items-center justify-center w-full hover:bg-gray-50 transition-colors">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" class="w-5 h-5 mr-3" alt="Google Logo">
-                            <span class="font-medium">透過 Google 登入</span>
+                if (isLineApp) {
+                    // Inject a fake button for LINE browser
+                    const fakeButtonHtml = `
+                        <button id="fake-google-signin-btn" class="g_id_signin" style="position: relative; text-align: center; border: 1px solid rgb(218, 220, 224); -webkit-border-radius: 4px; border-radius: 4px; -webkit-box-sizing: border-box; box-sizing: border-box; color: rgb(60, 64, 67); cursor: pointer; font-family: 'Roboto', arial, sans-serif; font-size: 14px; height: 40px; letter-spacing: 0.25px; padding: 0px 10px; background-color: rgb(255, 255, 255); -webkit-transition: background-color 0.218s, border-color 0.218s; transition: background-color 0.218s, border-color 0.218s; width: auto; min-width: 200px;">
+                            <div style="display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: start; -webkit-justify-content: flex-start; justify-content: flex-start; height: 100%;">
+                                <div style="display: -webkit-box; display: -webkit-flex; display: flex; -webkit-box-align: center; -webkit-align-items: center; align-items: center;"><div style="width: 18px; height: 18px; margin-right: 8px;"><svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style="display: block;"><g><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></g></svg></div></div>
+                                <span style="font-size: 14px; letter-spacing: 0.25px; color: #3c4043; -webkit-font-smoothing: antialiased; line-height: 34px; padding-right: 8px;">透過 Google 登入</span>
+                            </div>
                         </button>
                     `;
-                    $container.html(googleButtonHtml).show();
-                    $('#liff-google-login-btn').on('click', function() {
-                        if (liff && liff.openWindow) {
-                            liff.openWindow({ url: googleLoginLiffUrl });
-                        } else {
-                            showNotification('無法開啟登入視窗，請確認 LIFF 初始化成功。', 'error');
-                        }
+                    $container.html(fakeButtonHtml);
+                    $container.show();
+                } else if (window.google && window.google.accounts && window.google.accounts.id) {
+                    // Render the real button
+                    google.accounts.id.initialize({
+                        client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
+                        callback: handleCredentialResponse
                     });
+                    google.accounts.id.renderButton(
+                        $container[0],
+                        { 
+                            type: 'standard',
+                            size: 'large',
+                            theme: 'outline',
+                            text: 'sign_in_with',
+                            shape: 'rectangular',
+                            logo_alignment: 'left'
+                        } 
+                    );
+                    $container.show();
                 } else {
-                    // 在 LINE 之外的環境，渲染真正的 Google 登入按鈕
-                    if (window.google && window.google.accounts && window.google.accounts.id) {
-                        google.accounts.id.initialize({
-                            client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
-                            callback: handleCredentialResponse
-                        });
-                        google.accounts.id.renderButton(
-                            $container[0],
-                            { type: 'standard', size: 'large', theme: 'outline', text: 'sign_in_with', shape: 'rectangular', logo_alignment: 'left' } 
-                        );
-                        $container.show();
-                    } else {
-                        setTimeout(() => initializeGoogleButton(false), 200);
-                    }
+                    setTimeout(initializeGoogleButton, 200);
                 }
             }
             
-            async function handleLineLogin(lineProfile) {
-                try {
-                    const response = await fetch(APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify({ action: 'line_login', profile: lineProfile })
-                    });
-                    const result = await response.json();
-                    if (result.status === 'success' && result.user) {
-                        localStorage.setItem(SESSION_TOKEN_KEY, result.token);
-                        setLoginState({
-                            name: result.user.name,
-                            lineUserId: result.user.lineUserId,
-                            email: null
-                        });
-                    } else {
-                        showNotification('LINE 登入失敗，請稍後再試。', 'error');
-                    }
-                } catch (error) {
-                    console.error('LINE Login process failed:', error);
-                    showNotification('LINE 登入時發生錯誤。', 'error');
-                }
-            }
+            // NEW: Listener for the fake button
+            $(document).on('click', '#fake-google-signin-btn', function() {
+                $('#line-login-blocker-modal').css('display', 'flex');
+            });
+            $('#close-line-login-blocker').on('click', function() {
+                $('#line-login-blocker-modal').hide();
+            });
 
             async function verifyToken() {
                 const token = localStorage.getItem(SESSION_TOKEN_KEY);
                 if (!token) {
-                    // 如果沒有 token，且不在 LINE 環境中，才顯示 Google 登入
-                    if (!liff.isInClient()) {
-                         initializeGoogleButton(false);
-                    }
+                    initializeGoogleButton();
                     return;
                 }
 
@@ -1639,16 +1620,12 @@
                         setLoginState(result.user);
                     } else {
                         localStorage.removeItem(SESSION_TOKEN_KEY);
-                        if (!liff.isInClient()) {
-                            initializeGoogleButton(false);
-                        }
+                        initializeGoogleButton();
                     }
                 } catch(error) {
                     console.error('Token verification failed:', error);
                     localStorage.removeItem(SESSION_TOKEN_KEY);
-                     if (!liff.isInClient()) {
-                        initializeGoogleButton(false);
-                    }
+                    initializeGoogleButton();
                 }
             }
 
@@ -1666,8 +1643,7 @@
                         localStorage.setItem(SESSION_TOKEN_KEY, result.token);
                         setLoginState({
                             email: googleProfile.email,
-                            name: googleProfile.given_name || googleProfile.name,
-                            lineUserId: null
+                            name: googleProfile.given_name || googleProfile.name
                         });
                     } else {
                         showNotification('登入失敗，請稍後再試。', 'error');
@@ -1684,14 +1660,12 @@
 
                 if (newName && newName.trim() !== '' && newName.trim() !== currentName) {
                     currentUserDisplayName = newName.trim();
-                    const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
-                    localStorage.setItem(storageKey, currentUserDisplayName);
+                    localStorage.setItem(`nickname_${userProfile.email}`, currentUserDisplayName);
                     $('#user-name').text(currentUserDisplayName);
                     
                     const payload = {
                         action: 'update_nickname',
                         userEmail: userProfile.email,
-                        lineUserId: userProfile.lineUserId,
                         newName: currentUserDisplayName
                     };
 
@@ -1724,12 +1698,8 @@
                 });
 
                 localStorage.removeItem(SESSION_TOKEN_KEY);
-                const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
-                localStorage.removeItem(storageKey);
+                localStorage.removeItem(`nickname_${userProfile.email}`);
 
-                if (liff.isLoggedIn()) {
-                    liff.logout();
-                }
                 if (window.google && google.accounts && google.accounts.id) {
                     google.accounts.id.disableAutoSelect();
                 }
@@ -1742,15 +1712,8 @@
                 $('#add-info').removeClass('flex').addClass('hidden');
                 $('#review-btn').addClass('hidden');
                 
-                if (liff.isInClient()) {
-                    $('#line-login-container').show();
-                    $('#google-signin-container').empty().show();
-                    initializeGoogleButton(true);
-                } else {
-                    $('#line-login-container').hide();
-                    $('#google-signin-container').empty().show();
-                    initializeGoogleButton(false);
-                }
+                $('#google-signin-container').empty(); 
+                initializeGoogleButton();
 
                 showNotification('您已成功登出。');
             });
@@ -1863,10 +1826,7 @@
             
             // --- REFACTORED: Management Modal Logic ---
             $('#manage-btn').on('click', function() {
-                const userReports = rawReports.filter(r => 
-                    (userProfile.email && r.submitterEmail === userProfile.email) ||
-                    (userProfile.lineUserId && r.submitterLineId === userProfile.lineUserId)
-                );
+                const userReports = rawReports.filter(r => r.submitterEmail === userProfile.email);
                 const $content = $('#management-list-content');
                 $content.html('');
 
@@ -1916,8 +1876,7 @@
                     const payload = {
                         action: 'user_delete',
                         rowIndex: rowIndex,
-                        userEmail: userProfile.email,
-                        lineUserId: userProfile.lineUserId
+                        userEmail: userProfile.email
                     };
 
                     fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
@@ -1975,7 +1934,7 @@
                         <div class="p-4 border-b cursor-pointer hover:bg-gray-100 review-item" data-row-index="${report.rowIndex}">
                             <p class="font-semibold text-gray-800">${report['地址']}</p>
                             <p class="text-sm text-gray-600 truncate">${report['黑名原因'] || '無原因'}</p>
-                            <p class="text-xs text-gray-400 mt-1">提交者: ${report.submitterEmail || report.submitterLineId || 'N/A'}</p>
+                            <p class="text-xs text-gray-400 mt-1">提交者: ${report.submitterEmail || 'N/A'}</p>
                         </div>
                     `);
                     $listPanel.append(listItem);
@@ -2023,7 +1982,7 @@
                         <p class="whitespace-pre-wrap bg-gray-50 p-2 rounded">${report['黑名原因']}</p>
                         <hr>
                         <p><strong>座標:</strong> ${parseFloat(report['經度']).toFixed(5)}, ${parseFloat(report['緯度']).toFixed(5)}</p>
-                        <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || report.submitterLineId || 'N/A'})</p>
+                        <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || 'N/A'})</p>
                         <p><strong>提交時間:</strong> ${submissionDate}</p>
                         <p><strong>試算表列數:</strong> ${report.rowIndex}</p>
                     </div>
@@ -2112,53 +2071,10 @@
             }
             
             // --- Initial Load ---
-            async function main() {
-                const liffId = '2008020548-WdyekkEj';
-                
-                try {
-                    await liff.init({ liffId });
-                } catch (e) {
-                    console.error('LIFF init failed.', e);
-                }
-
-                if (liff.isInClient()) {
-                    // 在 LINE 環境中
-                    initializeGoogleButton(true); // 渲染自訂的 Google 登入按鈕
-
-                    if (liff.isLoggedIn()) {
-                        // 已透過 LINE 登入
-                        $('#google-signin-container').hide();
-                        $('#line-login-container').hide();
-                        const lineProfile = await liff.getProfile();
-                        await handleLineLogin(lineProfile);
-                    } else {
-                        // 尚未登入，顯示 LINE 和 Google 登入選項
-                        $('#google-signin-container').show();
-                        $('#line-login-container').show();
-                        $('#line-login-btn').on('click', () => liff.login());
-                    }
-                } else {
-                    // 不在 LINE 環境中
-                    $('#line-login-container').hide();
-                    initializeGoogleButton(false); // 渲染真正的 Google 登入按鈕
-                    await verifyToken();
-                }
-
-                loadUserVotes();
-                initializeUserLocation();
-                
-                // 新增：當視窗重新獲得焦點時（例如從 LIFF 視窗回來），檢查登入狀態
-                window.addEventListener('focus', () => {
-                    // 只在未登入狀態下才重新檢查，避免重複執行
-                    if (!isLoggedIn) {
-                        verifyToken();
-                    }
-                });
-            }
-
-            main();
+            loadUserVotes();
+            verifyToken(); // NEW: Try to log in with a token on page load
+            initializeUserLocation();
         };
     </script>
 </body>
 </html>
-
