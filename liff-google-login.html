@@ -56,6 +56,22 @@
                     $statusMessage.innerText = '已取得授權，正在讀取您的個人資料...';
                     
                     const lineProfile = await liff.getProfile();
+
+                    // --- 修正：處理權限不足的使用者 ---
+                    // 如果使用者已登入，但我們卻拿不到 pictureUrl，代表他們需要更新授權
+                    if (!lineProfile.pictureUrl) {
+                        $statusTitle.innerText = '更新權限';
+                        $statusMessage.innerText = '為了顯示您的頭像，需要請您重新授權...';
+                        
+                        // 先將使用者登出，再重新引導至登入流程
+                        liff.logout();
+                        // 稍微延遲一下，確保登出完成
+                        setTimeout(() => {
+                           liff.login({ redirectUri: window.location.href });
+                        }, 1000);
+                        return; // 中斷後續的程式，等待重新登入
+                    }
+                    // --- 修正結束 ---
                     
                     // --- 測試步驟：顯示使用者頭像 ---
                     if (lineProfile.pictureUrl) {
@@ -63,6 +79,7 @@
                         $avatarContainer.style.display = 'block';
                         $statusMessage.innerText = '已成功取得您的頭像！正在完成登入...';
                     } else {
+                        // 正常情況下不會執行到這裡，因為上面已經處理了
                         $statusMessage.innerText = '無法取得您的頭像，但仍會繼續登入...';
                     }
                     // --- 測試步驟結束 ---
