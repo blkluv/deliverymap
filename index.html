@@ -5,27 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>黑客指南針</title>
 
-    <!-- NEW: LIFF Redirect Logic -->
-    <script>
-        (function() {
-            const ua = navigator.userAgent;
-            const isLineApp = ua.includes('Line/');
-            const liffUrl = "https://liff.line.me/2008020548-WdyekkEj";
-
-            // 如果在 LINE App 內開啟，且網址中不包含 'liff.state' 參數，就導向 LIFF URL
-            // 'liff.state' 是 LIFF 轉址回來時會自動附加的參數，用此判斷可避免無限迴圈
-            if (isLineApp && window.location.search.indexOf('liff.state') === -1) {
-                window.location.href = liffUrl;
-            }
-        })();
-    </script>
-
     <!-- LIFF SDK -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
     <!-- Script to clean URL parameters from Facebook, etc. -->
     <script>
         (function() {
+            // This script runs immediately to clean the URL if necessary,
+            // avoiding issues with reloads or sharing.
             const url = new URL(window.location);
             if (url.searchParams.has('fbclid')) {
                 const newUrl = url.pathname + url.hash;
@@ -222,7 +209,7 @@
         /* 在小於 768px 的螢幕上（手機版）套用較高的底部距離 */
         @media (max-width: 767px) {
             #legend {
-                display: none; /* 在手機版上隱藏中間的分類圖例 */
+                display: none; /* 在手機版上隱藏中間の分類圖例 */
             }
             #store-list-panel {
                 bottom: var(--mobile-bottom-offset);
@@ -2096,6 +2083,8 @@
             async function main() {
                 const liffId = '2008020548-WdyekkEj';
                 try {
+                    // This will only run if the redirect logic at the top didn't fire,
+                    // meaning we are already in the LIFF context.
                     await liff.init({ liffId });
                 } catch (e) {
                     console.error('LIFF init failed.', e);
