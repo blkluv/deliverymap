@@ -691,12 +691,13 @@
             autoPan: { animation: { duration: 250 } },
         });
         map.addOverlay(infoOverlay);
-
-        popupCloser.onclick = function () {
+        
+        // 修正：使用更可靠的事件委派來處理彈出視窗的關閉按鈕
+        $('#app').on('click', '#popup-closer', function(e) {
+            e.preventDefault();
             infoOverlay.setPosition(undefined);
-            popupCloser.blur();
-            return false;
-        };
+            this.blur();
+        });
         
         const userLocationElement = document.getElementById('user-location');
         let userPositionCoords = null;
