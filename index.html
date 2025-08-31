@@ -2081,9 +2081,17 @@
                         initializeGoogleButton();
                     }
                     
-                    // 4. 設定視窗焦點事件
+                    // 4. 設定視窗焦點事件 (作為備用方案)
                     window.addEventListener('focus', () => {
                         if (!isLoggedIn) {
+                            verifyToken();
+                        }
+                    });
+
+                    // 5. 新增：設定 localStorage 變動監聽事件 (主要方案)
+                    window.addEventListener('storage', (event) => {
+                        // 檢查是否有變動，且變動的是我們的 token key
+                        if (event.key === SESSION_TOKEN_KEY && event.newValue && !isLoggedIn) {
                             verifyToken();
                         }
                     });
