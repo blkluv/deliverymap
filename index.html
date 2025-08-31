@@ -340,6 +340,8 @@
                         <div id="google-signin-container" style="display: none;"></div>
                         
                          <div id="add-info" class="bg-white text-gray-700 py-2 px-4 rounded-lg shadow-lg items-center space-x-2 hidden">
+                            <!-- NEW: Image tag for user avatar -->
+                            <img id="user-picture" src="" alt="使用者頭像" class="w-6 h-6 rounded-full mr-2 hidden">
                             <span id="user-name" class="font-bold"></span>
                             <button id="edit-nickname-btn" class="text-xs text-blue-500 hover:underline">[修改]</button>
                             <button id="manage-btn" class="text-sm text-blue-600 hover:underline">管理</button>
@@ -725,7 +727,7 @@
             let tempMarker = null; // Draggable marker for mobile
             let isDraggingMarker = false;
             
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzw8E-u-fHvl7cpucn2hmOCRzy_UfyWRrqBsadmZcyUolmH9aJFJHIWYpQXX_IyWbs/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwWzN3B2WXuPBtdfUrnfCMmFEPShTSjppNI1CRupx6D9X690SazrHOb_nKiywlYUYSH/exec';
             
             const visibilityThreshold = 16.5; 
 
@@ -1532,14 +1534,24 @@
 
             function setLoginState(profile) {
                 isLoggedIn = true;
-                userProfile = profile;
+                userProfile = profile; // This now contains { name, email?, lineUserId?, pictureUrl? }
                 
-                const storedNickname = localStorage.getItem(`nickname_${userProfile.email}`);
+                const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
+                const storedNickname = localStorage.getItem(storageKey);
                 currentUserDisplayName = storedNickname || profile.name;
 
-                $('#google-signin-container').hide(); // HIDE the new container
+                $('#google-signin-container').hide();
                 $('#add-info').removeClass('hidden').addClass('flex');
                 $('#user-name').text(currentUserDisplayName);
+                
+                // NEW: Handle profile picture
+                const $userPicture = $('#user-picture');
+                if (profile.pictureUrl) {
+                    $userPicture.attr('src', profile.pictureUrl).removeClass('hidden');
+                } else {
+                    $userPicture.addClass('hidden').attr('src', '');
+                }
+
                 checkIfAdmin(userProfile.email);
             }
 
@@ -1550,7 +1562,7 @@
                     // 修正: 在 LINE 環境中，點擊登入按鈕直接導向至 LIFF 登入頁面
                     const lineLoginButtonHtml = `
                         <button id="line-liff-login-btn" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center justify-center w-full hover:bg-green-600 transition-colors">
-                            <img src="https://weibsite.github.io/deliverymap/btn_base.png" class="w-6 h-6 mr-3" alt="LINE Logo">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2e/LINE_Icon.png" class="w-6 h-6 mr-3" alt="LINE Logo">
                             <span>透過 LINE 登入</span>
                         </button>
                     `;
@@ -1624,7 +1636,8 @@
                         localStorage.setItem(SESSION_TOKEN_KEY, result.token);
                         setLoginState({
                             email: googleProfile.email,
-                            name: googleProfile.given_name || googleProfile.name
+                            name: googleProfile.given_name || googleProfile.name,
+                            pictureUrl: googleProfile.picture // Google a/c picture
                         });
                     } else {
                         showNotification('登入失敗，請稍後再試。', 'error');
@@ -1641,12 +1654,14 @@
 
                 if (newName && newName.trim() !== '' && newName.trim() !== currentName) {
                     currentUserDisplayName = newName.trim();
-                    localStorage.setItem(`nickname_${userProfile.email}`, currentUserDisplayName);
+                    const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
+                    localStorage.setItem(storageKey, currentUserDisplayName);
                     $('#user-name').text(currentUserDisplayName);
                     
                     const payload = {
                         action: 'update_nickname',
                         userEmail: userProfile.email,
+                        lineUserId: userProfile.lineUserId,
                         newName: currentUserDisplayName
                     };
 
@@ -1679,7 +1694,9 @@
                 });
 
                 localStorage.removeItem(SESSION_TOKEN_KEY);
-                localStorage.removeItem(`nickname_${userProfile.email}`);
+                const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
+                localStorage.removeItem(storageKey);
+
 
                 if (window.google && google.accounts && google.accounts.id) {
                     google.accounts.id.disableAutoSelect();
@@ -1693,6 +1710,7 @@
                 $('#add-info').removeClass('flex').addClass('hidden');
                 $('#review-btn').addClass('hidden');
                 
+                $('#user-picture').addClass('hidden').attr('src', '');
                 $('#google-signin-container').empty(); 
                 initializeGoogleButton();
 
@@ -1807,7 +1825,10 @@
             
             // --- REFACTORED: Management Modal Logic ---
             $('#manage-btn').on('click', function() {
-                const userReports = rawReports.filter(r => r.submitterEmail === userProfile.email);
+                const userReports = rawReports.filter(r => 
+                    (userProfile.email && r.submitterEmail === userProfile.email) ||
+                    (userProfile.lineUserId && r.submitterLineId === userProfile.lineUserId)
+                );
                 const $content = $('#management-list-content');
                 $content.html('');
 
@@ -1857,7 +1878,8 @@
                     const payload = {
                         action: 'user_delete',
                         rowIndex: rowIndex,
-                        userEmail: userProfile.email
+                        userEmail: userProfile.email,
+                        lineUserId: userProfile.lineUserId
                     };
 
                     fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
@@ -1915,7 +1937,7 @@
                         <div class="p-4 border-b cursor-pointer hover:bg-gray-100 review-item" data-row-index="${report.rowIndex}">
                             <p class="font-semibold text-gray-800">${report['地址']}</p>
                             <p class="text-sm text-gray-600 truncate">${report['黑名原因'] || '無原因'}</p>
-                            <p class="text-xs text-gray-400 mt-1">提交者: ${report.submitterEmail || 'N/A'}</p>
+                            <p class="text-xs text-gray-400 mt-1">提交者: ${report.submitterEmail || report.submitterLineId || 'N/A'}</p>
                         </div>
                     `);
                     $listPanel.append(listItem);
@@ -1963,7 +1985,7 @@
                         <p class="whitespace-pre-wrap bg-gray-50 p-2 rounded">${report['黑名原因']}</p>
                         <hr>
                         <p><strong>座標:</strong> ${parseFloat(report['經度']).toFixed(5)}, ${parseFloat(report['緯度']).toFixed(5)}</p>
-                        <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || 'N/A'})</p>
+                        <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || report.submitterLineId || 'N/A'})</p>
                         <p><strong>提交時間:</strong> ${submissionDate}</p>
                         <p><strong>試算表列數:</strong> ${report.rowIndex}</p>
                     </div>
