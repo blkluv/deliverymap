@@ -80,6 +80,10 @@
             height: 100%;
             background: #f0f0f0;
         }
+        /* 網格模式下的游標 */
+        #map.grid-mode-active {
+            cursor: crosshair;
+        }
         /* OpenLayers 彈出視窗樣式 */
         .ol-popup {
             position: absolute;
@@ -886,6 +890,12 @@
             let isDrawingOnGrid = false;
             let lastPaintedCellKey = null;
             let gridAnimationId = null;
+            let dragPanInteraction; // NEW: To hold the drag pan interaction
+            map.getInteractions().forEach(interaction => {
+                if (interaction instanceof ol.interaction.DragPan) {
+                    dragPanInteraction = interaction;
+                }
+            });
 
 
             const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwLuLfse5I9gj4wohjF728sjqcTrG7nyBGQ6rymMbXmv4xEvbuL9HEHTUzGZBcsYsXh/exec';
@@ -1104,8 +1114,10 @@
             
             // --- NEW/MODIFIED Add Location & Area Selection Logic ---
 
-            function drawGrid(animationRadius = GRID_DRAW_RADIUS) {
+            function drawGrid(options = {}) {
+                const { animationRadius = GRID_DRAW_RADIUS } = options;
                 if (!isAreaSelectionMode) return;
+                
                 const mapSize = map.getSize();
                 gridCanvas.width = mapSize[0];
                 gridCanvas.height = mapSize[1];
@@ -1268,14 +1280,17 @@
                 const duration = 400; // Animation duration in ms
 
                 function step(timestamp) {
+                    if (!isAreaSelectionMode) return;
                     if (!startTime) startTime = timestamp;
                     const progress = timestamp - startTime;
                     const radius = Math.min((progress / duration) * GRID_DRAW_RADIUS, GRID_DRAW_RADIUS);
                     
-                    drawGrid(radius);
+                    drawGrid({ animationRadius: radius });
 
                     if (progress < duration) {
                         gridAnimationId = requestAnimationFrame(step);
+                    } else {
+                        gridAnimationId = null;
                     }
                 }
                 gridAnimationId = requestAnimationFrame(step);
@@ -1283,12 +1298,29 @@
 
             function toggleAreaSelectionMode(enable) {
                 isAreaSelectionMode = enable;
+                
                 if (gridAnimationId) {
                     cancelAnimationFrame(gridAnimationId);
                     gridAnimationId = null;
                 }
+                map.un('moveend', drawGrid); // Always unbind first
 
                 if (enable) {
+                    const zoomThreshold = isMobile ? GRID_ZOOM_LEVEL_MOBILE : GRID_ZOOM_LEVEL_WEB;
+                    map.getView().animate({
+                        zoom: zoomThreshold,
+                        duration: 800
+                    }, () => {
+                         if (isAreaSelectionMode) { 
+                            animateGrid();
+                        }
+                    });
+
+                    if (dragPanInteraction) {
+                        dragPanInteraction.setActive(false);
+                    }
+                    $('#map').addClass('grid-mode-active');
+                    
                     $('#location-instruction').text('請在地圖上的網格標示範圍。');
                     $('#desktop-center-marker').addClass('hidden');
                     if (tempMarker) tempMarker.getElement().style.display = 'none';
@@ -1296,10 +1328,15 @@
                     selectedGridCells.clear();
                     $('#grid-canvas').removeClass('hidden');
                     
-                    animateGrid();
                     map.on('moveend', drawGrid);
                     map.on('pointerdown', mapPointerDown);
+
                 } else {
+                    if (dragPanInteraction) {
+                        dragPanInteraction.setActive(true);
+                    }
+                     $('#map').removeClass('grid-mode-active');
+
                     $('#location-instruction').text('請移動地圖中心點來選擇位置。');
                     $('#desktop-center-marker').removeClass('hidden');
                     if (tempMarker) tempMarker.getElement().style.display = 'block';
@@ -1307,7 +1344,7 @@
                     $('#grid-canvas').addClass('hidden');
                     $('#grid-toolbar').addClass('hidden').removeClass('flex');
                     gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-                    map.un('moveend', drawGrid);
+                    
                     map.un('pointerdown', mapPointerDown);
                 }
             }
