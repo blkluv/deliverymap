@@ -83,14 +83,8 @@
             background: #f0f0f0;
         }
         /* 網格模式下的游標 */
-        #map.grid-mode-active.paint-mode {
+        #map.grid-mode-active {
             cursor: crosshair;
-        }
-         #map.grid-mode-active.pan-mode {
-            cursor: grab;
-        }
-        #map.grid-mode-active.pan-mode:active {
-            cursor: grabbing;
         }
         /* NEW: Map Enhancement Style */
         #map .ol-layer canvas {
@@ -414,16 +408,6 @@
 
                 <!-- NEW: Grid drawing toolbar -->
                 <div id="grid-toolbar" class="hidden">
-                    <!-- NEW: Hand/Pan tool -->
-                    <button id="tool-pan" class="grid-tool-btn" title="移動畫面">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 11c0 3.517-1.009 6.789-2.731 9.563M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 11c0-3.517 1.009-6.789 2.731-9.563" />
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 11h.01M4.832 20.125A9.01 9.01 0 013 12m18 0a9.006 9.006 0 01-1.832 5.124" />
-                        </svg>
-                    </button>
-                    <div class="w-px h-6 bg-gray-300"></div>
-
                     <div class="color-picker-wrapper" title="格子顏色">
                         <input type="color" id="color-picker" class="color-picker-input" value="#ef4444">
                     </div>
@@ -691,13 +675,18 @@
   // --- NEW: Grid Mode Map Filter Settings ---
   // *** 可修改參數：網格模式下的地圖濾鏡效果 ***
   const MAP_FILTER_CONTRAST = 1.2;   // 對比度 (1 = 正常)
-  const MAP_FILTER_SATURATE = 1.2;   // 飽和度 (1 = 正常)
+  const MAP_FILTER_SATURATE = 1;   // 飽和度 (1 = 正常)
   const MAP_FILTER_BRIGHTNESS = 0.95; // 亮度 (1 = 正常)
+  const MAP_FILTER_INVERT = 0;       // 反相 (0 = 正常, 1 = 完全反相)  <-- 新增的參數
 
   // 將參數組合成 CSS 字串
   document.documentElement.style.setProperty('--map-filter-style', 
-    `contrast(${MAP_FILTER_CONTRAST}) saturate(${MAP_FILTER_SATURATE}) brightness(${MAP_FILTER_BRIGHTNESS})`
+    `contrast(${MAP_FILTER_CONTRAST}) ` + 
+    `saturate(${MAP_FILTER_SATURATE}) ` +
+    `brightness(${MAP_FILTER_BRIGHTNESS}) ` +
+    `invert(${MAP_FILTER_INVERT})` // <-- 在這裡加上 invert()
   );
+
         
         // --- OpenLayers 地圖設定 ---
         
@@ -915,6 +904,9 @@
             const GRID_PRECISION = 6; // 網格座標的小數位數精度
             // *** 可修改數字：網格顯示的最大半徑 (單位：公尺) ***
             const GRID_DRAW_RADIUS = 5000; 
+            // *** 可修改數字：勾選「標示為整個社區/區域」時自動縮放到的等級 ***
+            const GRID_ZOOM_LEVEL_WEB = 20; 
+            const GRID_ZOOM_LEVEL_MOBILE = 19;
             
             let selectedGridCells = new Map(); // Key: 'lon-lat', Value: { marker: string|null, markerColor: string }
             let currentAreaColor = 'rgba(239, 68, 68, 0.7)';
@@ -997,9 +989,9 @@
                         // NEW: Check if it's a community area with areaBounds
                         if (data.areaBounds) {
                             communityAreas.push(data);
+                            return; // Skip adding to point-based groups
                         }
 
-                        // Also process for point data, unless it's ONLY an area
                         const baseAddress = (data['地址'] || '').split(/樓|之|-/)[0].trim();
                         if (baseAddress) {
                             if (!groupedData.has(baseAddress)) {
@@ -1019,8 +1011,6 @@
 
                     // Process point data
                     groupedData.forEach((group, baseAddress) => {
-                         // Don't create a point if this group only contains area data
-                        if(group.every(item => item.isCommunity)) return;
                         createPointFeature(group, baseAddress, pinyin, pinyinOptions);
                     });
                     
@@ -1231,8 +1221,6 @@
             }
 
             function paintCell(evt) {
-                if (currentAreaTool === 'pan') return; // Do nothing if in pan mode
-
                 const pixel = evt.pixel;
                 const coord = map.getCoordinateFromPixel(pixel);
                 if (!coord) return; // If clicking outside map area
@@ -1272,10 +1260,11 @@
             }
 
             const mapPointerDown = function(evt) {
-                // Ignore middle button and right button clicks
-                if (evt.originalEvent.button !== 0) return;
-                
-                if (!isAreaSelectionMode || currentAreaTool === 'pan') return;
+                // NEW: Check if it's the middle button (button code 1) and ignore
+                if (evt.originalEvent.button === 1) {
+                    return;
+                }
+                if (!isAreaSelectionMode) return;
                 isDrawingOnGrid = true;
                 paintCell(evt);
                 map.on('pointermove', mapPointerMove);
@@ -1306,9 +1295,11 @@
                     });
 
                     // --- Map Enhancement & Interactions ---
-                    $('#map').addClass('map-enhanced grid-mode-active paint-mode');
+                    $('#map').addClass('map-enhanced grid-mode-active');
                     if (dragPanInteraction) {
-                        dragPanInteraction.setActive(false); // Initially disable for painting
+                        // On desktop, allow middle-mouse pan. On mobile, disable pan.
+                        dragPanInteraction.setActive(isMobile ? false : true);
+                        dragPanInteraction.condition_ = isMobile ? ol.events.condition.noModifierKeys : ol.events.condition.middleMouseButton;
                     }
                     
                     // --- UI Updates ---
@@ -1326,7 +1317,7 @@
 
                 } else {
                     // --- Map Enhancement & Interactions ---
-                    $('#map').removeClass('map-enhanced grid-mode-active paint-mode pan-mode');
+                    $('#map').removeClass('map-enhanced grid-mode-active');
                     if (dragPanInteraction) {
                          dragPanInteraction.setActive(true);
                          dragPanInteraction.condition_ = ol.events.condition.primaryAction; // Restore default
@@ -1365,16 +1356,6 @@
                     $(this).addClass('active');
                     const toolId = $(this).attr('id');
                     currentAreaTool = toolId.replace('tool-', '');
-
-                    // NEW Logic for pan tool
-                    if(currentAreaTool === 'pan'){
-                         if (dragPanInteraction) dragPanInteraction.setActive(true);
-                         $('#map').removeClass('paint-mode').addClass('pan-mode');
-
-                    } else {
-                         if (dragPanInteraction) dragPanInteraction.setActive(false);
-                         $('#map').removeClass('pan-mode').addClass('paint-mode');
-                    }
                 });
             }
 
@@ -2682,4 +2663,3 @@
     </script>
 </body>
 </html>
-
