@@ -671,17 +671,22 @@
         window.handleCredentialResponse = handleCredentialResponse;
     </script>
     
-    <script type="module">
-        // --- NEW: Grid Mode Map Filter Settings ---
-        // *** 可修改參數：網格模式下的地圖濾鏡效果 ***
-        const MAP_FILTER_CONTRAST = 1.5; // 對比度 (1 = 正常)
-        const MAP_FILTER_SATURATE = 0.8; // 飽和度 (1 = 正常)
-        const MAP_FILTER_BRIGHTNESS = 1.2; // 亮度 (1 = 正常)
+<script type="module">
+  // --- NEW: Grid Mode Map Filter Settings ---
+  // *** 可修改參數：網格模式下的地圖濾鏡效果 ***
+  const MAP_FILTER_CONTRAST = 0.8;   // 對比度 (1 = 正常)
+  const MAP_FILTER_SATURATE = 1;   // 飽和度 (1 = 正常)
+  const MAP_FILTER_BRIGHTNESS = 1.0; // 亮度 (1 = 正常)
+  const MAP_FILTER_INVERT = 0.4;       // 反相 (0 = 正常, 1 = 完全反相)  <-- 新增的參數
 
-        // 將參數組合成 CSS 字串
-        document.documentElement.style.setProperty('--map-filter-style', 
-            `contrast(${MAP_FILTER_CONTRAST}) saturate(${MAP_FILTER_SATURATE}) brightness(${MAP_FILTER_BRIGHTNESS})`
-        );
+  // 將參數組合成 CSS 字串
+  document.documentElement.style.setProperty('--map-filter-style', 
+    `contrast(${MAP_FILTER_CONTRAST}) ` + 
+    `saturate(${MAP_FILTER_SATURATE}) ` +
+    `brightness(${MAP_FILTER_BRIGHTNESS}) ` +
+    `invert(${MAP_FILTER_INVERT})` // <-- 在這裡加上 invert()
+  );
+
         
         // --- OpenLayers 地圖設定 ---
         
