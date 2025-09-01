@@ -67,6 +67,8 @@
             --mobile-bottom-offset: 6rem; 
             /* 手機版店家列表寬度 (可調整此數值) */
             --mobile-panel-width: 90vw;
+            /* NEW: Map filter variable */
+            --map-filter-style: none;
         }
         html, body {
             height: 100%;
@@ -83,6 +85,13 @@
         /* 網格模式下的游標 */
         #map.grid-mode-active {
             cursor: crosshair;
+        }
+        /* NEW: Map Enhancement Style */
+        #map .ol-layer canvas {
+            transition: filter 0.5s ease-in-out;
+        }
+        #map.map-enhanced .ol-layer canvas {
+            filter: var(--map-filter-style);
         }
         /* OpenLayers 彈出視窗樣式 */
         .ol-popup {
@@ -663,6 +672,17 @@
     </script>
     
     <script type="module">
+        // --- NEW: Grid Mode Map Filter Settings ---
+        // *** 可修改參數：網格模式下的地圖濾鏡效果 ***
+        const MAP_FILTER_CONTRAST = 1.2; // 對比度 (1 = 正常)
+        const MAP_FILTER_SATURATE = 1.2; // 飽和度 (1 = 正常)
+        const MAP_FILTER_BRIGHTNESS = 0.95; // 亮度 (1 = 正常)
+
+        // 將參數組合成 CSS 字串
+        document.documentElement.style.setProperty('--map-filter-style', 
+            `contrast(${MAP_FILTER_CONTRAST}) saturate(${MAP_FILTER_SATURATE}) brightness(${MAP_FILTER_BRIGHTNESS})`
+        );
+        
         // --- OpenLayers 地圖設定 ---
         
         // MODIFIED: New categories and colors
@@ -698,6 +718,7 @@
         ];
 
         const styleCache = {};
+        let middleMouseButtonPan = null; // To hold the custom interaction
 
         const nlscLayer = new ol.layer.Tile({
             source: new ol.source.XYZ({
@@ -878,7 +899,7 @@
             const GRID_PRECISION = 6; // 網格座標的小數位數精度
             // *** 可修改數字：網格顯示的最大半徑 (單位：公尺) ***
             const GRID_DRAW_RADIUS = 5000; 
-            // *** 可修改數字：網格顯示的最低縮放等級 ***
+            // *** 可修改數字：勾選「標示為整個社區/區域」時自動縮放到的等級 ***
             const GRID_ZOOM_LEVEL_WEB = 20; 
             const GRID_ZOOM_LEVEL_MOBILE = 19;
             
@@ -889,8 +910,8 @@
             
             let isDrawingOnGrid = false;
             let lastPaintedCellKey = null;
-            let gridAnimationId = null;
-            let dragPanInteraction; // NEW: To hold the drag pan interaction
+
+            let dragPanInteraction; // NEW: To hold the default drag pan interaction
             map.getInteractions().forEach(interaction => {
                 if (interaction instanceof ol.interaction.DragPan) {
                     dragPanInteraction = interaction;
@@ -1114,26 +1135,13 @@
             
             // --- NEW/MODIFIED Add Location & Area Selection Logic ---
 
-            function drawGrid(options = {}) {
-                const { animationRadius = GRID_DRAW_RADIUS } = options;
+            function drawGrid() {
                 if (!isAreaSelectionMode) return;
                 
                 const mapSize = map.getSize();
                 gridCanvas.width = mapSize[0];
                 gridCanvas.height = mapSize[1];
                 gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-
-                const zoom = map.getView().getZoom();
-                const zoomThreshold = isMobile ? GRID_ZOOM_LEVEL_MOBILE : GRID_ZOOM_LEVEL_WEB;
-
-                if (zoom < zoomThreshold) {
-                    $('#grid-toolbar').addClass('hidden').removeClass('flex');
-                    gridCtx.font = 'bold 20px sans-serif';
-                    gridCtx.textAlign = 'center';
-                    gridCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                    gridCtx.fillText('請放大地圖以編輯網格', gridCanvas.width / 2, gridCanvas.height / 2);
-                    return;
-                }
                 
                 $('#grid-toolbar').removeClass('hidden').addClass('flex');
 
@@ -1152,27 +1160,21 @@
                 gridCtx.lineWidth = 1;
                 gridCtx.beginPath();
                 for (let lon = startLon; lon < maxLon; lon += GRID_INTERVAL) {
-                    for (let lat = startLat; lat < maxLat; lat += GRID_INTERVAL) {
-                        const distance = ol.sphere.getDistance(centerLonLat, [lon, lat]);
-                        if (distance <= animationRadius) {
-                            const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([lon, minLat]));
-                            if(pixel) {
-                                gridCtx.moveTo(pixel[0], 0);
-                                gridCtx.lineTo(pixel[0], mapSize[1]);
-                            }
-                        }
+                    const distance = ol.sphere.getDistance(centerLonLat, [lon, (minLat+maxLat)/2]);
+                    if(distance > GRID_DRAW_RADIUS) continue; 
+                    const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([lon, minLat]));
+                    if(pixel) {
+                        gridCtx.moveTo(pixel[0], 0);
+                        gridCtx.lineTo(pixel[0], mapSize[1]);
                     }
                 }
                 for (let lat = startLat; lat < maxLat; lat += GRID_INTERVAL) {
-                     for (let lon = startLon; lon < maxLon; lon += GRID_INTERVAL) {
-                        const distance = ol.sphere.getDistance(centerLonLat, [lon, lat]);
-                        if (distance <= animationRadius) {
-                            const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([minLon, lat]));
-                            if(pixel) {
-                                gridCtx.moveTo(0, pixel[1]);
-                                gridCtx.lineTo(mapSize[0], pixel[1]);
-                            }
-                        }
+                    const distance = ol.sphere.getDistance(centerLonLat, [(minLon+maxLon)/2, lat]);
+                    if(distance > GRID_DRAW_RADIUS) continue;
+                    const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([minLon, lat]));
+                    if(pixel) {
+                        gridCtx.moveTo(0, pixel[1]);
+                        gridCtx.lineTo(mapSize[0], pixel[1]);
                     }
                 }
                 gridCtx.stroke();
@@ -1214,13 +1216,9 @@
             }
 
             function paintCell(evt) {
-                const zoom = map.getView().getZoom();
-                const zoomThreshold = isMobile ? GRID_ZOOM_LEVEL_MOBILE : GRID_ZOOM_LEVEL_WEB;
-                if (zoom < zoomThreshold) return;
-
                 const pixel = evt.pixel;
                 const coord = map.getCoordinateFromPixel(pixel);
-                if (!coord) return;
+                if (!coord) return; // If clicking outside map area
                 const [lon, lat] = ol.proj.toLonLat(coord);
                 
                 const snappedLon = Math.floor(lon / GRID_INTERVAL) * GRID_INTERVAL;
@@ -1257,6 +1255,10 @@
             }
 
             const mapPointerDown = function(evt) {
+                // NEW: Check if it's the middle button (button code 1) and ignore
+                if (evt.originalEvent.button === 1) {
+                    return;
+                }
                 if (!isAreaSelectionMode) return;
                 isDrawingOnGrid = true;
                 paintCell(evt);
@@ -1275,34 +1277,9 @@
                 map.un('pointermove', mapPointerMove);
             };
 
-            function animateGrid() {
-                let startTime = null;
-                const duration = 400; // Animation duration in ms
-
-                function step(timestamp) {
-                    if (!isAreaSelectionMode) return;
-                    if (!startTime) startTime = timestamp;
-                    const progress = timestamp - startTime;
-                    const radius = Math.min((progress / duration) * GRID_DRAW_RADIUS, GRID_DRAW_RADIUS);
-                    
-                    drawGrid({ animationRadius: radius });
-
-                    if (progress < duration) {
-                        gridAnimationId = requestAnimationFrame(step);
-                    } else {
-                        gridAnimationId = null;
-                    }
-                }
-                gridAnimationId = requestAnimationFrame(step);
-            }
-
             function toggleAreaSelectionMode(enable) {
                 isAreaSelectionMode = enable;
                 
-                if (gridAnimationId) {
-                    cancelAnimationFrame(gridAnimationId);
-                    gridAnimationId = null;
-                }
                 map.un('moveend', drawGrid); // Always unbind first
 
                 if (enable) {
@@ -1310,37 +1287,43 @@
                     map.getView().animate({
                         zoom: zoomThreshold,
                         duration: 800
-                    }, () => {
-                         if (isAreaSelectionMode) { 
-                            animateGrid();
-                        }
                     });
 
+                    // --- Map Enhancement & Interactions ---
+                    $('#map').addClass('map-enhanced grid-mode-active');
                     if (dragPanInteraction) {
-                        dragPanInteraction.setActive(false);
+                        // On desktop, allow middle-mouse pan. On mobile, disable pan.
+                        dragPanInteraction.setActive(isMobile ? false : true);
+                        dragPanInteraction.condition_ = isMobile ? ol.events.condition.noModifierKeys : ol.events.condition.middleMouseButton;
                     }
-                    $('#map').addClass('grid-mode-active');
                     
+                    // --- UI Updates ---
                     $('#location-instruction').text('請在地圖上的網格標示範圍。');
                     $('#desktop-center-marker').addClass('hidden');
                     if (tempMarker) tempMarker.getElement().style.display = 'none';
                     
+                    // --- Grid Logic ---
                     selectedGridCells.clear();
                     $('#grid-canvas').removeClass('hidden');
+                    drawGrid(); // Draw grid immediately
                     
                     map.on('moveend', drawGrid);
                     map.on('pointerdown', mapPointerDown);
 
                 } else {
+                    // --- Map Enhancement & Interactions ---
+                    $('#map').removeClass('map-enhanced grid-mode-active');
                     if (dragPanInteraction) {
-                        dragPanInteraction.setActive(true);
+                         dragPanInteraction.setActive(true);
+                         dragPanInteraction.condition_ = ol.events.condition.primaryAction; // Restore default
                     }
-                     $('#map').removeClass('grid-mode-active');
-
+                     
+                    // --- UI Updates ---
                     $('#location-instruction').text('請移動地圖中心點來選擇位置。');
                     $('#desktop-center-marker').removeClass('hidden');
                     if (tempMarker) tempMarker.getElement().style.display = 'block';
                     
+                    // --- Grid Logic ---
                     $('#grid-canvas').addClass('hidden');
                     $('#grid-toolbar').addClass('hidden').removeClass('flex');
                     gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
@@ -2675,3 +2658,4 @@
     </script>
 </body>
 </html>
+
