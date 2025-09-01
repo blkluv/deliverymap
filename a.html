@@ -260,7 +260,7 @@
             width: 100%;
             height: 100%;
             z-index: 10; /* Above map tiles, below UI controls */
-            pointer-events: none; /* MODIFIED: Let map handle events */
+            pointer-events: none; /* MODIFIED: Let map handle events so zoom/pan works */
         }
         
         /* NEW: Grid toolbar styles */
@@ -1206,8 +1206,10 @@
                 const zoomThreshold = isMobile ? GRID_ZOOM_LEVEL_MOBILE : GRID_ZOOM_LEVEL_WEB;
                 if (zoom < zoomThreshold) return;
 
-                const pixel = map.getEventPixel(evt.originalEvent);
-                const [lon, lat] = ol.proj.toLonLat(map.getCoordinateFromPixel(pixel));
+                const pixel = evt.pixel;
+                const coord = map.getCoordinateFromPixel(pixel);
+                if (!coord) return;
+                const [lon, lat] = ol.proj.toLonLat(coord);
                 
                 const snappedLon = Math.floor(lon / GRID_INTERVAL) * GRID_INTERVAL;
                 const snappedLat = Math.floor(lat / GRID_INTERVAL) * GRID_INTERVAL;
@@ -1247,7 +1249,7 @@
                 isDrawingOnGrid = true;
                 paintCell(evt);
                 map.on('pointermove', mapPointerMove);
-                $(window).on('pointerup', mapPointerUp);
+                map.getViewport().addEventListener('pointerup', mapPointerUp, { once: true });
             };
 
             const mapPointerMove = function(evt) {
@@ -1259,7 +1261,6 @@
                 isDrawingOnGrid = false;
                 lastPaintedCellKey = null;
                 map.un('pointermove', mapPointerMove);
-                $(window).un('pointerup', mapPointerUp);
             };
 
             function animateGrid() {
@@ -2637,7 +2638,4 @@
     </script>
 </body>
 </html>
-" selected.
-
-管理中，點擊修改，如果是網格地圖，請提示使用者"網格區域暫不支援修改，請刪除後重新建立。
 
