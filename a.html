@@ -257,15 +257,6 @@
             #add-location-modal.desktop-mode {
                 display: none; /* Hide desktop version on mobile */
             }
-            /* NEW: Styles for collapsed mobile add panel */
-            #add-location-modal-mobile {
-                transition: transform 0.3s ease-in-out;
-            }
-            #add-location-modal-mobile.collapsed-to-side {
-                transform: translateX(-100%);
-                /* Prevents the invisible backdrop from capturing clicks */
-                pointer-events: none;
-            }
         }
         @media (min-width: 768px) {
             #add-location-modal:not(.desktop-mode) {
@@ -372,7 +363,8 @@
                             <input type="hidden" id="edit-row-index" name="rowIndex">
                             <input type="hidden" id="edit-original-name" name="originalName">
                             <p id="location-instruction" class="text-sm text-gray-600">請移動地圖中心點來選擇位置。</p>
-                            <div>
+                            <!-- MODIFIED: Hidden on mobile -->
+                            <div class="hidden md:block">
                                 <label class="block text-sm font-medium text-gray-700">社區/區域名稱</label>
                                 <input type="text" id="add-area-name" name="areaName" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm">
                             </div>
@@ -386,8 +378,8 @@
                                 <label class="block text-sm font-medium text-gray-700">類別 <span class="text-red-500">*</span></label>
                                 <select id="add-category" name="category" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required></select>
                             </div>
-                             <!-- NEW: Checkbox for marking as an area -->
-                            <div>
+                             <!-- MODIFIED: Hidden on mobile -->
+                            <div class="hidden md:block">
                                 <label class="flex items-center mt-2">
                                     <input type="checkbox" id="add-is-area" name="isArea" class="h-4 w-4 text-indigo-600 border-gray-300 rounded">
                                     <span class="ml-2 text-sm text-gray-700">標示為整個社區/區域</span>
@@ -438,6 +430,12 @@
                     <button id="tool-fill" class="grid-tool-btn active" title="填色">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" />
+                        </svg>
+                    </button>
+                    <!-- NEW: Eraser tool -->
+                    <button id="tool-eraser" class="grid-tool-btn" title="擦除">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 7.5A2.25 2.25 0 0 1 7.5 5.25h9a2.25 2.25 0 0 1 2.25 2.25v9a2.25 2.25 0 0 1-2.25 2.25h-9a2.25 2.25 0 0 1-2.25-2.25v-9Z" />
                         </svg>
                     </button>
                     
@@ -554,18 +552,6 @@
                     完成位置設定
                 </button>
             </main>
-        </div>
-
-        <!-- NEW: Mobile specific UI for area selection mode -->
-        <div id="mobile-area-mode-ui" class="md:hidden">
-            <button id="complete-area-selection-btn" class="hidden fixed bottom-20 right-4 z-20 bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-green-700 transition-colors">
-                完成
-            </button>
-            <button id="open-add-location-panel-btn" class="hidden fixed top-1/2 -translate-y-1/2 left-0 z-[70] bg-white p-3 rounded-r-lg shadow-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-            </button>
         </div>
 
         <!-- 新增/編輯店家 Modal (Mobile Popup) -->
@@ -947,10 +933,6 @@
             let isDrawingOnGrid = false;
             let lastPaintedCellKey = null;
 
-            // NEW: Swipe gesture variables for mobile panel
-            let touchStartX = 0;
-            let touchEndX = 0;
-
             let dragPanInteraction; // NEW: To hold the default drag pan interaction
             map.getInteractions().forEach(interaction => {
                 if (interaction instanceof ol.interaction.DragPan) {
@@ -1313,6 +1295,7 @@
                 });
             }
 
+            // MODIFIED: paintCell function with eraser logic
             function paintCell(evt) {
                 if (currentAreaTool === 'pan') return; // Do nothing if in pan mode
 
@@ -1334,16 +1317,18 @@
                 if (ol.sphere.getDistance(centerLonLat, [snappedLon, snappedLat]) > GRID_DRAW_RADIUS) return;
 
                 if (currentAreaTool === 'fill') {
+                    selectedGridCells.set(cellKey, { marker: null, markerColor: currentMarkerColor });
+                } else if (currentAreaTool === 'eraser') {
                     if (selectedGridCells.has(cellKey)) {
                         selectedGridCells.delete(cellKey);
-                    } else {
-                        selectedGridCells.set(cellKey, { marker: null, markerColor: currentMarkerColor });
                     }
-                } else { 
+                } else { // This is for markers: 'entrance', 'exit', 'table'
                     const existingData = selectedGridCells.get(cellKey);
                     if (!existingData) {
+                        // If cell doesn't exist, create it with the marker
                         selectedGridCells.set(cellKey, { marker: currentAreaTool, markerColor: currentMarkerColor });
                     } else {
+                        // If cell exists, toggle the marker
                         existingData.marker = existingData.marker === currentAreaTool ? null : currentAreaTool;
                         if(existingData.marker) {
                             existingData.markerColor = currentMarkerColor;
@@ -1461,60 +1446,10 @@
                 });
             }
 
-            // MODIFIED: Bind checkbox change event with mobile logic
+            // Bind checkbox change event
             $(document).on('change', '#add-is-area', function() {
-                const isChecked = $(this).is(':checked');
-                const $form = $(this).closest('form');
-                
-                // Only apply the special mobile UI if the change happened in the mobile form
-                if (isMobile && $form.closest('#add-location-modal-mobile').length > 0) {
-                    if (isChecked) {
-                        // Collapse the panel
-                        $('#add-location-modal-mobile').addClass('collapsed-to-side');
-                        // Show the buttons
-                        $('#open-add-location-panel-btn').removeClass('hidden');
-                        $('#complete-area-selection-btn').removeClass('hidden');
-                    } else {
-                        // This case is for unchecking, which restores the panel
-                        restoreMobileAddPanel();
-                    }
-                }
-                
-                // This part is for both desktop and mobile map logic
-                toggleAreaSelectionMode(isChecked);
+                toggleAreaSelectionMode($(this).is(':checked'));
             });
-
-            // --- NEW: Mobile Panel Restore Logic ---
-            function restoreMobileAddPanel() {
-                $('#add-location-modal-mobile').removeClass('collapsed-to-side');
-                $('#open-add-location-panel-btn').addClass('hidden');
-                $('#complete-area-selection-btn').addClass('hidden');
-            }
-
-            $('#complete-area-selection-btn, #open-add-location-panel-btn').on('click', restoreMobileAddPanel);
-
-            // Add swipe gesture logic
-            $(document).on('touchstart', function(e) {
-                if ($('#add-location-modal-mobile').hasClass('collapsed-to-side')) {
-                    touchStartX = e.originalEvent.touches[0].clientX;
-                } else {
-                    touchStartX = 0; // Reset if panel is not collapsed
-                }
-            });
-
-            $(document).on('touchend', function(e) {
-                if (touchStartX === 0) return; // Only proceed if a valid start was recorded
-                touchEndX = e.originalEvent.changedTouches[0].clientX;
-                
-                const swipeDistance = touchEndX - touchStartX;
-                if (swipeDistance > 50) { // Right swipe with a threshold of 50px
-                    restoreMobileAddPanel();
-                }
-                // Reset for next time
-                touchStartX = 0;
-                touchEndX = 0;
-            });
-
 
             function drawRadiusCircle(centerCoords) {
                 radiusSource.clear();
@@ -1626,8 +1561,6 @@
                     tempMarker = null;
                     $('#complete-placement-btn').addClass('hidden');
                     $('#add-location-modal-mobile').addClass('hidden');
-                    // NEW: Also restore the panel state if it was collapsed
-                    restoreMobileAddPanel();
                 } else {
                     $('#app-container').removeClass('desktop-add-mode');
                     $('#desktop-center-marker').addClass('hidden');
