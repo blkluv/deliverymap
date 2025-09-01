@@ -83,8 +83,14 @@
             background: #f0f0f0;
         }
         /* 網格模式下的游標 */
-        #map.grid-mode-active {
+        #map.grid-mode-active.paint-mode {
             cursor: crosshair;
+        }
+         #map.grid-mode-active.pan-mode {
+            cursor: grab;
+        }
+        #map.grid-mode-active.pan-mode:active {
+            cursor: grabbing;
         }
         /* NEW: Map Enhancement Style */
         #map .ol-layer canvas {
@@ -408,6 +414,15 @@
 
                 <!-- NEW: Grid drawing toolbar -->
                 <div id="grid-toolbar" class="hidden">
+                    <!-- NEW: Hand/Pan tool -->
+                    <button id="tool-pan" class="grid-tool-btn" title="移動畫面">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                           <path stroke-linecap="round" stroke-linejoin="round" d="M7 11.5a1 1 0 011-1h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 001.414 0l2.414-2.414a1 1 0 01.707-.293H20a1 1 0 011 1v3.5a1 1 0 01-1 1h-2.586a1 1 0 01-.707-.293l-2.414-2.414a1 1 0 00-1.414 0l-2.414 2.414a1 1 0 01-.707.293H8a1 1 0 01-1-1v-3.5z" />
+                           <path stroke-linecap="round" stroke-linejoin="round" d="M12 5.5a1 1 0 011-1h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 001.414 0l2.414-2.414a1 1 0 01.707-.293H20a1 1 0 011 1v3.5a1 1 0 01-1 1h-2.586a1 1 0 01-.707-.293l-2.414-2.414a1 1 0 00-1.414 0l-2.414 2.414a1 1 0 01-.707.293H8a1 1 0 01-1-1v-3.5z" transform="rotate(90 12 12)" />
+                        </svg>
+                    </button>
+                    <div class="w-px h-6 bg-gray-300"></div>
+
                     <div class="color-picker-wrapper" title="格子顏色">
                         <input type="color" id="color-picker" class="color-picker-input" value="#ef4444">
                     </div>
@@ -675,18 +690,15 @@
   // --- NEW: Grid Mode Map Filter Settings ---
   // *** 可修改參數：網格模式下的地圖濾鏡效果 ***
   const MAP_FILTER_CONTRAST = 1.2;   // 對比度 (1 = 正常)
-  const MAP_FILTER_SATURATE = 1;   // 飽和度 (1 = 正常)
+  const MAP_FILTER_SATURATE = 1.2;   // 飽和度 (1 = 正常)
   const MAP_FILTER_BRIGHTNESS = 0.95; // 亮度 (1 = 正常)
-  const MAP_FILTER_INVERT = 0;       // 反相 (0 = 正常, 1 = 完全反相)  <-- 新增的參數
+  // *** 可修改數字：社區名稱與標記（入、出、桌）開始顯示的縮放等級 ***
+  const LABEL_VISIBILITY_ZOOM = 16; 
 
   // 將參數組合成 CSS 字串
   document.documentElement.style.setProperty('--map-filter-style', 
-    `contrast(${MAP_FILTER_CONTRAST}) ` + 
-    `saturate(${MAP_FILTER_SATURATE}) ` +
-    `brightness(${MAP_FILTER_BRIGHTNESS}) ` +
-    `invert(${MAP_FILTER_INVERT})` // <-- 在這裡加上 invert()
+    `contrast(${MAP_FILTER_CONTRAST}) saturate(${MAP_FILTER_SATURATE}) brightness(${MAP_FILTER_BRIGHTNESS})`
   );
-
         
         // --- OpenLayers 地圖設定 ---
         
@@ -737,8 +749,7 @@
         const areaGridLayer = new ol.layer.Vector({
             source: areaGridSource,
             style: function(feature) {
-                // Style is now set directly on the feature
-                return feature.get('style');
+                return feature.getStyle();
             }
         });
 
@@ -924,7 +935,7 @@
             });
 
 
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwmtatTp4EefZ1fe98kdTCW9V4PEwvBkOKuZDFsUP4nHxACbmkEvrRbEwVdBK8SbP2-/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby906Jfbab__vOI3uCsAUpiIc-JVdjVs5eCAVPUPZYv0eVf-ok_nnDgBUxsekzc5jKv/exec';
             
             const visibilityThreshold = 16.5; 
 
@@ -987,11 +998,11 @@
 
                     results.forEach(data => {
                         // NEW: Check if it's a community area with areaBounds
-                        if (data.areaBounds) {
+                        if (data.isCommunity) {
                             communityAreas.push(data);
-                            return; // Skip adding to point-based groups
                         }
 
+                        // Also process for point data, unless it's ONLY an area
                         const baseAddress = (data['地址'] || '').split(/樓|之|-/)[0].trim();
                         if (baseAddress) {
                             if (!groupedData.has(baseAddress)) {
@@ -1011,6 +1022,8 @@
 
                     // Process point data
                     groupedData.forEach((group, baseAddress) => {
+                         // Don't create a point if this group only contains area data
+                        if(group.every(item => item.isCommunity)) return;
                         createPointFeature(group, baseAddress, pinyin, pinyinOptions);
                     });
                     
@@ -1221,6 +1234,8 @@
             }
 
             function paintCell(evt) {
+                if (currentAreaTool === 'pan') return; // Do nothing if in pan mode
+
                 const pixel = evt.pixel;
                 const coord = map.getCoordinateFromPixel(pixel);
                 if (!coord) return; // If clicking outside map area
@@ -1260,11 +1275,10 @@
             }
 
             const mapPointerDown = function(evt) {
-                // NEW: Check if it's the middle button (button code 1) and ignore
-                if (evt.originalEvent.button === 1) {
-                    return;
-                }
-                if (!isAreaSelectionMode) return;
+                // Ignore middle button and right button clicks
+                if (evt.originalEvent.button !== 0) return;
+                
+                if (!isAreaSelectionMode || currentAreaTool === 'pan') return;
                 isDrawingOnGrid = true;
                 paintCell(evt);
                 map.on('pointermove', mapPointerMove);
@@ -1295,11 +1309,9 @@
                     });
 
                     // --- Map Enhancement & Interactions ---
-                    $('#map').addClass('map-enhanced grid-mode-active');
+                    $('#map').addClass('map-enhanced grid-mode-active paint-mode');
                     if (dragPanInteraction) {
-                        // On desktop, allow middle-mouse pan. On mobile, disable pan.
-                        dragPanInteraction.setActive(isMobile ? false : true);
-                        dragPanInteraction.condition_ = isMobile ? ol.events.condition.noModifierKeys : ol.events.condition.middleMouseButton;
+                        dragPanInteraction.setActive(false); // Initially disable for painting
                     }
                     
                     // --- UI Updates ---
@@ -1317,7 +1329,7 @@
 
                 } else {
                     // --- Map Enhancement & Interactions ---
-                    $('#map').removeClass('map-enhanced grid-mode-active');
+                    $('#map').removeClass('map-enhanced grid-mode-active paint-mode pan-mode');
                     if (dragPanInteraction) {
                          dragPanInteraction.setActive(true);
                          dragPanInteraction.condition_ = ol.events.condition.primaryAction; // Restore default
@@ -1356,6 +1368,16 @@
                     $(this).addClass('active');
                     const toolId = $(this).attr('id');
                     currentAreaTool = toolId.replace('tool-', '');
+
+                    // NEW Logic for pan tool
+                    if(currentAreaTool === 'pan'){
+                         if (dragPanInteraction) dragPanInteraction.setActive(true);
+                         $('#map').removeClass('paint-mode').addClass('pan-mode');
+
+                    } else {
+                         if (dragPanInteraction) dragPanInteraction.setActive(false);
+                         $('#map').removeClass('pan-mode').addClass('paint-mode');
+                    }
                 });
             }
 
@@ -2053,30 +2075,36 @@
                                 parentData: areaData // Link back to original data
                             });
 
-                            const styles = [
-                                new ol.style.Style({
-                                    fill: new ol.style.Fill({ color: color }),
-                                    stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.2)', width: 1})
-                                })
-                            ];
-                            
-                            if (marker) {
-                                const markerText = {
-                                    'entrance': '入',
-                                    'exit': '出',
-                                    'table': '桌'
-                                }[marker];
-                                styles.push(new ol.style.Style({
-                                    text: new ol.style.Text({
-                                        text: markerText,
-                                        font: 'bold 14px sans-serif',
-                                        fill: new ol.style.Fill({ color: markerColor || '#000' }),
-                                        backgroundFill: new ol.style.Fill({ color: 'rgba(255,255,255,0.7)'}),
-                                        padding: [2,2,2,2]
+                             // Define the style function for each cell
+                            const cellStyleFunction = function(feature, resolution) {
+                                const zoom = map.getView().getZoomForResolution(resolution);
+                                const styles = [
+                                    new ol.style.Style({
+                                        fill: new ol.style.Fill({ color: color }),
+                                        stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.2)', width: 1 })
                                     })
-                                }));
-                            }
-                            cellFeature.set('style', styles);
+                                ];
+
+                                if (marker && zoom >= LABEL_VISIBILITY_ZOOM) {
+                                    const markerText = {
+                                        'entrance': '入',
+                                        'exit': '出',
+                                        'table': '桌'
+                                    }[marker];
+                                    styles.push(new ol.style.Style({
+                                        text: new ol.style.Text({
+                                            text: markerText,
+                                            font: 'bold 14px sans-serif',
+                                            fill: new ol.style.Fill({ color: markerColor || '#000' }),
+                                            backgroundFill: new ol.style.Fill({ color: 'rgba(255,255,255,0.7)' }),
+                                            padding: [2, 2, 2, 2]
+                                        })
+                                    }));
+                                }
+                                return styles;
+                            };
+
+                            cellFeature.setStyle(cellStyleFunction);
                             areaGridSource.addFeature(cellFeature);
                         });
                         
@@ -2088,17 +2116,23 @@
                                 geometry: new ol.geom.Point(ol.proj.fromLonLat([centerLon, centerLat])),
                                 parentData: areaData
                             });
-                            const nameStyle = new ol.style.Style({
-                                text: new ol.style.Text({
-                                    text: areaData.areaName,
-                                    font: 'bold 16px sans-serif',
-                                    fill: new ol.style.Fill({ color: '#333' }),
-                                    backgroundFill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.8)' }),
-                                    padding: [5, 8, 5, 8],
-                                    overflow: true
-                                })
-                            });
-                             nameFeature.set('style', nameStyle);
+                             const nameStyleFunction = function(feature, resolution) {
+                                const zoom = map.getView().getZoomForResolution(resolution);
+                                if (zoom >= LABEL_VISIBILITY_ZOOM) {
+                                    return new ol.style.Style({
+                                        text: new ol.style.Text({
+                                            text: areaData.areaName,
+                                            font: 'bold 16px sans-serif',
+                                            fill: new ol.style.Fill({ color: '#333' }),
+                                            backgroundFill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.8)' }),
+                                            padding: [5, 8, 5, 8],
+                                            overflow: true
+                                        })
+                                    });
+                                }
+                                return null;
+                            };
+                             nameFeature.setStyle(nameStyleFunction);
                              areaGridSource.addFeature(nameFeature);
                         }
 
@@ -2636,30 +2670,5 @@
                          // 修正: 啟動定時檢查器
                         if (loginCheckInterval) clearInterval(loginCheckInterval);
                         let attempts = 0; // 防止無限迴圈
-                        loginCheckInterval = setInterval(async () => {
-                            attempts++;
-                            if (!isLoggedIn) {
-                                const success = await verifyToken();
-                                if (success || attempts > 30) { // 成功或超過30秒後停止
-                                    clearInterval(loginCheckInterval);
-                                }
-                            } else {
-                                     clearInterval(loginCheckInterval);
-                            }
-                        }, 1000); // 每秒檢查一次
-                    }
-                };
-                
-                // 確保 DOM 完全載入後再執行主程式
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', initializeApp);
-                } else {
-                    initializeApp();
-                }
-            }
+                        login
 
-            main();
-        };
-    </script>
-</body>
-</html>
