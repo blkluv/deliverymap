@@ -275,7 +275,7 @@
             padding: 0.5rem;
             border-radius: 0.75rem;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: flex;
+            /* display: flex; REMOVED, will be controlled by JS */
             align-items: center;
             gap: 0.5rem;
         }
@@ -1088,10 +1088,10 @@
                 gridCanvas.height = mapSize[1];
                 gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
 
-                // NEW: Only show grid and toolbar at sufficient zoom
                 const zoom = map.getView().getZoom();
                 if (zoom < 17) { // *** 可修改數字：顯示網格和工具列的最低地圖縮放等級 ***
-                    $('#grid-toolbar').hide();
+                    // 修正：使用 .addClass('hidden') 和 .removeClass('flex') 來控制可見性
+                    $('#grid-toolbar').addClass('hidden').removeClass('flex');
                     gridCtx.font = 'bold 20px sans-serif';
                     gridCtx.textAlign = 'center';
                     gridCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -1099,8 +1099,8 @@
                     return;
                 }
 
-                // If zoom is OK, show toolbar
-                $('#grid-toolbar').css('display', 'flex');
+                // 修正：如果縮放等級足夠，則顯示工具列
+                $('#grid-toolbar').removeClass('hidden').addClass('flex');
 
                 const extent = map.getView().calculateExtent(mapSize);
                 const [minLon, minLat] = ol.proj.toLonLat(ol.extent.getBottomLeft(extent));
@@ -1202,14 +1202,14 @@
                     drawGrid();
                     map.on('moveend', drawGrid);
                     gridCanvas.addEventListener('click', handleGridClick);
-
-            }
-
-            function toggleAreaSelectionMode(enable) {
+                } else {
+                    $('#location-instruction').text('請移動地圖中心點來選擇位置。');
+                    $('#desktop-center-marker').removeClass('hidden');
                     if (tempMarker) tempMarker.getElement().style.display = 'block';
                     
                     $('#grid-canvas').addClass('hidden').css('pointer-events', 'none');
-                    $('#grid-toolbar').hide();
+                    // 修正：使用 .addClass('hidden') 和 .removeClass('flex') 來確保工具列完全隱藏
+                    $('#grid-toolbar').addClass('hidden').removeClass('flex');
                     gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
                     map.un('moveend', drawGrid);
                     gridCanvas.removeEventListener('click', handleGridClick);
@@ -2544,5 +2544,4 @@
     </script>
 </body>
 </html>
-
 
