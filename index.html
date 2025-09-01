@@ -928,7 +928,7 @@
                 const projection = view.getProjection();
                 const resolution = view.getResolution();
                 // *** 可修改數字：這裡設定了初始定位時顯示的圓圈半徑（單位：公尺） ***
-                const radius = 30000; 
+                const radius = 5000; 
                 
                 const circle = new ol.geom.Circle(centerCoords, radius / ol.proj.getPointResolution(projection, resolution, centerCoords));
                 const circleFeature = new ol.Feature(circle);
@@ -1419,7 +1419,7 @@
                     const distance = ol.sphere.getDistance(initialLonLat, finalLonLat);
                     
                     // *** 可修改數字：這裡設定了用戶可以拖動標記的最大距離（單位：公尺） ***
-                    const maxDistance = 5000;
+                    const maxDistance = 30000;
 
                     if (distance > maxDistance) {
                         showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點${maxDistance}公尺。`, 'error');
