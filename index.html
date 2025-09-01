@@ -928,7 +928,7 @@
                 const projection = view.getProjection();
                 const resolution = view.getResolution();
                 // *** 可修改數字：這裡設定了初始定位時顯示的圓圈半徑（單位：公尺） ***
-                const radius = 5000; 
+                const radius = 30000; 
                 
                 const circle = new ol.geom.Circle(centerCoords, radius / ol.proj.getPointResolution(projection, resolution, centerCoords));
                 const circleFeature = new ol.Feature(circle);
