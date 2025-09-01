@@ -2667,18 +2667,33 @@
                     } else if (!isLineApp && !isTokenLoggedIn) {
                         // 在非 LINE 環境且未登入，才顯示 Google 登入按鈕
                         initializeGoogleButton();
-                        // The following lines were incomplete and caused a syntax error.
-                        // The initializeGoogleButton function already handles the button rendering logic.
+                         // 修正: 啟動定時檢查器
+                        if (loginCheckInterval) clearInterval(loginCheckInterval);
+                        let attempts = 0; // 防止無限迴圈
+                        loginCheckInterval = setInterval(async () => {
+                            attempts++;
+                            if (!isLoggedIn) {
+                                const success = await verifyToken();
+                                if (success || attempts > 30) { // 成功或超過30秒後停止
+                                    clearInterval(loginCheckInterval);
+                                }
+                            } else {
+                                     clearInterval(loginCheckInterval);
+                            }
+                        }, 1000); // 每秒檢查一次
                     }
                 };
-
-                // Execute the initialization logic
-                await initializeApp();
+                
+                // 確保 DOM 完全載入後再執行主程式
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', initializeApp);
+                } else {
+                    initializeApp();
+                }
             }
 
-            // Start the application
             main();
         };
-</script>
+    </script>
+</body>
 </html>
-
