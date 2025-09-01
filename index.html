@@ -251,6 +251,17 @@
         .vote-btn.voted-dislike svg {
             fill: #EF4444; /* A brighter red */
         }
+        
+        /* NEW: Grid canvas style */
+        #grid-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10; /* Above map tiles, below UI controls */
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -275,7 +286,7 @@
                         <div class="px-6 pt-2 pb-16 space-y-4 overflow-y-auto custom-scrollbar flex-grow">
                             <input type="hidden" id="edit-row-index" name="rowIndex">
                             <input type="hidden" id="edit-original-name" name="originalName">
-                            <p class="text-sm text-gray-600">請移動地圖中心點來選擇位置。</p>
+                            <p id="location-instruction" class="text-sm text-gray-600">請移動地圖中心點來選擇位置。</p>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">地址 <span class="text-red-500">*</span></label>
                                 <div id="address-input-container">
@@ -292,7 +303,7 @@
                                     <input type="checkbox" id="add-is-area" name="isArea" class="h-4 w-4 text-indigo-600 border-gray-300 rounded">
                                     <span class="ml-2 text-sm text-gray-700">標示為整個社區/區域</span>
                                 </label>
-                                <p class="text-xs text-gray-500 mt-1">勾選後，將以顏色區塊標示此地點的大致範圍。</p>
+                                <p class="text-xs text-gray-500 mt-1">勾選後，可點擊地圖上的網格來標示範圍。</p>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">黑名類別 <span class="text-red-500">*</span></label>
@@ -318,6 +329,8 @@
             <!-- Map Container -->
             <main id="map-container" class="w-full h-full relative">
                 <div id="map"></div>
+                <!-- NEW: Canvas for Area Selection Grid -->
+                <canvas id="grid-canvas" class="hidden pointer-events-none"></canvas>
                 
                 <!-- 錯誤/提示訊息 -->
                 <div id="notification" class="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-yellow-500 text-white text-sm py-2 px-4 rounded-lg shadow-lg hidden transition-all duration-300">
@@ -778,7 +791,15 @@
             let isDraggingMarker = false;
             let latestGeocodeBounds = null; // NEW: Store latest geocode bounds
             
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwEBYqbuMQHY_6JIIooxGgB5v95m0P3Sohk_D83SKQHqJJBq6s3v7j8Iq9zzzU_XZg/exec';
+            // --- NEW: Area Selection Variables ---
+            const gridCanvas = document.getElementById('grid-canvas');
+            const gridCtx = gridCanvas.getContext('2d');
+            let isAreaSelectionMode = false;
+            const GRID_SIZE = 40; // 格子大小 (像素)
+            let selectedGridCells = new Set();
+
+
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwLuLfse5I9gj4wohjF728sjqcTrG7nyBGQ6rymMbXmv4xEvbuL9HEHTUzGZBcsYsXh/exec';
             
             const visibilityThreshold = 16.5; 
 
@@ -853,28 +874,34 @@
 
                     groupedData.forEach((group, baseAddress) => {
                         const firstReport = group[0];
-                        const areaBoundsStr = firstReport['areaBounds'];
+                        // MODIFIED: '社群列表' sheet is assumed to provide areaBounds
+                        const areaBoundsStr = firstReport['areaBounds']; 
                         
                         if (areaBoundsStr) {
-                            try {
+                             try {
+                                // The value is a stringified JSON object of viewport bounds
                                 const bounds = JSON.parse(areaBoundsStr);
                                 const northeast = ol.proj.fromLonLat([bounds.northeast.lng, bounds.northeast.lat]);
                                 const southwest = ol.proj.fromLonLat([bounds.southwest.lng, bounds.southwest.lat]);
+                                
                                 const extent = [...southwest, ...northeast];
                                 const polygon = ol.geom.Polygon.fromExtent(extent);
 
                                 const areaFeature = new ol.Feature({
                                     geometry: polygon,
-                                    name: baseAddress, 
-                                    category: firstReport['分類'] || '其他', 
+                                    name: baseAddress,
+                                    category: firstReport['分類'] || '其他',
                                     address: baseAddress,
-                                    reports: group
+                                    reports: group,
+                                    // Add properties needed for popup
+                                    likes: group.reduce((sum, report) => sum + (parseInt(report.likes, 10) || 0), 0),
+                                    dislikes: group.reduce((sum, report) => sum + (parseInt(report.dislikes, 10) || 0), 0),
                                 });
-                                areaFeature.setId(baseAddress + '_area');
+                                areaFeature.setId(baseAddress + '_area'); // Unique ID for area
                                 areaSource.addFeature(areaFeature);
+
                             } catch (e) {
-                                console.error('Error parsing areaBounds:', e, areaBoundsStr);
-                                // Fallback to point
+                                console.error('Error parsing areaBounds, falling back to point:', e, areaBoundsStr);
                                 createPointFeature(group, baseAddress, pinyin, pinyinOptions);
                             }
                         } else {
@@ -1006,8 +1033,86 @@
                 $('#product-modal').removeClass('hidden');
             });
             
-            // --- NEW/MODIFIED Add Location Logic ---
-            
+            // --- NEW/MODIFIED Add Location & Area Selection Logic ---
+
+            function drawGrid() {
+                if (!isAreaSelectionMode) return;
+                const mapSize = map.getSize();
+                gridCanvas.width = mapSize[0];
+                gridCanvas.height = mapSize[1];
+                gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+
+                // Draw grid lines
+                gridCtx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+                gridCtx.lineWidth = 1;
+                for (let x = 0; x <= gridCanvas.width; x += GRID_SIZE) {
+                    gridCtx.beginPath();
+                    gridCtx.moveTo(x, 0);
+                    gridCtx.lineTo(x, gridCanvas.height);
+                    gridCtx.stroke();
+                }
+                for (let y = 0; y <= gridCanvas.height; y += GRID_SIZE) {
+                    gridCtx.beginPath();
+                    gridCtx.moveTo(0, y);
+                    gridCtx.lineTo(gridCanvas.width, y);
+                    gridCtx.stroke();
+                }
+
+                // Draw selected cells
+                gridCtx.fillStyle = 'rgba(239, 68, 68, 0.5)'; // Semi-transparent red
+                selectedGridCells.forEach(cellKey => {
+                    const [col, row] = cellKey.split('-').map(Number);
+                    gridCtx.fillRect(col * GRID_SIZE, row * GRID_SIZE, GRID_SIZE, GRID_SIZE);
+                });
+            }
+
+            function handleGridClick(e) {
+                if (!isAreaSelectionMode) return;
+                const rect = gridCanvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                const col = Math.floor(x / GRID_SIZE);
+                const row = Math.floor(y / GRID_SIZE);
+                const cellKey = `${col}-${row}`;
+
+                if (selectedGridCells.has(cellKey)) {
+                    selectedGridCells.delete(cellKey);
+                } else {
+                    selectedGridCells.add(cellKey);
+                }
+                drawGrid();
+            }
+
+            function toggleAreaSelectionMode(enable) {
+                isAreaSelectionMode = enable;
+                if (enable) {
+                    $('#location-instruction').text('請點擊地圖上的網格來標示範圍。');
+                    $('#desktop-center-marker').addClass('hidden');
+                    if (tempMarker) tempMarker.getElement().style.display = 'none';
+                    
+                    selectedGridCells.clear();
+                    $('#grid-canvas').removeClass('hidden').css('pointer-events', 'auto');
+                    drawGrid();
+                    map.on('moveend', drawGrid);
+                    gridCanvas.addEventListener('click', handleGridClick);
+
+                } else {
+                    $('#location-instruction').text('請移動地圖中心點來選擇位置。');
+                    $('#desktop-center-marker').removeClass('hidden');
+                    if (tempMarker) tempMarker.getElement().style.display = 'block';
+
+                    $('#grid-canvas').addClass('hidden').css('pointer-events', 'none');
+                    gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+                    map.un('moveend', drawGrid);
+                    gridCanvas.removeEventListener('click', handleGridClick);
+                }
+            }
+            // Bind checkbox change event
+            $(document).on('change', '#add-is-area', function() {
+                toggleAreaSelectionMode($(this).is(':checked'));
+            });
+
             function drawRadiusCircle(centerCoords) {
                 radiusSource.clear();
                 const view = map.getView();
@@ -1097,7 +1202,7 @@
             }
             
             function handleDesktopMapMove() {
-                if ($('#app-container').hasClass('desktop-add-mode')) {
+                if ($('#app-container').hasClass('desktop-add-mode') && !isAreaSelectionMode) {
                     const centerCoords = map.getView().getCenter();
                     const centerLonLat = ol.proj.toLonLat(centerCoords);
                     reverseGeocode(centerLonLat[0], centerLonLat[1]);
@@ -1105,6 +1210,11 @@
             }
             
             function exitAddMode() {
+                // Turn off area selection mode if it's on
+                if (isAreaSelectionMode) {
+                    toggleAreaSelectionMode(false);
+                }
+                
                 radiusSource.clear();
                 initialAddLocationCoords = null;
                 
@@ -1119,6 +1229,8 @@
                     map.un('moveend', handleDesktopMapMove);
                     setTimeout(() => map.updateSize(), 350);
                 }
+                 // Reset the checkbox
+                $('#add-is-area').prop('checked', false);
             }
 
             $('#add-location-btn').on('click', function() {
@@ -1256,7 +1368,7 @@
                             </button>
                              <span class="likes-count text-sm text-gray-600">${likes}</span>
                             <button class="vote-btn p-1 rounded-full hover:bg-gray-200 ${dislikeClass}" data-location-id="${locationId}" data-vote-type="dislike">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1h-6.364a1 1 0 00-.949.684L3.565 9H6v7a1 1 0 001 1h1a1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.6-4.8zM14 12h-2.545M15 9.5a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-3 0v-3a1.5 1.5 0 011.5-1.5z"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1h-6.364a1 1 0 00-.949.684L3.565 9H6v7a1 1 0 001 1h1a1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.6-4.8zM14 12h-2.545M15 9.5a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-3 0v-3a1.5 1.5 0 011.5 1.5z"/></svg>
                             </button>
                              <span class="dislikes-count text-sm text-gray-600">${dislikes}</span>
                         </div>
@@ -1517,26 +1629,64 @@
                 }
                 
                 let finalCoords;
-                if (isMobile) {
-                    if (!tempMarker) {
-                        showNotification('請在地圖上設定一個位置。', 'error');
+                let areaBoundsData = null;
+                const isArea = $form.find('#add-is-area').is(':checked');
+                
+                if (isArea) {
+                    if (selectedGridCells.size === 0) {
+                        showNotification('請在地圖網格上至少選取一個區塊。', 'error');
                         return;
                     }
-                    finalCoords = tempMarker.getPosition();
-                } else {
-                    finalCoords = map.getView().getCenter();
-                }
-
-                if (initialAddLocationCoords) {
-                    const initialLonLat = ol.proj.toLonLat(initialAddLocationCoords);
-                    const finalLonLat = ol.proj.toLonLat(finalCoords);
-                    const distance = ol.sphere.getDistance(initialLonLat, finalLonLat);
+                    let minCol = Infinity, maxCol = -Infinity, minRow = Infinity, maxRow = -Infinity;
+                    selectedGridCells.forEach(cellKey => {
+                        const [col, row] = cellKey.split('-').map(Number);
+                        minCol = Math.min(minCol, col);
+                        maxCol = Math.max(maxCol, col);
+                        minRow = Math.min(minRow, row);
+                        maxRow = Math.max(maxRow, row);
+                    });
                     
-                    const maxDistance = 30000;
+                    const topLeftPixel = [minCol * GRID_SIZE, minRow * GRID_SIZE];
+                    const bottomRightPixel = [(maxCol + 1) * GRID_SIZE, (maxRow + 1) * GRID_SIZE];
 
-                    if (distance > maxDistance) {
-                        showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點${maxDistance}公尺。`, 'error');
-                        return;
+                    const southwestCoord = map.getCoordinateFromPixel(topLeftPixel);
+                    const northeastCoord = map.getCoordinateFromPixel(bottomRightPixel);
+                    
+                    const southwestLonLat = ol.proj.toLonLat(southwestCoord);
+                    const northeastLonLat = ol.proj.toLonLat(northeastCoord);
+
+                    areaBoundsData = {
+                        southwest: { lat: southwestLonLat[1], lng: southwestLonLat[0] },
+                        northeast: { lat: northeastLonLat[1], lng: northeastLonLat[0] }
+                    };
+                    
+                    // Use the center of the selected area for the single lat/lon point
+                    const centerPixel = [
+                        (topLeftPixel[0] + bottomRightPixel[0]) / 2,
+                        (topLeftPixel[1] + bottomRightPixel[1]) / 2,
+                    ];
+                    finalCoords = map.getCoordinateFromPixel(centerPixel);
+
+                } else {
+                    if (isMobile) {
+                        if (!tempMarker) {
+                            showNotification('請在地圖上設定一個位置。', 'error');
+                            return;
+                        }
+                        finalCoords = tempMarker.getPosition();
+                    } else {
+                        finalCoords = map.getView().getCenter();
+                    }
+
+                    if (initialAddLocationCoords) {
+                        const initialLonLat = ol.proj.toLonLat(initialAddLocationCoords);
+                        const finalLonLat = ol.proj.toLonLat(finalCoords);
+                        const distance = ol.sphere.getDistance(initialLonLat, finalLonLat);
+                        const maxDistance = 30000;
+                        if (distance > maxDistance) {
+                            showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點${maxDistance}公尺。`, 'error');
+                            return;
+                        }
                     }
                 }
                 
@@ -1566,8 +1716,10 @@
                     timestamp: new Date().toISOString(),
                 };
                 
-                const isArea = $form.find('#add-is-area').is(':checked');
-                if (isArea && latestGeocodeBounds) {
+                if (areaBoundsData) {
+                    newData.areaBounds = JSON.stringify(areaBoundsData);
+                } else if (latestGeocodeBounds) {
+                    // Fallback to geocode bounds if not in area mode but bounds are available
                     newData.areaBounds = JSON.stringify(latestGeocodeBounds);
                 }
 
@@ -1582,6 +1734,7 @@
                     $submitBtn.prop('disabled', false).find('.submit-text').removeClass('hidden').end().find('.spinner').addClass('hidden');
                 });
             }
+
 
             $('#add-location-form, #add-location-form-mobile').on('submit', handleFormSubmit);
 
@@ -2214,4 +2367,3 @@
     </script>
 </body>
 </html>
-
