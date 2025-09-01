@@ -778,7 +778,7 @@
             let isDraggingMarker = false;
             let latestGeocodeBounds = null; // NEW: Store latest geocode bounds
             
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyp83WSiNEm9wxPzd80OSsZK9wZdAbUiHmLvj542ui0Vd31h6h0ytpgpJ-9Vcgj4xU/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwEBYqbuMQHY_6JIIooxGgB5v95m0P3Sohk_D83SKQHqJJBq6s3v7j8Iq9zzzU_XZg/exec';
             
             const visibilityThreshold = 16.5; 
 
@@ -1383,7 +1383,6 @@
                     featureClicked = true;
                     const coordinates = evt.coordinate;
                     currentFeatureData = areaFeature.getProperties();
-                    currentFeatureData.address = currentFeatureData.name; // Use areaName for popup logic
                     
                     const reportsByFullAddress = new Map();
                     currentFeatureData.reports.forEach(report => {
