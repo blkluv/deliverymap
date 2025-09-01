@@ -1091,7 +1091,7 @@
                 // NEW: Only show grid and toolbar at sufficient zoom
                 const zoom = map.getView().getZoom();
                 if (zoom < 17) { // *** 可修改數字：顯示網格和工具列的最低地圖縮放等級 ***
-                    $('#grid-toolbar').addClass('hidden');
+                    $('#grid-toolbar').hide();
                     gridCtx.font = 'bold 20px sans-serif';
                     gridCtx.textAlign = 'center';
                     gridCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -1100,7 +1100,7 @@
                 }
 
                 // If zoom is OK, show toolbar
-                $('#grid-toolbar').removeClass('hidden');
+                $('#grid-toolbar').css('display', 'flex');
 
                 const extent = map.getView().calculateExtent(mapSize);
                 const [minLon, minLat] = ol.proj.toLonLat(ol.extent.getBottomLeft(extent));
@@ -1202,29 +1202,14 @@
                     drawGrid();
                     map.on('moveend', drawGrid);
                     gridCanvas.addEventListener('click', handleGridClick);
+
             }
 
             function toggleAreaSelectionMode(enable) {
-                isAreaSelectionMode = enable;
-                if (enable) {
-                    $('#location-instruction').text('請點擊地圖上的網格來標示範圍。');
-                    $('#desktop-center-marker').addClass('hidden');
-                    if (tempMarker) tempMarker.getElement().style.display = 'none';
-                    
-                    selectedGridCells.clear();
-                    $('#grid-canvas').removeClass('hidden').css('pointer-events', 'auto');
-                    
-                    drawGrid();
-                    map.on('moveend', drawGrid);
-                    gridCanvas.addEventListener('click', handleGridClick);
-
-                } else {
-                    $('#location-instruction').text('請移動地圖中心點來選擇位置。');
-                    $('#desktop-center-marker').removeClass('hidden');
                     if (tempMarker) tempMarker.getElement().style.display = 'block';
                     
                     $('#grid-canvas').addClass('hidden').css('pointer-events', 'none');
-                    $('#grid-toolbar').addClass('hidden');
+                    $('#grid-toolbar').hide();
                     gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
                     map.un('moveend', drawGrid);
                     gridCanvas.removeEventListener('click', handleGridClick);
