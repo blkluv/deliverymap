@@ -2667,8 +2667,18 @@
                     } else if (!isLineApp && !isTokenLoggedIn) {
                         // 在非 LINE 環境且未登入，才顯示 Google 登入按鈕
                         initializeGoogleButton();
-                         // 修正: 啟動定時檢查器
-                        if (loginCheckInterval) clearInterval(loginCheckInterval);
-                        let attempts = 0; // 防止無限迴圈
-                        login
+                        // The following lines were incomplete and caused a syntax error.
+                        // The initializeGoogleButton function already handles the button rendering logic.
+                    }
+                };
+
+                // Execute the initialization logic
+                await initializeApp();
+            }
+
+            // Start the application
+            main();
+        };
+</script>
+</html>
 
