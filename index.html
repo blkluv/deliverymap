@@ -688,11 +688,11 @@
 <script type="module">
   // --- NEW: Grid Mode Map Filter Settings ---
   // *** 可修改參數：網格模式下的地圖濾鏡效果 ***
-  const MAP_FILTER_CONTRAST = 1.2;   // 對比度 (1 = 正常)
-  const MAP_FILTER_SATURATE = 1.2;   // 飽和度 (1 = 正常)
-  const MAP_FILTER_BRIGHTNESS = 0.95; // 亮度 (1 = 正常)
+  const MAP_FILTER_CONTRAST = 1;   // 對比度 (1 = 正常)
+  const MAP_FILTER_SATURATE = 1;   // 飽和度 (1 = 正常)
+  const MAP_FILTER_BRIGHTNESS = 0.8; // 亮度 (1 = 正常)
   // *** 可修改數字：社區名稱與標記（入、出、桌）開始顯示的縮放等級 ***
-  const LABEL_VISIBILITY_ZOOM = 18; 
+  const LABEL_VISIBILITY_ZOOM = 17; 
 
   // 將參數組合成 CSS 字串
   document.documentElement.style.setProperty('--map-filter-style', 
@@ -1143,13 +1143,69 @@
                 if (userPositionCoords) map.getView().animate({ center: userPositionCoords, zoom: 16, duration: 800 });
                 else showNotification('無法定位您的位置。', 'warning');
             });
-            $(document).on('click', '#show-more-product', function() {
-                $('#product-modal-title').text('黑名原因');
-                // Use decodeURIComponent to handle special characters correctly
-                $('#product-modal-content').text(decodeURIComponent($(this).data('fulltext')));
-                $('#product-modal').removeClass('hidden');
-            });
             
+            // --- NEW: Search Address Panel Logic ---
+            async function performSearch(address) {
+                if (!address || address.trim() === '') return;
+
+                showNotification('正在搜尋地址...', 'info');
+                const data = await geocodeAddress(address);
+                const $notification = $('#notification');
+                
+                if (data && data.results && data.results.length > 0) {
+                    // Hide the 'searching' notification on success
+                    if ($notification.text() === '正在搜尋地址...') {
+                        $notification.addClass('hidden');
+                    }
+                    const location = data.results[0].geometry.location;
+                    const coords = ol.proj.fromLonLat([location.lng, location.lat]);
+                    map.getView().animate({ center: coords, zoom: 17, duration: 800 });
+                    $('#search-panel').addClass('hidden');
+                } else {
+                    showNotification('找不到您輸入的地址', 'error');
+                }
+            }
+
+            $('#search-address-btn').on('click', async function() {
+                const $searchPanel = $('#search-panel');
+                
+                if ($searchPanel.hasClass('hidden')) { 
+                    $searchPanel.removeClass('hidden');
+                    $('#search-address-input').val('').focus(); // Clear and focus input
+
+                    try {
+                        // This API requires a secure context (HTTPS) and user permission.
+                        const permission = await navigator.permissions.query({ name: 'clipboard-read' });
+                        if (permission.state === 'granted' || permission.state === 'prompt') {
+                            const text = await navigator.clipboard.readText();
+                            if (text && text.trim()) {
+                                const addressKeywords = ['區', '路', '街', '巷', '弄', '號'];
+                                const isAddress = addressKeywords.some(keyword => text.includes(keyword));
+                                if (isAddress) {
+                                    $('#search-address-input').val(text);
+                                    performSearch(text);
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('無法讀取剪貼簿，可能是權限問題或瀏覽器不支援。');
+                    }
+                } else {
+                    $searchPanel.addClass('hidden');
+                }
+            });
+
+            $('#close-search-panel').on('click', () => {
+                $('#search-panel').addClass('hidden');
+            });
+
+            $('#search-address-input').on('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    performSearch($(this).val());
+                }
+            });
+
             // --- NEW/MODIFIED Add Location & Area Selection Logic ---
 
             function drawGrid() {
@@ -2696,3 +2752,4 @@
     </script>
 </body>
 </html>
+
