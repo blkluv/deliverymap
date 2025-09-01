@@ -310,33 +310,32 @@
             background-color: #dbeafe; /* blue-100 */
             border-color: #3b82f6; /* blue-500 */
         }
-
-        /* MODIFIED: Custom styled color picker */
-        .color-picker-wrapper {
-            position: relative;
-            width: 2rem; /* 32px */
-            height: 2rem; /* 32px */
-            border-radius: 9999px; /* rounded-full */
-            overflow: hidden;
-            border: 2px solid #9ca3af; /* gray-400 */
-            flex-shrink: 0; /* Prevent shrinking in flex container */
-        }
-        .color-picker-input {
-            position: absolute;
-            top: -0.25rem;
-            left: -0.25rem;
-            width: 3rem;
-            height: 3rem;
-            cursor: pointer;
-            border: none;
-            padding: 0;
-        }
         #marker-tools {
             display: flex;
             align-items: center;
             gap: 0.5rem;
             padding-left: 0.5rem;
             border-left: 1px solid #d1d5db; /* gray-300 */
+        }
+
+        /* NEW: Grid Color Palette Styles */
+        #grid-color-palette input[type="color"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 2rem; /* 32px */
+            background-color: transparent;
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 0.375rem; /* rounded-md */
+            cursor: pointer;
+        }
+        #grid-color-palette input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        #grid-color-palette input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 0.25rem; /* rounded */
         }
     </style>
 </head>
@@ -413,42 +412,41 @@
                 <!-- NEW: Canvas for Area Selection Grid -->
                 <canvas id="grid-canvas"></canvas>
 
-                <!-- NEW: Grid drawing toolbar -->
+                <!-- MODIFIED: Grid drawing toolbar (Color Pickers Removed) -->
                 <div id="grid-toolbar" class="hidden">
-                    <!-- NEW: Hand/Pan tool -->
                     <button id="tool-pan" class="grid-tool-btn" title="移動畫面">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M10.05 4.575a1.575 1.575 0 1 0-3.15 0v3m3.15-3v-1.5a1.575 1.575 0 0 1 3.15 0v1.5m-3.15 0 .075 5.925m3.075.75V4.575m0 0a1.575 1.575 0 0 1 3.15 0V15M6.9 7.575a1.575 1.575 0 1 0-3.15 0v8.175a6.75 6.75 0 0 0 6.75 6.75h2.018a5.25 5.25 0 0 0 3.712-1.538l1.732-1.732a5.25 5.25 0 0 0 1.538-3.712l.003-2.024a.668.668 0 0 1 .198-.471 1.575 1.575 0 1 0-2.228-2.228 3.818 3.818 0 0 0-1.12 2.687M6.9 7.575V12m6.27 4.318A4.49 4.49 0 0 1 16.35 15m.002 0h-.002" />
                         </svg>
                     </button>
                     <div class="w-px h-6 bg-gray-300"></div>
-
-                    <!-- MODIFIED: This is now hidden and triggered programmatically -->
-                    <div class="color-picker-wrapper hidden" title="格子顏色">
-                        <input type="color" id="color-picker" class="color-picker-input" value="#ef4444">
-                    </div>
-                    
                     <button id="tool-fill" class="grid-tool-btn active" title="填色">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" />
                         </svg>
                     </button>
-                    <!-- NEW: Eraser tool -->
                     <button id="tool-eraser" class="grid-tool-btn" title="擦除">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 7.5A2.25 2.25 0 0 1 7.5 5.25h9a2.25 2.25 0 0 1 2.25 2.25v9a2.25 2.25 0 0 1-2.25 2.25h-9a2.25 2.25 0 0 1-2.25-2.25v-9Z" />
                         </svg>
                     </button>
-                    
                     <div id="marker-tools">
                         <button id="tool-entrance" class="grid-tool-btn font-bold text-lg" title="入口">入</button>
                         <button id="tool-exit" class="grid-tool-btn font-bold text-lg" title="出口">出</button>
                         <button id="tool-table" class="grid-tool-btn font-bold text-lg" title="外送桌">桌</button>
                         <button id="tool-parking" class="grid-tool-btn font-bold text-lg" title="停車位置">停</button>
-                        <!-- MODIFIED: This is now hidden and triggered programmatically -->
-                        <div class="color-picker-wrapper hidden" title="標記顏色">
-                            <input type="color" id="marker-color-picker" class="color-picker-input" value="#000000">
-                        </div>
+                    </div>
+                </div>
+
+                <!-- NEW: Color Palette -->
+                <div id="grid-color-palette" class="hidden absolute top-4 right-24 z-20 bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-lg flex flex-col space-y-2 w-28">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">格子顏色</label>
+                        <input type="color" id="palette-fill-color" value="#ef4444">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">標記顏色</label>
+                        <input type="color" id="palette-marker-color" value="#000000">
                     </div>
                 </div>
                 
@@ -928,7 +926,7 @@
             const GRID_ZOOM_LEVEL_WEB = 20; 
             const GRID_ZOOM_LEVEL_MOBILE = 19;
             
-            let selectedGridCells = new Map(); // Key: 'lon-lat', Value: { marker: string|null, markerColor: string }
+            let selectedGridCells = new Map(); // Key: 'lon-lat', Value: { marker: string|null, markerColor: string, fillColor: string|null }
             let currentAreaColor = 'rgba(239, 68, 68, 0.7)';
             let currentMarkerColor = '#000000';
             let currentAreaTool = 'fill';
@@ -1283,8 +1281,10 @@
                     const width = Math.abs(p2[0] - p1[0]);
                     const height = Math.abs(p1[1] - p2[1]);
                     
-                    gridCtx.fillStyle = currentAreaColor;
-                    gridCtx.fillRect(p1[0], p2[1], width, height);
+                    if (data.fillColor) {
+                        gridCtx.fillStyle = data.fillColor;
+                        gridCtx.fillRect(p1[0], p2[1], width, height);
+                    }
                     
                     if (data.marker) {
                         gridCtx.fillStyle = data.markerColor || '#000000';
@@ -1299,13 +1299,13 @@
                 });
             }
 
-            // MODIFIED: paintCell function with eraser logic
+            // MODIFIED: paintCell function with new logic
             function paintCell(evt) {
-                if (currentAreaTool === 'pan') return; // Do nothing if in pan mode
+                if (currentAreaTool === 'pan') return;
 
                 const pixel = evt.pixel;
                 const coord = map.getCoordinateFromPixel(pixel);
-                if (!coord) return; // If clicking outside map area
+                if (!coord) return;
                 const [lon, lat] = ol.proj.toLonLat(coord);
                 
                 const snappedLon = Math.floor(lon / GRID_INTERVAL) * GRID_INTERVAL;
@@ -1320,31 +1320,38 @@
                 const centerLonLat = ol.proj.toLonLat(centerCoords);
                 if (ol.sphere.getDistance(centerLonLat, [snappedLon, snappedLat]) > GRID_DRAW_RADIUS) return;
 
+                const existingData = selectedGridCells.get(cellKey);
+
                 if (currentAreaTool === 'fill') {
-                    selectedGridCells.set(cellKey, { marker: null, markerColor: currentMarkerColor });
-                } else if (currentAreaTool === 'eraser') {
-                    if (selectedGridCells.has(cellKey)) {
-                        selectedGridCells.delete(cellKey);
-                    }
-                } else { // This is for markers: 'entrance', 'exit', 'table'
-                    const existingData = selectedGridCells.get(cellKey);
-                    if (!existingData) {
-                        // If cell doesn't exist, create it with the marker
-                        selectedGridCells.set(cellKey, { marker: currentAreaTool, markerColor: currentMarkerColor });
-                    } else {
-                        // If cell exists, toggle the marker
-                        existingData.marker = existingData.marker === currentAreaTool ? null : currentAreaTool;
-                        if(existingData.marker) {
-                            existingData.markerColor = currentMarkerColor;
+                    if (existingData && existingData.fillColor) {
+                        delete existingData.fillColor;
+                        if (!existingData.marker) {
+                            selectedGridCells.delete(cellKey);
                         }
-                        selectedGridCells.set(cellKey, existingData);
+                    } else {
+                        const newData = existingData || {};
+                        newData.fillColor = currentAreaColor;
+                        selectedGridCells.set(cellKey, newData);
+                    }
+                } else if (currentAreaTool === 'eraser') {
+                    selectedGridCells.delete(cellKey);
+                } else { // Marker tools
+                    const newData = existingData || {};
+                    newData.marker = newData.marker === currentAreaTool ? null : currentAreaTool;
+                    if (newData.marker) {
+                        newData.markerColor = currentMarkerColor;
+                    }
+                    
+                    if (!newData.fillColor && !newData.marker) {
+                        selectedGridCells.delete(cellKey);
+                    } else {
+                        selectedGridCells.set(cellKey, newData);
                     }
                 }
                 drawGrid();
             }
 
             const mapPointerDown = function(evt) {
-                // Ignore middle button and right button clicks
                 if (evt.originalEvent.button !== 0) return;
                 
                 if (!isAreaSelectionMode || currentAreaTool === 'pan') return;
@@ -1368,100 +1375,75 @@
             function toggleAreaSelectionMode(enable) {
                 isAreaSelectionMode = enable;
                 
-                map.un('moveend', drawGrid); // Always unbind first
+                map.un('moveend', drawGrid);
+                $('#grid-color-palette').toggleClass('hidden', !enable);
 
                 if (enable) {
                     const zoomThreshold = isMobile ? GRID_ZOOM_LEVEL_MOBILE : GRID_ZOOM_LEVEL_WEB;
-                    map.getView().animate({
-                        zoom: zoomThreshold,
-                        duration: 800
-                    });
-
-                    // --- Map Enhancement & Interactions ---
+                    map.getView().animate({ zoom: zoomThreshold, duration: 800 });
                     $('#map').addClass('map-enhanced grid-mode-active paint-mode');
-                    if (dragPanInteraction) {
-                        dragPanInteraction.setActive(false); // Initially disable for painting
-                    }
-                    
-                    // --- UI Updates ---
+                    if (dragPanInteraction) dragPanInteraction.setActive(false);
                     $('#location-instruction').text('請在地圖上的網格標示範圍。');
                     $('#desktop-center-marker').addClass('hidden');
                     if (tempMarker) tempMarker.getElement().style.display = 'none';
-                    
-                    // --- Grid Logic ---
                     selectedGridCells.clear();
                     $('#grid-canvas').removeClass('hidden');
-                    drawGrid(); // Draw grid immediately
-                    
+                    drawGrid();
                     map.on('moveend', drawGrid);
                     map.on('pointerdown', mapPointerDown);
-
                 } else {
-                    // --- Map Enhancement & Interactions ---
                     $('#map').removeClass('map-enhanced grid-mode-active paint-mode pan-mode');
-                    if (dragPanInteraction) {
-                         dragPanInteraction.setActive(true);
-                         dragPanInteraction.condition_ = ol.events.condition.primaryAction; // Restore default
-                    }
-                     
-                    // --- UI Updates ---
+                    if (dragPanInteraction) dragPanInteraction.setActive(true);
                     $('#location-instruction').text('請移動地圖中心點來選擇位置。');
                     $('#desktop-center-marker').removeClass('hidden');
                     if (tempMarker) tempMarker.getElement().style.display = 'block';
-                    
-                    // --- Grid Logic ---
                     $('#grid-canvas').addClass('hidden');
                     $('#grid-toolbar').addClass('hidden').removeClass('flex');
                     gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-                    
                     map.un('pointerdown', mapPointerDown);
                 }
             }
 
-            // MODIFIED: setupGridToolbar with new color integration logic
             function setupGridToolbar() {
                 const $fillToolSvg = $('#tool-fill svg');
                 const $markerToolBtns = $('#marker-tools .grid-tool-btn');
 
-                $('#color-picker').on('input', function() {
+                $('#palette-fill-color').on('input', function() {
                     const hexColor = $(this).val();
                     const r = parseInt(hexColor.slice(1, 3), 16);
                     const g = parseInt(hexColor.slice(3, 5), 16);
                     const b = parseInt(hexColor.slice(5, 7), 16);
                     currentAreaColor = `rgba(${r}, ${g}, ${b}, 0.7)`;
-                    $fillToolSvg.css('stroke', hexColor); // Update icon color
-                    drawGrid();
+                    $fillToolSvg.css('stroke', hexColor);
+                    // No need to call drawGrid() here, color is applied on paint
                 });
 
-                $('#marker-color-picker').on('input', function() {
+                $('#palette-marker-color').on('input', function() {
                     currentMarkerColor = $(this).val();
                     $markerToolBtns.css('color', currentMarkerColor);
                 });
 
-                // Initial color sync on load
-                $fillToolSvg.css('stroke', $('#color-picker').val());
-                $markerToolBtns.css('color', $('#marker-color-picker').val());
+                // Initial color sync
+                $fillToolSvg.css('stroke', $('#palette-fill-color').val());
+                $markerToolBtns.css('color', $('#palette-marker-color').val());
 
                 $('.grid-tool-btn').on('click', function() {
                     const $clickedBtn = $(this);
                     const toolId = $clickedBtn.attr('id');
                     
                     if ($clickedBtn.hasClass('active')) {
-                        // Second click on active button triggers color picker
                         if (toolId === 'tool-fill') {
-                            $('#color-picker').trigger('click');
+                            $('#palette-fill-color').trigger('click');
                         } else if ($clickedBtn.closest('#marker-tools').length) {
-                            $('#marker-color-picker').trigger('click');
+                            $('#palette-marker-color').trigger('click');
                         }
-                        return; // Prevent other actions
+                        return;
                     }
                     
-                    // First click to select a tool
                     $('.grid-tool-btn').removeClass('active');
                     $clickedBtn.addClass('active');
                     currentAreaTool = toolId.replace('tool-', '');
 
-                    // Handle pan tool map interaction
                     if (currentAreaTool === 'pan') {
                         if (dragPanInteraction) dragPanInteraction.setActive(true);
                         $('#map').removeClass('paint-mode').addClass('pan-mode');
@@ -1472,7 +1454,6 @@
                 });
             }
             
-            // Bind checkbox change event
             $(document).on('change', '#add-is-area', function() {
                 toggleAreaSelectionMode($(this).is(':checked'));
             });
@@ -1482,7 +1463,6 @@
                 const view = map.getView();
                 const projection = view.getProjection();
                 const resolution = view.getResolution();
-                // *** 可修改數字：初始定位時顯示的圓圈半徑（單位：公尺），預設為500公尺 ***
                 const radius = 500; 
                 
                 const circle = new ol.geom.Circle(centerCoords, radius / ol.proj.getPointResolution(projection, resolution, centerCoords));
@@ -1495,14 +1475,11 @@
                     const newCoord = map.getEventCoordinate(e);
                     const initialLonLat = ol.proj.toLonLat(initialAddLocationCoords);
                     const newLonLat = ol.proj.toLonLat(newCoord);
-                    
-                    // *** 可修改數字：用戶拖動標記的最大距離（單位：公尺），預設為500公尺 ***
                     const maxDistance = 500;
 
                     if (ol.sphere.getDistance(initialLonLat, newLonLat) <= maxDistance) {
                         tempMarker.setPosition(newCoord);
                     } else {
-                        // Snap to edge if dragged too far
                         const angle = Math.atan2(newCoord[1] - initialAddLocationCoords[1], newCoord[0] - initialAddLocationCoords[0]);
                         const resolution = map.getView().getResolution();
                         const radiusInMapUnits = maxDistance / ol.proj.getPointResolution(map.getView().getProjection(), resolution, initialAddLocationCoords);
@@ -1574,7 +1551,6 @@
             }
             
             function exitAddMode() {
-                // Turn off area selection mode if it's on
                 if (isAreaSelectionMode) {
                     toggleAreaSelectionMode(false);
                 }
@@ -1593,7 +1569,6 @@
                     map.un('moveend', handleDesktopMapMove);
                     setTimeout(() => map.updateSize(), 350);
                 }
-                 // Reset the checkbox
                 $('#add-is-area').prop('checked', false);
             }
 
@@ -1605,7 +1580,7 @@
                 showNotification('正在取得您的目前位置...');
                 
                 navigator.geolocation.getCurrentPosition(
-                    (position) => { // Success
+                    (position) => {
                         const coords = [position.coords.longitude, position.coords.latitude];
                         const mapCoords = ol.proj.fromLonLat(coords);
                         
@@ -1615,7 +1590,7 @@
                             enterDesktopAddMode(mapCoords);
                         }
                     },
-                    (error) => { // Error
+                    (error) => {
                         showNotification('無法取得您的位置，請手動輸入地址。', 'warning');
                         if (isMobile) {
                             showNotification('在行動裝置上需要定位權限才能新增店家。', 'error');
@@ -1997,11 +1972,10 @@
                         maxLon = Math.max(maxLon, lon);
                         minLat = Math.min(minLat, lat);
                         maxLat = Math.max(maxLat, lat);
-                        cellsToSave.push({ lon, lat, marker: data.marker, markerColor: data.markerColor });
+                        cellsToSave.push({ lon, lat, marker: data.marker, markerColor: data.markerColor, fillColor: data.fillColor });
                     });
                     
                     areaBoundsStr = JSON.stringify(cellsToSave);
-                    areaColorStr = currentAreaColor;
                     
                     // Use the center of the selected area for the single lat/lon point
                     const centerLon = minLon + (maxLon - minLon) / 2;
@@ -2049,7 +2023,7 @@
                     submitterEmail: userProfile.email || 'N/A',
                     adminEmail: userProfile.email, 
                     name: formData.get('address'), 
-                    areaName: formData.get('areaName'), // NEW
+                    areaName: formData.get('areaName'),
                     category: formData.get('category'), 
                     address: formData.get('address'), 
                     blacklistCategory: formData.get('blacklistCategory'),
@@ -2057,8 +2031,7 @@
                     lon: lonLat[0], 
                     lat: lonLat[1],
                     timestamp: new Date().toISOString(),
-                    areaBounds: areaBoundsStr, // NEW
-                    areaColor: areaColorStr,   // NEW
+                    areaBounds: areaBoundsStr,
                 };
 
                 fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(newData) })
@@ -2144,13 +2117,11 @@
                     try {
                         const cells = JSON.parse(areaData.areaBounds);
                         if (!Array.isArray(cells)) return;
-
-                        const color = areaData.areaColor || 'rgba(239, 68, 68, 0.5)'; // Default red
                         
                         let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
 
                         cells.forEach(cell => {
-                            const { lon, lat, marker, markerColor } = cell;
+                            const { lon, lat, marker, markerColor, fillColor } = cell;
                             const extent = ol.proj.transformExtent(
                                 [lon, lat, lon + GRID_INTERVAL, lat + GRID_INTERVAL],
                                 'EPSG:4326', 'EPSG:3857'
@@ -2163,18 +2134,19 @@
                             
                             const cellFeature = new ol.Feature({
                                 geometry: ol.geom.Polygon.fromExtent(extent),
-                                parentData: areaData // Link back to original data
+                                parentData: areaData
                             });
 
                              // Define the style function for each cell
                             const cellStyleFunction = function(feature, resolution) {
                                 const zoom = map.getView().getZoomForResolution(resolution);
-                                const styles = [
-                                    new ol.style.Style({
-                                        fill: new ol.style.Fill({ color: color }),
-                                        stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.2)', width: 1 })
-                                    })
-                                ];
+                                const styles = [];
+
+                                if (fillColor) {
+                                    styles.push(new ol.style.Style({
+                                        fill: new ol.style.Fill({ color: fillColor }),
+                                    }));
+                                }
 
                                 if (marker && zoom >= LABEL_VISIBILITY_ZOOM) {
                                     const markerText = {
@@ -2789,4 +2761,5 @@
     </script>
 </body>
 </html>
+
 
