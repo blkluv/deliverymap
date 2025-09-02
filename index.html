@@ -2959,6 +2959,7 @@
                 }
             }
 
+            // MODIFIED: This function now correctly checks the '製作者' field.
             function loadUserAreas() {
                 const $content = $('#management-area-content');
                 $content.html('');
@@ -2968,7 +2969,15 @@
                     return;
                 }
 
-                const userAreas = rawReports.filter(r => r.isCommunity && (r.submitterEmail === userProfile.email || r.lineUserId === userProfile.lineUserId));
+                const userAreas = rawReports.filter(r => 
+                    r.isCommunity && 
+                    (
+                        r.submitterEmail === userProfile.email || 
+                        r.lineUserId === userProfile.lineUserId ||
+                        r['製作者'] === userProfile.email ||
+                        r['製作者'] === userProfile.lineUserId
+                    )
+                );
 
                 if (userAreas.length === 0) {
                     $content.html('<p class="text-gray-500">您尚未提交任何建築資料。</p>');
@@ -3279,3 +3288,4 @@
     </script>
 </body>
 </html>
+
