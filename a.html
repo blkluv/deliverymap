@@ -310,33 +310,37 @@
             background-color: #dbeafe; /* blue-100 */
             border-color: #3b82f6; /* blue-500 */
         }
-
-        /* MODIFIED: Custom styled color picker */
-        .color-picker-wrapper {
-            position: relative;
-            width: 2rem; /* 32px */
-            height: 2rem; /* 32px */
-            border-radius: 9999px; /* rounded-full */
-            overflow: hidden;
-            border: 2px solid #9ca3af; /* gray-400 */
-            flex-shrink: 0; /* Prevent shrinking in flex container */
-        }
-        .color-picker-input {
-            position: absolute;
-            top: -0.25rem;
-            left: -0.25rem;
-            width: 3rem;
-            height: 3rem;
-            cursor: pointer;
-            border: none;
-            padding: 0;
-        }
         #marker-tools {
             display: flex;
             align-items: center;
             gap: 0.5rem;
             padding-left: 0.5rem;
             border-left: 1px solid #d1d5db; /* gray-300 */
+        }
+
+        /* NEW: Grid Color Palette Styles */
+        #grid-color-palette input[type="color"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 2rem; /* 32px */
+            background-color: transparent;
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 0.375rem; /* rounded-md */
+            cursor: pointer;
+        }
+        #grid-color-palette input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        #grid-color-palette input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 0.25rem; /* rounded */
+        }
+
+        /* NEW: Styles for hiding system messages in chat */
+        #chat-messages.hide-system-messages .system-message {
+            display: none;
         }
     </style>
 </head>
@@ -361,6 +365,7 @@
                         </div>
                         <div class="px-6 pt-2 pb-16 space-y-4 overflow-y-auto custom-scrollbar flex-grow">
                             <input type="hidden" id="edit-row-index" name="rowIndex">
+                            <input type="hidden" id="edit-area-row-index" name="areaRowIndex"> <!-- NEW: for editing areas -->
                             <input type="hidden" id="edit-original-name" name="originalName">
                             <p id="location-instruction" class="text-sm text-gray-600">請移動地圖中心點來選擇位置。</p>
                             <!-- MODIFIED: Hidden on mobile -->
@@ -387,8 +392,9 @@
                                 <p class="text-xs text-gray-500 mt-1">勾選後，可點擊地圖上的網格來標示範圍。</p>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">黑名類別 <span class="text-red-500">*</span></label>
-                                <select id="add-blacklist-category" name="blacklistCategory" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required>
+                                <label class="block text-sm font-medium text-gray-700">黑名類別</label>
+                                <select id="add-blacklist-category" name="blacklistCategory" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                                    <option value="" disabled selected>請選擇...</option>
                                     <option value="黑客">黑客</option>
                                     <option value="送上樓">送上樓</option>
                                     <option value="拖吊">拖吊</option>
@@ -399,8 +405,8 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">黑名原因 (最少3個中文字) <span class="text-red-500">*</span></label>
-                                <textarea id="add-blacklist-reason" name="blacklistReason" rows="3" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required></textarea>
+                                <label class="block text-sm font-medium text-gray-700">黑名原因</label>
+                                <textarea id="add-blacklist-reason" name="blacklistReason" rows="3" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm"></textarea>
                             </div>
                         </div>
                     </form>
@@ -413,39 +419,41 @@
                 <!-- NEW: Canvas for Area Selection Grid -->
                 <canvas id="grid-canvas"></canvas>
 
-                <!-- NEW: Grid drawing toolbar -->
+                <!-- MODIFIED: Grid drawing toolbar (Color Pickers Removed) -->
                 <div id="grid-toolbar" class="hidden">
-                    <!-- NEW: Hand/Pan tool -->
                     <button id="tool-pan" class="grid-tool-btn" title="移動畫面">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M10.05 4.575a1.575 1.575 0 1 0-3.15 0v3m3.15-3v-1.5a1.575 1.575 0 0 1 3.15 0v1.5m-3.15 0 .075 5.925m3.075.75V4.575m0 0a1.575 1.575 0 0 1 3.15 0V15M6.9 7.575a1.575 1.575 0 1 0-3.15 0v8.175a6.75 6.75 0 0 0 6.75 6.75h2.018a5.25 5.25 0 0 0 3.712-1.538l1.732-1.732a5.25 5.25 0 0 0 1.538-3.712l.003-2.024a.668.668 0 0 1 .198-.471 1.575 1.575 0 1 0-2.228-2.228 3.818 3.818 0 0 0-1.12 2.687M6.9 7.575V12m6.27 4.318A4.49 4.49 0 0 1 16.35 15m.002 0h-.002" />
                         </svg>
                     </button>
                     <div class="w-px h-6 bg-gray-300"></div>
-
-                    <div class="color-picker-wrapper" title="格子顏色">
-                        <input type="color" id="color-picker" class="color-picker-input" value="#ef4444">
-                    </div>
-                    
                     <button id="tool-fill" class="grid-tool-btn active" title="填色">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" />
                         </svg>
                     </button>
-                    <!-- NEW: Eraser tool -->
                     <button id="tool-eraser" class="grid-tool-btn" title="擦除">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 7.5A2.25 2.25 0 0 1 7.5 5.25h9a2.25 2.25 0 0 1 2.25 2.25v9a2.25 2.25 0 0 1-2.25 2.25h-9a2.25 2.25 0 0 1-2.25-2.25v-9Z" />
                         </svg>
                     </button>
-                    
                     <div id="marker-tools">
                         <button id="tool-entrance" class="grid-tool-btn font-bold text-lg" title="入口">入</button>
                         <button id="tool-exit" class="grid-tool-btn font-bold text-lg" title="出口">出</button>
                         <button id="tool-table" class="grid-tool-btn font-bold text-lg" title="外送桌">桌</button>
-                        <div class="color-picker-wrapper" title="標記顏色">
-                            <input type="color" id="marker-color-picker" class="color-picker-input" value="#000000">
-                        </div>
+                        <button id="tool-parking" class="grid-tool-btn font-bold text-lg" title="停車位置">停</button>
+                    </div>
+                </div>
+
+                <!-- NEW: Color Palette -->
+                <div id="grid-color-palette" class="hidden absolute top-4 right-24 z-20 bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-lg flex flex-col space-y-2 w-28">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">格子顏色</label>
+                        <input type="color" id="palette-fill-color" value="#ef4444">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">標記顏色</label>
+                        <input type="color" id="palette-marker-color" value="#000000">
                     </div>
                 </div>
                 
@@ -520,6 +528,16 @@
                           <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
                         </svg>
                     </button>
+                    <!-- NEW: Chat Button Container -->
+                    <div class="relative">
+                        <button id="open-chat-btn" class="bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="聊天室">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+                            </svg>
+                        </button>
+                        <!-- NEW: Unread message badge -->
+                        <span id="chat-badge" class="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center hidden">0</span>
+                    </div>
                     <button id="add-location-btn" class="bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="新增地點">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
@@ -619,15 +637,28 @@
             </div>
         </div>
 
-        <!-- 管理 Modal -->
+        <!-- MODIFIED: Management Modal with Tabs -->
         <div id="management-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
-                <div class="p-6 border-b flex justify-between items-center">
-                    <h2 class="text-xl font-bold text-gray-800">我的地點管理</h2>
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col" style="height: 80vh;">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-gray-800">我的貢獻管理</h2>
                     <button id="close-management-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
                 </div>
-                <div id="management-list-content" class="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    <!-- User's stores will be listed here -->
+                <!-- NEW: Tabs -->
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-6 px-6" aria-label="Tabs">
+                        <button id="manage-locations-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-indigo-500 text-indigo-600">我的地點</button>
+                        <button id="manage-areas-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">我的建築</button>
+                    </nav>
+                </div>
+                <!-- MODIFIED: Content container -->
+                <div class="flex-grow overflow-y-auto custom-scrollbar">
+                    <div id="management-list-content" class="p-6">
+                        <!-- User's point locations will be listed here -->
+                    </div>
+                    <div id="management-area-content" class="p-6 hidden">
+                        <!-- User's community areas will be listed here -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -637,12 +668,20 @@
             <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col" style="height: 90vh;">
                 <div class="p-4 border-b flex justify-between items-center">
                     <h2 class="text-xl font-bold text-gray-800">審核地點</h2>
-                    <button id="close-review-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+                    <!-- NEW: Refresh button container -->
+                    <div class="flex items-center space-x-2">
+                        <button id="review-refresh-btn" class="p-2 rounded-full hover:bg-gray-100 transition-colors" title="重新整理">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 4l16 16" transform="rotate(90 12 12)"></path>
+                            </svg>
+                        </button>
+                        <button id="close-review-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+                    </div>
                 </div>
                 <div class="border-b border-gray-200">
                     <nav class="-mb-px flex space-x-6 px-6" aria-label="Tabs">
                         <button id="pending-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-indigo-500 text-indigo-600">待審核</button>
-                        <button id="approved-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">已審核</button>
+                        <button id="approved-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">已審核/已駁回</button>
                     </nav>
                 </div>
                 <div class="flex-grow overflow-y-hidden flex">
@@ -653,6 +692,35 @@
                     <!-- Detail Panel -->
                     <div id="review-detail-panel" class="w-2/3 p-6 overflow-y-auto custom-scrollbar">
                         <p class="text-gray-500">請從左側列表選擇一個地點以查看詳細資訊。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODIFIED: Chat Modal with system message toggle -->
+        <div id="chat-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col" style="height: 70vh;">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-gray-800">公開聊天室</h2>
+                    <div class="flex items-center space-x-4">
+                         <label class="flex items-center text-sm text-gray-600 cursor-pointer">
+                            <input type="checkbox" id="hide-system-msgs-checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <span class="ml-2 whitespace-nowrap">隱藏系統訊息</span>
+                         </label>
+                        <button id="close-chat-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+                    </div>
+                </div>
+                <div id="chat-messages" class="flex-grow p-4 overflow-y-auto custom-scrollbar flex flex-col space-y-2 bg-gray-50">
+                    <!-- Messages will be appended here -->
+                </div>
+                <div class="p-4 bg-white border-t">
+                    <div class="flex items-center space-x-2">
+                        <input type="text" id="chat-input" placeholder="輸入訊息..." class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <button id="send-chat-btn" class="bg-indigo-600 text-white p-2 rounded-md hover:bg-indigo-700 flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -910,6 +978,7 @@
             let tempMarker = null; // Draggable marker for mobile
             let isDraggingMarker = false;
             let latestGeocodeBounds = null; // NEW: Store latest geocode bounds
+            let areaBoundsForEditing = null; // NEW: Store area bounds when editing
             
             // --- NEW: Area Selection Variables ---
             const gridCanvas = document.getElementById('grid-canvas');
@@ -925,7 +994,7 @@
             const GRID_ZOOM_LEVEL_WEB = 20; 
             const GRID_ZOOM_LEVEL_MOBILE = 19;
             
-            let selectedGridCells = new Map(); // Key: 'lon-lat', Value: { marker: string|null, markerColor: string }
+            let selectedGridCells = new Map(); // Key: 'lon-lat', Value: { marker: string|null, markerColor: string, fillColor: string|null }
             let currentAreaColor = 'rgba(239, 68, 68, 0.7)';
             let currentMarkerColor = '#000000';
             let currentAreaTool = 'fill';
@@ -941,7 +1010,7 @@
             });
 
 
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby906Jfbab__vOI3uCsAUpiIc-JVdjVs5eCAVPUPZYv0eVf-ok_nnDgBUxsekzc5jKv/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbySBPovbAoWWQEhGq_wShGeY5EdheS8IwVkmgB6T_E1UpnztQ1cQq0KS7MBdhHd1buO/exec';
             
             const visibilityThreshold = 16.5; 
 
@@ -949,9 +1018,14 @@
             let currentFeatureData = null; // Store data of the main feature
             let userVotes = {};
             let currentUserDisplayName = '';
+            let currentUserCity = '未知區域'; // NEW: Store user's city
             const VOTES_STORAGE_KEY = 'userBlacklistVotes';
             const SESSION_TOKEN_KEY = 'userSessionToken'; // NEW
             let loginCheckInterval = null; // 修正: 用於存放定時器的變數
+            let ws = null; // NEW: WebSocket variable
+            let heartbeatInterval = null; // NEW: For WebSocket heartbeat
+            let isLocationKnown = false; // NEW: Flag to track if location has been determined
+            let unreadMessageCount = 0; // NEW: For chat notifications
 
             function loadUserVotes() {
                 try {
@@ -968,6 +1042,177 @@
                     localStorage.setItem(VOTES_STORAGE_KEY, JSON.stringify(userVotes));
                 } catch (e) {
                     console.error("Could not save user votes:", e);
+                }
+            }
+            
+            // NEW: Function to update the chat badge
+            function updateChatBadge() {
+                const $badge = $('#chat-badge');
+                if (unreadMessageCount > 0) {
+                    $badge.text(unreadMessageCount).removeClass('hidden');
+                } else {
+                    $badge.addClass('hidden');
+                }
+            }
+
+            // --- MODIFIED: Chat Logic ---
+            function initializeChat() {
+                const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/';
+                
+                function connect() {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        return; // Already connected
+                    }
+
+                    ws = new WebSocket(WEBSOCKET_URL);
+
+                    ws.onopen = function() {
+                        console.log('聊天室已連線。');
+                        // sendJoinMessage(); // REMOVED: No longer called here, will be called when both login and location are ready
+                        
+                        // NEW: Start heartbeat to keep connection alive
+                        if (heartbeatInterval) clearInterval(heartbeatInterval);
+                        heartbeatInterval = setInterval(() => {
+                            if (ws && ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({ type: 'ping' }));
+                            }
+                        }, 30000); // Send ping every 30 seconds
+                    };
+
+                    ws.onmessage = function(event) {
+                        try {
+                            const data = JSON.parse(event.data);
+                            
+                            switch (data.type) {
+                                case 'history':
+                                    $('#chat-messages').empty();
+                                    data.data.forEach(msg => appendChatMessage(msg));
+                                    break;
+                                case 'chat':
+                                case 'system_join':
+                                case 'system_leave':
+                                case 'system_name_change': // NEW: Handle name change system message
+                                    appendChatMessage(data);
+                                    break;
+                                case 'pong':
+                                    // Pong received, connection is healthy.
+                                    break;
+                                default:
+                                    console.warn("收到未知的訊息類型:", data.type);
+                            }
+                        } catch (e) {
+                            console.error("無法解析收到的訊息:", event.data, e);
+                        }
+                    };
+
+                    ws.onclose = function() {
+                        console.log('聊天室連線已中斷，3秒後嘗試重新連線...');
+                        if (heartbeatInterval) clearInterval(heartbeatInterval);
+                        setTimeout(connect, 3000);
+                    };
+
+                    ws.onerror = function(error) {
+                        console.error('WebSocket 錯誤:', error);
+                        ws.close();
+                    };
+                }
+
+                connect();
+            }
+            
+            function sendJoinMessage() {
+                if (isLoggedIn && ws && ws.readyState === WebSocket.OPEN) {
+                    const payload = {
+                        type: 'join',
+                        nickname: currentUserDisplayName,
+                        pictureUrl: userProfile.pictureUrl || '',
+                        city: currentUserCity
+                    };
+                    ws.send(JSON.stringify(payload));
+                }
+            }
+
+            function appendChatMessage(data) {
+                const $chatMessages = $('#chat-messages');
+                const messageTime = new Date(data.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' });
+                
+                const sanitizedMessage = $('<div>').text(data.message || '').html();
+                const sanitizedNickname = $('<div>').text(data.nickname || '匿名').html();
+                const sanitizedCity = $('<div>').text(data.city || '未知區域').html();
+                const sanitizedPictureUrl = data.pictureUrl ? $('<div>').text(data.pictureUrl).html() : 'https://placehold.co/40x40/E2E8F0/A0AEC0?text=?';
+
+                let messageHtml = '';
+
+                switch (data.type) {
+                    case 'chat':
+                        // NEW: Increment unread count if chat is not visible
+                        if ($('#chat-modal').hasClass('hidden')) {
+                            unreadMessageCount++;
+                            updateChatBadge();
+                        }
+                        
+                        const nicknameColor = 'text-blue-600'; 
+                        
+                        messageHtml = `
+                            <div class="flex items-start space-x-3">
+                                <img src="${sanitizedPictureUrl}" alt="avatar" class="w-8 h-8 rounded-full flex-shrink-0">
+                                <div class="flex-grow">
+                                    <div class="flex items-baseline space-x-2">
+                                        <span class="font-bold ${nicknameColor}">${sanitizedNickname}</span>
+                                        <span class="text-xs text-gray-500">(${sanitizedCity})</span>
+                                        <span class="text-xs text-gray-400">${messageTime}</span>
+                                    </div>
+                                    <p class="text-gray-800 break-words">${sanitizedMessage}</p>
+                                </div>
+                            </div>
+                        `;
+                        break;
+                    case 'system_join':
+                    case 'system_leave':
+                    case 'system_name_change':
+                        messageHtml = `
+                            <div class="text-center text-xs text-gray-500 italic py-1 system-message">
+                                ${sanitizedMessage}
+                            </div>
+                        `;
+                        break;
+                }
+                
+                if(messageHtml) {
+                    $chatMessages.append(messageHtml);
+                    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+                }
+            }
+            
+            // MODIFIED: Optimized chat message sending
+            function sendChatMessage() {
+                if (!isLoggedIn) {
+                    showNotification('請先登入才能發言！', 'warning');
+                    return;
+                }
+                
+                const $input = $('#chat-input');
+                const message = $input.val().trim();
+
+                if (message && ws && ws.readyState === WebSocket.OPEN) {
+                    // Instantly display the message locally for a better user experience
+                    const localMessage = {
+                        type: 'chat',
+                        message: message,
+                        nickname: currentUserDisplayName,
+                        city: currentUserCity,
+                        pictureUrl: userProfile.pictureUrl || '',
+                        timestamp: new Date().toISOString()
+                    };
+                    appendChatMessage(localMessage);
+
+                    // Then, send the message to the server
+                    const payload = {
+                        type: 'chat',
+                        message: message
+                    };
+                    ws.send(JSON.stringify(payload));
+                    $input.val('');
                 }
             }
 
@@ -996,19 +1241,16 @@
                     if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
                     
                     const results = await response.json();
-                    rawReports = results; // Store raw data for admin panel
+                    rawReports = results;
                     
                     const groupedData = new Map();
-                    // NEW: Group community areas separately
                     const communityAreas = [];
 
                     results.forEach(data => {
-                        // NEW: Check if it's a community area with areaBounds
                         if (data.isCommunity) {
                             communityAreas.push(data);
                         }
 
-                        // Also process for point data, unless it's ONLY an area
                         const baseAddress = (data['地址'] || '').split(/樓|之|-/)[0].trim();
                         if (baseAddress) {
                             if (!groupedData.has(baseAddress)) {
@@ -1019,16 +1261,13 @@
                     });
 
                     vectorSource.clear();
-                    areaGridSource.clear(); // NEW: Clear area grid source
+                    areaGridSource.clear();
                     allFeatures = [];
                     const pinyinOptions = { pattern: 'pinyin', toneType: 'none', removeNonZh: true };
                     
-                    // NEW: Process and draw community areas first
                     drawCommunityAreas(communityAreas);
 
-                    // Process point data
                     groupedData.forEach((group, baseAddress) => {
-                         // Don't create a point if this group only contains area data
                         if(group.every(item => item.isCommunity)) return;
                         createPointFeature(group, baseAddress, pinyin, pinyinOptions);
                     });
@@ -1087,7 +1326,6 @@
                 }
             }
 
-            // MODIFIED: populateFiltersAndLegend to use icons
             function populateFiltersAndLegend() {
                 const $categorySelect = $('#category-select');
                 const $addCategorySelect = $('#add-category');
@@ -1100,10 +1338,10 @@
                 $storeListFilters.html('<button data-category="" class="store-filter-btn active bg-blue-600 text-white px-2 py-0.5 text-xs rounded-full mr-2 flex-shrink-0">全部</button>');
                 
                 allCategories.forEach(category => {
-                     if (legendIcons[category]) { // Use legendIcons here
+                     if (legendIcons[category]) {
                         $categorySelect.append(`<option value="${category}">${category}</option>`);
                         $addCategorySelect.append($('<option>', { value: category, text: category }));
-                        const iconSrc = legendIcons[category]; // Use legendIcons here
+                        const iconSrc = legendIcons[category];
                         $legendContent.append(`<div class="flex items-center"><img src="${iconSrc}" class="h-4 w-4 mr-1.5">${category}</div>`);
                         $storeListFilters.append(`<button data-category="${category}" class="store-filter-btn text-nowrap bg-white text-black px-2 py-0.5 text-xs rounded-full mr-2 flex-shrink-0 border" style="border-color: ${categoryColors[category]};">${category}</button>`);
                      }
@@ -1151,7 +1389,6 @@
                 else showNotification('無法定位您的位置。', 'warning');
             });
             
-            // --- NEW: Search Address Panel Logic ---
             async function performSearch(address) {
                 if (!address || address.trim() === '') return;
 
@@ -1160,7 +1397,6 @@
                 const $notification = $('#notification');
                 
                 if (data && data.results && data.results.length > 0) {
-                    // Hide the 'searching' notification on success
                     if ($notification.text() === '正在搜尋地址...') {
                         $notification.addClass('hidden');
                     }
@@ -1178,10 +1414,9 @@
                 
                 if ($searchPanel.hasClass('hidden')) { 
                     $searchPanel.removeClass('hidden');
-                    $('#search-address-input').val('').focus(); // Clear and focus input
+                    $('#search-address-input').val('').focus();
 
                     try {
-                        // This API requires a secure context (HTTPS) and user permission.
                         const permission = await navigator.permissions.query({ name: 'clipboard-read' });
                         if (permission.state === 'granted' || permission.state === 'prompt') {
                             const text = await navigator.clipboard.readText();
@@ -1213,8 +1448,6 @@
                 }
             });
 
-            // --- NEW/MODIFIED Add Location & Area Selection Logic ---
-
             function drawGrid() {
                 if (!isAreaSelectionMode) return;
                 
@@ -1235,7 +1468,6 @@
                 const centerCoords = tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
                 const centerLonLat = ol.proj.toLonLat(centerCoords);
 
-                // Draw grid lines
                 gridCtx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
                 gridCtx.lineWidth = 1;
                 gridCtx.beginPath();
@@ -1259,7 +1491,6 @@
                 }
                 gridCtx.stroke();
 
-                // Draw selected cells and markers
                 gridCtx.font = 'bold 16px sans-serif';
                 gridCtx.textAlign = 'center';
                 gridCtx.textBaseline = 'middle';
@@ -1280,28 +1511,30 @@
                     const width = Math.abs(p2[0] - p1[0]);
                     const height = Math.abs(p1[1] - p2[1]);
                     
-                    gridCtx.fillStyle = currentAreaColor;
-                    gridCtx.fillRect(p1[0], p2[1], width, height);
+                    if (data.fillColor) {
+                        gridCtx.fillStyle = data.fillColor;
+                        gridCtx.fillRect(p1[0], p2[1], width, height);
+                    }
                     
                     if (data.marker) {
                         gridCtx.fillStyle = data.markerColor || '#000000';
                         const markerText = {
                             'entrance': '入',
                             'exit': '出',
-                            'table': '桌'
+                            'table': '桌',
+                            'parking': '停'
                         }[data.marker];
                         gridCtx.fillText(markerText, p1[0] + width / 2, p2[1] + height / 2);
                     }
                 });
             }
 
-            // MODIFIED: paintCell function with eraser logic
             function paintCell(evt) {
-                if (currentAreaTool === 'pan') return; // Do nothing if in pan mode
+                if (currentAreaTool === 'pan') return;
 
                 const pixel = evt.pixel;
                 const coord = map.getCoordinateFromPixel(pixel);
-                if (!coord) return; // If clicking outside map area
+                if (!coord) return;
                 const [lon, lat] = ol.proj.toLonLat(coord);
                 
                 const snappedLon = Math.floor(lon / GRID_INTERVAL) * GRID_INTERVAL;
@@ -1316,31 +1549,38 @@
                 const centerLonLat = ol.proj.toLonLat(centerCoords);
                 if (ol.sphere.getDistance(centerLonLat, [snappedLon, snappedLat]) > GRID_DRAW_RADIUS) return;
 
+                const existingData = selectedGridCells.get(cellKey);
+
                 if (currentAreaTool === 'fill') {
-                    selectedGridCells.set(cellKey, { marker: null, markerColor: currentMarkerColor });
-                } else if (currentAreaTool === 'eraser') {
-                    if (selectedGridCells.has(cellKey)) {
-                        selectedGridCells.delete(cellKey);
-                    }
-                } else { // This is for markers: 'entrance', 'exit', 'table'
-                    const existingData = selectedGridCells.get(cellKey);
-                    if (!existingData) {
-                        // If cell doesn't exist, create it with the marker
-                        selectedGridCells.set(cellKey, { marker: currentAreaTool, markerColor: currentMarkerColor });
-                    } else {
-                        // If cell exists, toggle the marker
-                        existingData.marker = existingData.marker === currentAreaTool ? null : currentAreaTool;
-                        if(existingData.marker) {
-                            existingData.markerColor = currentMarkerColor;
+                    if (existingData && existingData.fillColor) {
+                        delete existingData.fillColor;
+                        if (!existingData.marker) {
+                            selectedGridCells.delete(cellKey);
                         }
-                        selectedGridCells.set(cellKey, existingData);
+                    } else {
+                        const newData = existingData || {};
+                        newData.fillColor = currentAreaColor;
+                        selectedGridCells.set(cellKey, newData);
+                    }
+                } else if (currentAreaTool === 'eraser') {
+                    selectedGridCells.delete(cellKey);
+                } else { // Marker tools
+                    const newData = existingData || {};
+                    newData.marker = newData.marker === currentAreaTool ? null : currentAreaTool;
+                    if (newData.marker) {
+                        newData.markerColor = currentMarkerColor;
+                    }
+                    
+                    if (!newData.fillColor && !newData.marker) {
+                        selectedGridCells.delete(cellKey);
+                    } else {
+                        selectedGridCells.set(cellKey, newData);
                     }
                 }
                 drawGrid();
             }
 
             const mapPointerDown = function(evt) {
-                // Ignore middle button and right button clicks
                 if (evt.originalEvent.button !== 0) return;
                 
                 if (!isAreaSelectionMode || currentAreaTool === 'pan') return;
@@ -1360,95 +1600,145 @@
                 lastPaintedCellKey = null;
                 map.un('pointermove', mapPointerMove);
             };
-
-            function toggleAreaSelectionMode(enable) {
+            
+            // MODIFIED: Added areaBoundsToLoad parameter for editing
+            function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
                 isAreaSelectionMode = enable;
                 
-                map.un('moveend', drawGrid); // Always unbind first
+                map.un('moveend', drawGrid);
+                $('#grid-color-palette').toggleClass('hidden', !enable);
 
                 if (enable) {
                     const zoomThreshold = isMobile ? GRID_ZOOM_LEVEL_MOBILE : GRID_ZOOM_LEVEL_WEB;
-                    map.getView().animate({
-                        zoom: zoomThreshold,
-                        duration: 800
-                    });
-
-                    // --- Map Enhancement & Interactions ---
+                    map.getView().animate({ zoom: zoomThreshold, duration: 800 });
                     $('#map').addClass('map-enhanced grid-mode-active paint-mode');
-                    if (dragPanInteraction) {
-                        dragPanInteraction.setActive(false); // Initially disable for painting
+                    
+                    if (dragPanInteraction) dragPanInteraction.setActive(false); // Lock map panning
+                    
+                    $('#location-instruction').text('請在地圖上的網格標示範圍。');
+                    
+                    // MODIFICATION START: Unconditionally hide markers when entering grid mode
+                    $('#desktop-center-marker').addClass('hidden');
+                    if (tempMarker) {
+                        tempMarker.getElement().style.display = 'none';
+                    }
+                    // MODIFICATION END
+                    
+                    selectedGridCells.clear();
+                    if (areaBoundsToLoad) {
+                        try {
+                            const areaBoundsData = JSON.parse(areaBoundsToLoad);
+                            let cellsToLoad;
+                            
+                            if (areaBoundsData.v === 1) { // New compressed format
+                                const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
+                                const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
+                                const markerReverseMap = { 'e': 'entrance', 'x': 'exit', 't': 'table', 'p': 'parking' };
+
+                                cellsToLoad = compressedCells.map(cellString => {
+                                    const parts = cellString.split(':');
+                                    const [x, y] = parts[0].split(',').map(Number);
+                                    const [fillIndex, markerChar, markerColorIndex] = parts.slice(1);
+                                    
+                                    const lon = origin.lon + x * GRID_INTERVAL;
+                                    const lat = origin.lat + y * GRID_INTERVAL;
+                                    
+                                    const data = {};
+                                    if (fillIndex !== '') data.fillColor = palette.f[parseInt(fillIndex, 10)];
+                                    if (markerChar !== '') data.marker = markerReverseMap[markerChar];
+                                    if (markerColorIndex !== '') data.markerColor = palette.m[parseInt(markerColorIndex, 10)];
+                                    
+                                    return { key: `${lon.toFixed(GRID_PRECISION)}-${lat.toFixed(GRID_PRECISION)}`, data };
+                                });
+                            } else { // Old uncompressed format for compatibility
+                                cellsToLoad = areaBoundsData.map(cell => {
+                                    const { lon, lat, ...data } = cell;
+                                    return { key: `${lon.toFixed(GRID_PRECISION)}-${lat.toFixed(GRID_PRECISION)}`, data };
+                                });
+                            }
+                            
+                            cellsToLoad.forEach(item => selectedGridCells.set(item.key, item.data));
+                            
+                        } catch (e) {
+                            console.error("Failed to load area bounds for editing:", e);
+                            showNotification('讀取建築範圍資料失敗！', 'error');
+                        }
                     }
                     
-                    // --- UI Updates ---
-                    $('#location-instruction').text('請在地圖上的網格標示範圍。');
-                    $('#desktop-center-marker').addClass('hidden');
-                    if (tempMarker) tempMarker.getElement().style.display = 'none';
-                    
-                    // --- Grid Logic ---
-                    selectedGridCells.clear();
                     $('#grid-canvas').removeClass('hidden');
-                    drawGrid(); // Draw grid immediately
-                    
+                    drawGrid();
                     map.on('moveend', drawGrid);
                     map.on('pointerdown', mapPointerDown);
-
                 } else {
-                    // --- Map Enhancement & Interactions ---
                     $('#map').removeClass('map-enhanced grid-mode-active paint-mode pan-mode');
-                    if (dragPanInteraction) {
-                         dragPanInteraction.setActive(true);
-                         dragPanInteraction.condition_ = ol.events.condition.primaryAction; // Restore default
-                    }
-                     
-                    // --- UI Updates ---
+                    if (dragPanInteraction) dragPanInteraction.setActive(true); // Unlock map panning
                     $('#location-instruction').text('請移動地圖中心點來選擇位置。');
                     $('#desktop-center-marker').removeClass('hidden');
                     if (tempMarker) tempMarker.getElement().style.display = 'block';
-                    
-                    // --- Grid Logic ---
                     $('#grid-canvas').addClass('hidden');
                     $('#grid-toolbar').addClass('hidden').removeClass('flex');
                     gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-                    
                     map.un('pointerdown', mapPointerDown);
                 }
             }
-            
+
             function setupGridToolbar() {
-                $('#color-picker').on('input', function() {
+                const $fillToolSvg = $('#tool-fill svg');
+                const $markerToolBtns = $('#marker-tools .grid-tool-btn');
+
+                $('#palette-fill-color').on('input', function() {
                     const hexColor = $(this).val();
                     const r = parseInt(hexColor.slice(1, 3), 16);
                     const g = parseInt(hexColor.slice(3, 5), 16);
                     const b = parseInt(hexColor.slice(5, 7), 16);
                     currentAreaColor = `rgba(${r}, ${g}, ${b}, 0.7)`;
-                    drawGrid();
+                    $fillToolSvg.css('stroke', hexColor);
                 });
 
-                $('#marker-color-picker').on('input', function() {
+                $('#palette-marker-color').on('input', function() {
                     currentMarkerColor = $(this).val();
+                    $markerToolBtns.css('color', currentMarkerColor);
                 });
+
+                $fillToolSvg.css('stroke', $('#palette-fill-color').val());
+                $markerToolBtns.css('color', $('#palette-marker-color').val());
 
                 $('.grid-tool-btn').on('click', function() {
+                    const $clickedBtn = $(this);
+                    const toolId = $clickedBtn.attr('id');
+                    
+                    if ($clickedBtn.hasClass('active')) {
+                        if (toolId === 'tool-fill') {
+                            $('#palette-fill-color').trigger('click');
+                        } else if ($clickedBtn.closest('#marker-tools').length) {
+                            $('#palette-marker-color').trigger('click');
+                        }
+                        return;
+                    }
+                    
                     $('.grid-tool-btn').removeClass('active');
-                    $(this).addClass('active');
-                    const toolId = $(this).attr('id');
+                    $clickedBtn.addClass('active');
                     currentAreaTool = toolId.replace('tool-', '');
 
-                    // NEW Logic for pan tool
-                    if(currentAreaTool === 'pan'){
-                         if (dragPanInteraction) dragPanInteraction.setActive(true);
-                         $('#map').removeClass('paint-mode').addClass('pan-mode');
-
+                    if (currentAreaTool === 'pan') {
+                        if (dragPanInteraction) dragPanInteraction.setActive(true);
+                        $('#map').removeClass('paint-mode').addClass('pan-mode');
                     } else {
-                         if (dragPanInteraction) dragPanInteraction.setActive(false);
-                         $('#map').removeClass('pan-mode').addClass('paint-mode');
+                        if (dragPanInteraction) dragPanInteraction.setActive(false);
+                        $('#map').removeClass('pan-mode').addClass('paint-mode');
                     }
                 });
             }
-
-            // Bind checkbox change event
+            
             $(document).on('change', '#add-is-area', function() {
-                toggleAreaSelectionMode($(this).is(':checked'));
+                const isChecked = $(this).is(':checked');
+                const isAreaEdit = !!($('#edit-area-row-index').val());
+
+                if (isChecked) {
+                    toggleAreaSelectionMode(true, isAreaEdit ? areaBoundsForEditing : null);
+                } else {
+                    toggleAreaSelectionMode(false);
+                }
             });
 
             function drawRadiusCircle(centerCoords) {
@@ -1456,7 +1746,6 @@
                 const view = map.getView();
                 const projection = view.getProjection();
                 const resolution = view.getResolution();
-                // *** 可修改數字：初始定位時顯示的圓圈半徑（單位：公尺），預設為500公尺 ***
                 const radius = 500; 
                 
                 const circle = new ol.geom.Circle(centerCoords, radius / ol.proj.getPointResolution(projection, resolution, centerCoords));
@@ -1469,14 +1758,11 @@
                     const newCoord = map.getEventCoordinate(e);
                     const initialLonLat = ol.proj.toLonLat(initialAddLocationCoords);
                     const newLonLat = ol.proj.toLonLat(newCoord);
-                    
-                    // *** 可修改數字：用戶拖動標記的最大距離（單位：公尺），預設為500公尺 ***
                     const maxDistance = 500;
 
                     if (ol.sphere.getDistance(initialLonLat, newLonLat) <= maxDistance) {
                         tempMarker.setPosition(newCoord);
                     } else {
-                        // Snap to edge if dragged too far
                         const angle = Math.atan2(newCoord[1] - initialAddLocationCoords[1], newCoord[0] - initialAddLocationCoords[0]);
                         const resolution = map.getView().getResolution();
                         const radiusInMapUnits = maxDistance / ol.proj.getPointResolution(map.getView().getProjection(), resolution, initialAddLocationCoords);
@@ -1486,7 +1772,7 @@
                     }
                 }
             }
-
+            
             function handlePointerUp() {
                 if (isDraggingMarker) {
                     map.getInteractions().forEach(i => { if(i instanceof ol.interaction.DragPan) i.setActive(true); });
@@ -1548,7 +1834,6 @@
             }
             
             function exitAddMode() {
-                // Turn off area selection mode if it's on
                 if (isAreaSelectionMode) {
                     toggleAreaSelectionMode(false);
                 }
@@ -1567,8 +1852,9 @@
                     map.un('moveend', handleDesktopMapMove);
                     setTimeout(() => map.updateSize(), 350);
                 }
-                 // Reset the checkbox
                 $('#add-is-area').prop('checked', false);
+                // Clear editing state
+                $('#edit-row-index, #edit-area-row-index, #edit-original-name').val('');
             }
 
             $('#add-location-btn').on('click', function() {
@@ -1579,7 +1865,7 @@
                 showNotification('正在取得您的目前位置...');
                 
                 navigator.geolocation.getCurrentPosition(
-                    (position) => { // Success
+                    (position) => {
                         const coords = [position.coords.longitude, position.coords.latitude];
                         const mapCoords = ol.proj.fromLonLat(coords);
                         
@@ -1589,7 +1875,7 @@
                             enterDesktopAddMode(mapCoords);
                         }
                     },
-                    (error) => { // Error
+                    (error) => {
                         showNotification('無法取得您的位置，請手動輸入地址。', 'warning');
                         if (isMobile) {
                             showNotification('在行動裝置上需要定位權限才能新增店家。', 'error');
@@ -1616,8 +1902,6 @@
             });
 
             $('#close-add-location-modal, #close-add-location-modal-mobile').on('click', exitAddMode);
-
-            // --- REFACTORED: Popup Logic ---
 
             function extractAddressNumbers(address) {
                 if (!address) return [Infinity];
@@ -1824,21 +2108,17 @@
                 
                 let featureClicked = false;
                 
-                // NEW: Check area grid layer first
                 const areaFeature = map.forEachFeatureAtPixel(evt.pixel, f => f.get('parentData') ? f : null, {
                     layerFilter: layer => layer === areaGridLayer
                 });
                 
                 if(areaFeature) {
                     featureClicked = true;
-                    // For now, don't show a popup for area clicks to avoid clutter
-                    // but you could implement one here if needed.
                     console.log("Clicked on area:", areaFeature);
                 }
 
                 if (featureClicked) return;
 
-                // Original cluster logic
                 const clusterFeature = map.forEachFeatureAtPixel(evt.pixel, f => f, {
                     layerFilter: layer => layer === clusterLayer
                 });
@@ -1914,6 +2194,23 @@
                 }
             }
             
+            // NEW: Function to get address from coordinates without updating a form
+            async function getAddressFromCoords(lon, lat) {
+                const apiKey = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
+                try {
+                    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${apiKey}&language=zh-TW`);
+                    if (!response.ok) return '無法取得地址';
+                    const data = await response.json();
+                    if (data.results && data.results.length > 0) {
+                        return data.results[0].formatted_address;
+                    }
+                    return '無法解析地址';
+                } catch (error) {
+                    console.error("Reverse geocoding failed:", error);
+                    return '地址解析失敗';
+                }
+            }
+            
             $(document).on('change', '#add-address', async function() {
                 const $form = $(this).closest('form');
                 const address = $(this).val();
@@ -1932,116 +2229,149 @@
                         map.getView().setZoom(17);
                     } else {
                         latestGeocodeBounds = null;
-                        showNotification('找不到輸入的地址', 'error');
+                        showNotification('找不到輸入の地址', 'error');
                     }
                 }
             });
 
+            // MODIFIED: handleFormSubmit to include areaBounds compression and correct coordinate handling for area edits
             function handleFormSubmit(e) {
-                e.preventDefault(); 
+                e.preventDefault();
                 const $form = $(e.target);
                 const $submitBtn = $form.find('.submit-text').parent();
-                
                 const formData = new FormData($form[0]);
-                const reasonText = formData.get('blacklistReason').trim();
-                const chineseCharMatch = reasonText.match(/[\u4e00-\u9fa5]/g);
-
-                if (!chineseCharMatch || chineseCharMatch.length < 3) {
-                    showNotification('黑名原因請至少輸入3個中文字。', 'error');
-                    return;
-                }
                 
+                const areaRowIndex = $form.find('#edit-area-row-index').val();
+                const isAreaUpdate = !!areaRowIndex;
+                const isPointUpdate = !!$form.find('#edit-row-index').val();
+
+                // Validation only for new points, not for any kind of update
+                if (!isAreaUpdate && !isPointUpdate) {
+                     const reasonText = formData.get('blacklistReason').trim();
+                     if (!formData.get('blacklistCategory') || !reasonText) {
+                        // showNotification('新增地點時，黑名類別與原因為必填。', 'error');
+                        // return;
+                     }
+                }
+
                 let finalCoords;
                 let areaBoundsStr = null;
-                let areaColorStr = null;
                 const isArea = $form.find('#add-is-area').is(':checked');
-                
+
                 if (isArea) {
                     if (selectedGridCells.size === 0) {
                         showNotification('請在地圖網格上至少選取一個區塊。', 'error');
                         return;
                     }
                     
-                    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
-                    const cellsToSave = [];
-                    
-                    selectedGridCells.forEach((data, cellKey) => {
-                        const [lon, lat] = cellKey.split('-').map(Number);
-                        minLon = Math.min(minLon, lon);
-                        maxLon = Math.max(maxLon, lon);
-                        minLat = Math.min(minLat, lat);
-                        maxLat = Math.max(maxLat, lat);
-                        cellsToSave.push({ lon, lat, marker: data.marker, markerColor: data.markerColor });
+                    const cellsArray = Array.from(selectedGridCells.entries());
+                    let minLon = Infinity, minLat = Infinity;
+                    cellsArray.forEach(([key, data]) => {
+                        const [lon, lat] = key.split('-').map(Number);
+                        if (lon < minLon) minLon = lon;
+                        if (lat < minLat) minLat = lat;
+                    });
+
+                    const origin = { lon: minLon, lat: minLat };
+                    const fillPalette = [], markerPalette = [];
+                    const fillMap = new Map(), markerMap = new Map();
+
+                    cellsArray.forEach(([key, data]) => {
+                        if (data.fillColor && !fillMap.has(data.fillColor)) {
+                            fillMap.set(data.fillColor, fillPalette.length);
+                            fillPalette.push(data.fillColor);
+                        }
+                        if (data.markerColor && !markerMap.has(data.markerColor)) {
+                            markerMap.set(data.markerColor, markerPalette.length);
+                            markerPalette.push(data.markerColor);
+                        }
                     });
                     
-                    areaBoundsStr = JSON.stringify(cellsToSave);
-                    areaColorStr = currentAreaColor;
+                    const palette = { f: fillPalette, m: markerPalette };
+                    const markerCharMap = { 'entrance': 'e', 'exit': 'x', 'table': 't', 'parking': 'p' };
+
+                    const compressedCells = cellsArray.map(([key, data]) => {
+                        const [lon, lat] = key.split('-').map(Number);
+                        const x = Math.round((lon - origin.lon) / GRID_INTERVAL);
+                        const y = Math.round((lat - origin.lat) / GRID_INTERVAL);
+                        const fillIndex = data.fillColor ? fillMap.get(data.fillColor) : '';
+                        const markerChar = data.marker ? markerCharMap[data.marker] : '';
+                        const markerColorIndex = data.markerColor ? markerMap.get(data.markerColor) : '';
+                        return `${x},${y}:${fillIndex}:${markerChar}:${markerColorIndex}`;
+                    });
                     
-                    // Use the center of the selected area for the single lat/lon point
-                    const centerLon = minLon + (maxLon - minLon) / 2;
-                    const centerLat = minLat + (maxLat - minLat) / 2;
-                    finalCoords = ol.proj.fromLonLat([centerLon, centerLat]);
+                    const compressedData = {
+                        v: 1,
+                        o: [origin.lon.toFixed(GRID_PRECISION), origin.lat.toFixed(GRID_PRECISION)],
+                        p: palette,
+                        c: compressedCells,
+                    };
+                    areaBoundsStr = JSON.stringify(compressedData);
+                    
+                    finalCoords = map.getView().getCenter();
 
                 } else {
-                    if (isMobile) {
-                        if (!tempMarker) {
-                            showNotification('請在地圖上設定一個位置。', 'error');
-                            return;
-                        }
-                        finalCoords = tempMarker.getPosition();
-                    } else {
-                        finalCoords = map.getView().getCenter();
+                    finalCoords = isMobile ? (tempMarker ? tempMarker.getPosition() : null) : map.getView().getCenter();
+                    if (!finalCoords) {
+                        showNotification('請在地圖上設定一個位置。', 'error');
+                        return;
                     }
-
                     if (initialAddLocationCoords) {
-                        const initialLonLat = ol.proj.toLonLat(initialAddLocationCoords);
-                        const finalLonLat = ol.proj.toLonLat(finalCoords);
-                        const distance = ol.sphere.getDistance(initialLonLat, finalLonLat);
-                        // *** 可修改數字：修改後的位置與初始定位點的最大允許距離（單位：公尺），預設為500公尺 ***
-                        const maxDistance = 500;
-                        if (distance > maxDistance) {
-                            showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點${maxDistance}公尺。`, 'error');
+                        const distance = ol.sphere.getDistance(ol.proj.toLonLat(initialAddLocationCoords), ol.proj.toLonLat(finalCoords));
+                        if (distance > 500) {
+                            showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點500公尺。`, 'error');
                             return;
                         }
                     }
                 }
                 
-                $submitBtn.prop('disabled', true).find('.submit-text').addClass('hidden');
-                $submitBtn.find('.spinner').removeClass('hidden');
+                $submitBtn.prop('disabled', true).find('.submit-text').addClass('hidden').end().find('.spinner').removeClass('hidden');
                 
                 const lonLat = ol.proj.toLonLat(finalCoords);
                 const rowIndex = $form.find('#edit-row-index').val();
                 const originalName = $form.find('#edit-original-name').val();
                 
                 let action = 'create';
-                if (rowIndex) action = 'admin_modify';
+                if (isAreaUpdate) action = 'user_update_area';
+                else if (rowIndex) action = 'admin_modify';
                 else if (originalName) action = 'update';
 
                 const newData = {
-                    action: action, rowIndex: rowIndex, originalName: originalName, 
+                    action: action,
+                    rowIndex: areaRowIndex || rowIndex,
+                    originalName: originalName,
+                    userEmail: userProfile.email,
+                    lineUserId: userProfile.lineUserId,
                     submitterName: currentUserDisplayName || 'N/A',
                     submitterEmail: userProfile.email || 'N/A',
-                    adminEmail: userProfile.email, 
-                    name: formData.get('address'), 
-                    areaName: formData.get('areaName'), // NEW
-                    category: formData.get('category'), 
-                    address: formData.get('address'), 
-                    blacklistCategory: formData.get('blacklistCategory'),
-                    blacklistReason: reasonText,
-                    lon: lonLat[0], 
+                    adminEmail: userProfile.email,
+                    name: formData.get('address'),
+                    areaName: formData.get('areaName'),
+                    address: formData.get('address'),
+                    lon: lonLat[0],
                     lat: lonLat[1],
                     timestamp: new Date().toISOString(),
-                    areaBounds: areaBoundsStr, // NEW
-                    areaColor: areaColorStr,   // NEW
+                    areaBounds: areaBoundsStr,
                 };
 
-                fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(newData) })
-                .then(() => {
-                    showNotification("資料已成功送出！感謝您的貢獻。", 'success');
-                    exitAddMode();
-                    setTimeout(loadData, 2000);
+                if (!isAreaUpdate) {
+                    newData.category = formData.get('category');
+                    newData.blacklistCategory = formData.get('blacklistCategory');
+                    newData.blacklistReason = formData.get('blacklistReason').trim();
+                }
+
+                fetch(APPS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(newData) })
+                .then(res => res.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        showNotification("資料已成功送出！感謝您的貢獻。", 'success');
+                        exitAddMode();
+                        setTimeout(loadData, 2000);
+                    } else {
+                        throw new Error(result.message || 'Unknown error');
+                    }
                 }).catch(error => {
-                    showNotification('送出失敗，請稍後再試。', 'error');
+                    showNotification(`送出失敗: ${error.message}`, 'error');
                 }).finally(() => {
                     $submitBtn.prop('disabled', false).find('.submit-text').removeClass('hidden').end().find('.spinner').addClass('hidden');
                 });
@@ -2073,6 +2403,8 @@
                 if (!navigator.geolocation) {
                     showNotification('您的瀏覽器不支援地理定位', 'warning');
                     loadData(); 
+                    isLocationKnown = true;
+                    if (isLoggedIn) sendJoinMessage();
                     return;
                 }
                 
@@ -2084,11 +2416,20 @@
                         $('#user-location').removeClass('hidden');
 
                         const city = await reverseGeocodeForCity(pos.coords.longitude, pos.coords.latitude);
+                        currentUserCity = city || '未知區域';
+                        isLocationKnown = true;
                         loadData(city);
+                        if (isLoggedIn) {
+                            sendJoinMessage();
+                        }
                     },
                     (err) => {
-                        showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
-                        loadData(); // Load all data on error
+                        showNotification('無法取得您的位置，聊天室將顯示「未知區域」。', 'warning');
+                        isLocationKnown = true;
+                        loadData();
+                        if (isLoggedIn) {
+                            sendJoinMessage();
+                        }
                     },
                     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
                 );
@@ -2112,19 +2453,51 @@
                 }
             }
             
-            // --- NEW: Function to draw saved community areas ---
+            // MODIFIED: drawCommunityAreas to decompress areaBounds and check for approval status
             function drawCommunityAreas(areas) {
                 areas.forEach(areaData => {
-                    try {
-                        const cells = JSON.parse(areaData.areaBounds);
-                        if (!Array.isArray(cells)) return;
+                    // NEW: Check if the area is approved before drawing
+                    if (String(areaData['審核']).toUpperCase() !== 'TRUE') {
+                        return; // Skip this area if not approved
+                    }
 
-                        const color = areaData.areaColor || 'rgba(239, 68, 68, 0.5)'; // Default red
+                    try {
+                        if (!areaData.areaBounds) return;
+                        
+                        let cellsToDraw;
+                        const areaBoundsData = JSON.parse(areaData.areaBounds);
+
+                        if (areaBoundsData.v === 1) { // Decompress new format
+                            const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
+                            const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
+                            const markerReverseMap = { 'e': 'entrance', 'x': 'exit', 't': 'table', 'p': 'parking' };
+                            
+                            cellsToDraw = compressedCells.map(cellString => {
+                                const parts = cellString.split(':');
+                                const [x, y] = parts[0].split(',').map(Number);
+                                const [fillIndex, markerChar, markerColorIndex] = parts.slice(1);
+                                
+                                const lon = origin.lon + x * GRID_INTERVAL;
+                                const lat = origin.lat + y * GRID_INTERVAL;
+                                
+                                const cell = { lon, lat };
+                                if (fillIndex !== '') cell.fillColor = palette.f[parseInt(fillIndex, 10)];
+                                if (markerChar !== '') cell.marker = markerReverseMap[markerChar];
+                                if (markerColorIndex !== '') cell.markerColor = palette.m[parseInt(markerColorIndex, 10)];
+                                
+                                return cell;
+                            });
+
+                        } else { // Handle old, uncompressed format for backward compatibility
+                            cellsToDraw = areaBoundsData;
+                        }
+
+                        if (!Array.isArray(cellsToDraw)) return;
                         
                         let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
 
-                        cells.forEach(cell => {
-                            const { lon, lat, marker, markerColor } = cell;
+                        cellsToDraw.forEach(cell => {
+                            const { lon, lat, marker, markerColor, fillColor } = cell;
                             const extent = ol.proj.transformExtent(
                                 [lon, lat, lon + GRID_INTERVAL, lat + GRID_INTERVAL],
                                 'EPSG:4326', 'EPSG:3857'
@@ -2137,31 +2510,32 @@
                             
                             const cellFeature = new ol.Feature({
                                 geometry: ol.geom.Polygon.fromExtent(extent),
-                                parentData: areaData // Link back to original data
+                                parentData: areaData
                             });
 
-                             // Define the style function for each cell
                             const cellStyleFunction = function(feature, resolution) {
                                 const zoom = map.getView().getZoomForResolution(resolution);
-                                const styles = [
-                                    new ol.style.Style({
-                                        fill: new ol.style.Fill({ color: color }),
-                                        stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.2)', width: 1 })
-                                    })
-                                ];
+                                const styles = [];
+
+                                if (fillColor) {
+                                    styles.push(new ol.style.Style({
+                                        fill: new ol.style.Fill({ color: fillColor }),
+                                    }));
+                                }
 
                                 if (marker && zoom >= LABEL_VISIBILITY_ZOOM) {
                                     const markerText = {
                                         'entrance': '入',
                                         'exit': '出',
-                                        'table': '桌'
+                                        'table': '桌',
+                                        'parking': '停'
                                     }[marker];
                                     styles.push(new ol.style.Style({
                                         text: new ol.style.Text({
                                             text: markerText,
                                             font: 'bold 14px sans-serif',
                                             fill: new ol.style.Fill({ color: markerColor || '#000' }),
-                                            backgroundFill: new ol.style.Fill({ color: 'rgba(255,255,255,0.7)' }),
+                                            backgroundFill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.7)' }),
                                             padding: [2, 2, 2, 2]
                                         })
                                     }));
@@ -2173,7 +2547,6 @@
                             areaGridSource.addFeature(cellFeature);
                         });
                         
-                        // Add area name label
                         if (areaData.areaName) {
                             const centerLon = minLon + (maxLon - minLon) / 2;
                             const centerLat = minLat + (maxLat - minLat) / 2;
@@ -2207,21 +2580,17 @@
                 });
             }
             
-            // --- NEW/MODIFIED Login Logic ---
-
+            // MODIFIED: setLoginState to remove localStorage dependency for nickname
             function setLoginState(profile) {
                 isLoggedIn = true;
-                userProfile = profile; // This now contains { name, email?, lineUserId?, pictureUrl? }
+                userProfile = profile;
                 
-                const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
-                const storedNickname = localStorage.getItem(storageKey);
-                currentUserDisplayName = storedNickname || profile.name;
+                currentUserDisplayName = profile.name; // Backend now provides the correct, prioritized name
 
                 $('#google-signin-container').hide();
                 $('#add-info').removeClass('hidden').addClass('flex');
                 $('#user-name').text(currentUserDisplayName);
                 
-                // NEW: Handle profile picture
                 const $userPicture = $('#user-picture');
                 if (profile.pictureUrl) {
                     $userPicture.attr('src', profile.pictureUrl).removeClass('hidden');
@@ -2230,11 +2599,14 @@
                 }
 
                 checkIfAdmin(userProfile.email);
+                
+                if (isLocationKnown) {
+                    sendJoinMessage();
+                }
             }
 
             function initializeGoogleButton() {
                 const $container = $('#google-signin-container');
-                // 在非 LINE 環境中，才顯示 Google 登入按鈕
                 if (!isLineApp && window.google && window.google.accounts && window.google.accounts.id) {
                     google.accounts.id.initialize({
                         client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
@@ -2260,7 +2632,7 @@
             async function verifyToken() {
                 const token = localStorage.getItem(SESSION_TOKEN_KEY);
                 if (!token) {
-                    return false; // 表示沒有 token
+                    return false;
                 }
 
                 try {
@@ -2272,15 +2644,15 @@
                     const result = await response.json();
                     if (result.status === 'success' && result.user) {
                         setLoginState(result.user);
-                        return true; // 表示 token 驗證成功
+                        return true;
                     } else {
                         localStorage.removeItem(SESSION_TOKEN_KEY);
-                        return false; // 表示 token 無效
+                        return false;
                     }
                 } catch(error) {
                     console.error('Token 驗證失敗:', error);
                     localStorage.removeItem(SESSION_TOKEN_KEY);
-                    return false; // 表示驗證過程出錯
+                    return false;
                 }
             }
 
@@ -2296,11 +2668,8 @@
 
                     if (result.status === 'success' && result.token) {
                         localStorage.setItem(SESSION_TOKEN_KEY, result.token);
-                        setLoginState({
-                            email: googleProfile.email,
-                            name: googleProfile.given_name || googleProfile.name,
-                            pictureUrl: googleProfile.picture // Google a/c picture
-                        });
+                        // After login, immediately verify token to get the correct profile data (with prioritized nickname)
+                        await verifyToken();
                     } else {
                         showNotification('登入失敗，請稍後再試。', 'error');
                     }
@@ -2310,34 +2679,53 @@
                 }
             });
 
+            // MODIFIED: Nickname change logic to remove localStorage
             $(document).on('click', '#edit-nickname-btn', function() {
                 const currentName = $('#user-name').text();
                 const newName = prompt("請輸入您的新暱稱：", currentName);
 
                 if (newName && newName.trim() !== '' && newName.trim() !== currentName) {
+                    
                     currentUserDisplayName = newName.trim();
-                    const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
-                    localStorage.setItem(storageKey, currentUserDisplayName);
                     $('#user-name').text(currentUserDisplayName);
                     
-                    const payload = {
+                    // Send nickname change to WebSocket server
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const payload = { 
+                            type: 'nickname_change',
+                            newName: currentUserDisplayName
+                        };
+                        ws.send(JSON.stringify(payload));
+                    }
+
+                    // Send to backend for persistence
+                    const backendPayload = {
                         action: 'update_nickname',
                         userEmail: userProfile.email,
                         lineUserId: userProfile.lineUserId,
                         newName: currentUserDisplayName
                     };
 
+                    // We use "text/plain" because Apps Script's e.postData.contents expects a string
                     fetch(APPS_SCRIPT_URL, { 
                         method: 'POST', 
-                        mode: 'no-cors',
-                        body: JSON.stringify(payload) 
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify(backendPayload) 
                     })
-                    .then(() => {
-                        showNotification('暱稱已同步更新！', 'success');
+                    .then(response => response.json())
+                    .then(data => {
+                        if(data.status === 'success'){
+                           showNotification('暱稱已同步更新！', 'success');
+                        } else {
+                           throw new Error(data.message || 'Unknown error');
+                        }
                     })
                     .catch(error => {
                         console.error('Nickname sync failed:', error);
-                        showNotification('暱稱同步失敗，請稍後再試。', 'error');
+                        showNotification(`暱稱同步失敗: ${error.message}`, 'error');
+                        // Revert UI on failure
+                        $('#user-name').text(currentName);
+                        currentUserDisplayName = currentName;
                     });
 
                 } else if (newName === '') {
@@ -2356,9 +2744,6 @@
                 });
 
                 localStorage.removeItem(SESSION_TOKEN_KEY);
-                const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
-                localStorage.removeItem(storageKey);
-
 
                 if (window.google && google.accounts && google.accounts.id) {
                     google.accounts.id.disableAutoSelect();
@@ -2463,9 +2848,6 @@
                 updateStoreList();
             });
             
-            // 修正: 移除舊的按鈕點擊事件
-            // $('#toggle-store-list-btn').on('click', function() { ... });
-
             map.getView().on('change:resolution', () => {
                 const zoom = map.getView().getZoom();
                 if (zoom <= visibilityThreshold) {
@@ -2473,52 +2855,18 @@
                 }
             });
             
-            // --- REFACTORED: Management Modal Logic ---
             $('#manage-btn').on('click', function() {
-                const userReports = rawReports.filter(r => 
-                    (userProfile.email && r.submitterEmail === userProfile.email) ||
-                    (userProfile.lineUserId && r.submitterLineId === userProfile.lineUserId)
-                );
-                const $content = $('#management-list-content');
-                $content.html('');
-
-                if (userReports.length === 0) {
-                    $content.html('<p class="text-gray-500">您尚未提交任何地點。</p>');
-                } else {
-                    userReports.forEach(report => {
-                        const isApproved = String(report['審核']).toUpperCase() === 'TRUE';
-                        const status = isApproved ? '<span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full">已審核</span>' : '<span class="text-xs font-semibold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">審核中</span>';
-                        
-                        const itemHtml = `
-                            <div class="flex justify-between items-center py-2 border-b">
-                                <div>
-                                    <p class="font-bold">${report.areaName || report['地址']}</p>
-                                    <p class="text-sm text-gray-500 truncate">${report['黑名類別']}: ${report['黑名原因']}</p>
-                                </div>
-                                <div class="flex items-center space-x-2 flex-shrink-0">
-                                    ${status}
-                                    <button class="edit-store-btn text-sm text-blue-600 hover:underline" data-row-index="${report.rowIndex}">修改</button>
-                                    <button class="delete-store-btn text-sm text-red-600 hover:underline" data-row-index="${report.rowIndex}">刪除</button>
-                                </div>
-                            </div>
-                        `;
-                        $content.append(itemHtml);
-                    });
-                }
                 $('#management-modal').removeClass('hidden');
+                // Default to locations tab
+                $('#manage-locations-tab').click(); 
             });
 
             $('#close-management-modal').on('click', () => $('#management-modal').addClass('hidden'));
 
             $('#management-list-content').on('click', '.edit-store-btn', function() {
                 const rowIndex = $(this).data('row-index');
-                const reportToEdit = rawReports.find(r => r.rowIndex == rowIndex);
+                const reportToEdit = rawReports.find(r => r.rowIndex == rowIndex && !r.isCommunity);
                 
-                if(reportToEdit && reportToEdit.areaBounds) {
-                    showNotification('網格區域暫不支援修改，請刪除後重新建立。', 'warning');
-                    return;
-                }
-
                 if (reportToEdit) {
                     openEditModalForUser(reportToEdit);
                 } else {
@@ -2526,12 +2874,25 @@
                 }
             });
 
-            $('#management-list-content').on('click', '.delete-store-btn', function() {
+            $('#management-area-content').on('click', '.edit-area-btn', function() {
                 const rowIndex = $(this).data('row-index');
-                if (window.confirm('確定要刪除這筆您提交的資料嗎？此操作將無法復原。')) {
+                const reportToEdit = rawReports.find(r => r.rowIndex == rowIndex && r.isCommunity);
+                
+                if (reportToEdit) {
+                    openEditModalForUser(reportToEdit);
+                } else {
+                    showNotification('找不到建築資料，可能已被刪除或更新。', 'error');
+                }
+            });
+
+            $('#management-list-content, #management-area-content').on('click', '.delete-store-btn', function() {
+                const rowIndex = $(this).data('row-index');
+                const isArea = $(this).closest('#management-area-content').length > 0;
+                
+                if (confirm('確定要刪除這筆您提交的資料嗎？此操作將無法復原。')) {
                     showNotification('正在刪除...');
                     const payload = {
-                        action: 'user_delete',
+                        action: isArea ? 'user_delete_area' : 'user_delete',
                         rowIndex: rowIndex,
                         userEmail: userProfile.email,
                         lineUserId: userProfile.lineUserId
@@ -2547,8 +2908,6 @@
                     });
                 }
             });
-
-            // --- Review Modal Logic (REFACTORED) ---
 
             $('#review-btn').on('click', function() {
                 $('#review-modal').removeClass('hidden');
@@ -2657,7 +3016,7 @@
                 const rowIndex = $(this).data('row-index');
                 
                 if (action === 'delete') {
-                    if (!window.confirm('確定要刪除這筆資料嗎？此操作將無法復原。')) {
+                    if (!confirm('確定要刪除這筆資料嗎？此操作將無法復原。')) {
                         return;
                     }
                 }
@@ -2683,73 +3042,140 @@
                 });
             }
 
-            function openEditModalForUser(report) {
+            // MODIFIED: Handle both point and area editing
+            async function openEditModalForUser(report) {
                 const forms = [$('#add-location-form'), $('#add-location-form-mobile')];
+                const isAreaEdit = !!report.isCommunity;
+                
+                areaBoundsForEditing = null; // Reset before use
+
                 forms.forEach($f => {
                     $f[0].reset();
-                    $f.find('#edit-row-index').val('');
+                    $f.find('#add-is-area').prop('checked', false); // Start with checkbox unchecked
+                    $f.find('#edit-row-index').val(isAreaEdit ? '' : report.rowIndex);
+                    $f.find('#edit-area-row-index').val(isAreaEdit ? report.rowIndex : '');
                     $f.find('#edit-original-name').val(report['地址']);
-                    $f.find('#add-address').val(report['地址']);
+                    $f.find('#add-address').val(report['地址']); // Keep this as a fallback
                     $f.find('#add-area-name').val(report['areaName'] || '');
                     $f.find('#add-category').val(report['分類']);
                     $f.find('#add-blacklist-category').val(report['黑名類別']);
                     $f.find('#add-blacklist-reason').val(report['黑名原因']);
-                    $f.closest('div[id^="add-location-modal"]').find('h2').text('修改地點');
+                    $f.closest('div[id^="add-location-modal"]').find('h2').text(isAreaEdit ? '修改建築' : '修改地點');
+                    
+                    const $categoryDiv = $f.find('#add-category').closest('div');
+                    const $blacklistCatDiv = $f.find('#add-blacklist-category').closest('div');
+                    const $blacklistReasonDiv = $f.find('#add-blacklist-reason').closest('div');
+                    
+                    if (isAreaEdit) {
+                        $categoryDiv.hide();
+                        $blacklistCatDiv.hide();
+                        $blacklistReasonDiv.hide();
+                    } else {
+                        $categoryDiv.show();
+                        $blacklistCatDiv.show();
+                        $blacklistReasonDiv.show();
+                    }
                 });
 
                 $('#management-modal').addClass('hidden');
                 
                 const coordinate = ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]);
-                if (isMobile) {
-                    enterMobilePlacementMode(coordinate);
-                    $('#add-location-modal-mobile').removeClass('hidden');
-                    $('#complete-placement-btn').addClass('hidden');
+                
+                if (isAreaEdit) {
+                    areaBoundsForEditing = report.areaBounds; // Store bounds for when checkbox is clicked
+
+                    if (!report['地址'] && report.areaBounds) {
+                        try {
+                            const areaBoundsData = JSON.parse(report.areaBounds);
+                            if (areaBoundsData.v === 1 && areaBoundsData.o) {
+                                const [lon, lat] = areaBoundsData.o;
+                                const address = await getAddressFromCoords(parseFloat(lon), parseFloat(lat));
+                                forms.forEach($f => $f.find('#add-address').val(address));
+                            }
+                        } catch(e) { console.error("Could not parse areaBounds for address", e); }
+                    }
+
+                    // NEW: Clear ALL buildings from the map before entering edit mode
+                    areaGridSource.clear();
+                    
+                    if (isMobile) {
+                        enterMobilePlacementMode(coordinate, report.areaBounds);
+                        // We also need to clone form content for mobile modal
+                        const formContent = $('#add-location-form > .px-6').clone(true, true);
+                        $('#add-location-form-mobile > .px-6').replaceWith(formContent);
+                         // And manually hide irrelevant fields again after cloning
+                        $('#add-location-form-mobile').find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').hide();
+                        $('#add-location-modal-mobile').removeClass('hidden');
+                        $('#complete-placement-btn').addClass('hidden');
+                    } else {
+                        enterDesktopAddMode(coordinate, report.areaBounds);
+                    }
                 } else {
-                    enterDesktopAddMode(coordinate);
+                    if (isMobile) {
+                        enterMobilePlacementMode(coordinate);
+                        $('#add-location-modal-mobile').removeClass('hidden');
+                        $('#complete-placement-btn').addClass('hidden');
+                    } else {
+                        enterDesktopAddMode(coordinate);
+                    }
                 }
             }
             
             // --- Initial Load ---
             async function main() {
-                // 修正：將所有邏輯移到一個函式中，以便在 DOMContentLoaded 後執行
                 const initializeApp = async () => {
-                    setupGridToolbar(); // NEW: Setup the new toolbar
+                    setupGridToolbar();
+                    initializeChat();
                     
                     const lineLoginLiffUrl = 'https://liff.line.me/2008020548-lVYKgg0B';
                     
-                    // 1. 優先載入地圖與使用者定位
                     loadUserVotes();
                     initializeUserLocation();
 
-                    // 2. 在背景驗證登入狀態
                     const isTokenLoggedIn = await verifyToken();
 
-                    // 3. 根據環境和登入狀態決定下一步
                     if (isLineApp && !isTokenLoggedIn) {
-                        // 在 LINE 環境且未登入，直接導向登入頁
                         window.location.href = lineLoginLiffUrl;
-                        return; // 導向後停止後續執行
+                        return;
                     } else if (!isLineApp && !isTokenLoggedIn) {
-                        // 在非 LINE 環境且未登入，才顯示 Google 登入按鈕
                         initializeGoogleButton();
-                         // 修正: 啟動定時檢查器
                         if (loginCheckInterval) clearInterval(loginCheckInterval);
-                        let attempts = 0; // 防止無限迴圈
+                        let attempts = 0;
                         loginCheckInterval = setInterval(async () => {
                             attempts++;
                             if (!isLoggedIn) {
                                 const success = await verifyToken();
-                                if (success || attempts > 30) { // 成功或超過30秒後停止
+                                if (success || attempts > 30) {
                                     clearInterval(loginCheckInterval);
                                 }
                             } else {
                                      clearInterval(loginCheckInterval);
                             }
-                        }, 1000); // 每秒檢查一次
+                        }, 1000);
                     }
+
+                    // Chat event listeners
+                    $('#open-chat-btn').on('click', () => {
+                        $('#chat-modal').removeClass('hidden');
+                        // NEW: Reset badge on open
+                        unreadMessageCount = 0;
+                        updateChatBadge();
+                    });
+                    $('#close-chat-modal').on('click', () => $('#chat-modal').addClass('hidden'));
+                    $('#send-chat-btn').on('click', sendChatMessage);
+                    $('#chat-input').on('keydown', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            sendChatMessage();
+                        }
+                    });
+
+                    // NEW: System message toggle listener
+                    $('#hide-system-msgs-checkbox').on('change', function() {
+                        $('#chat-messages').toggleClass('hide-system-messages', $(this).is(':checked'));
+                    });
                 };
                 
-                // 確保 DOM 完全載入後再執行主程式
                 if (document.readyState === 'loading') {
                     document.addEventListener('DOMContentLoaded', initializeApp);
                 } else {
