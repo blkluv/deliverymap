@@ -365,6 +365,7 @@
                         </div>
                         <div class="px-6 pt-2 pb-16 space-y-4 overflow-y-auto custom-scrollbar flex-grow">
                             <input type="hidden" id="edit-row-index" name="rowIndex">
+                            <input type="hidden" id="edit-area-row-index" name="areaRowIndex"> <!-- NEW: for editing areas -->
                             <input type="hidden" id="edit-original-name" name="originalName">
                             <p id="location-instruction" class="text-sm text-gray-600">請移動地圖中心點來選擇位置。</p>
                             <!-- MODIFIED: Hidden on mobile -->
@@ -631,15 +632,28 @@
             </div>
         </div>
 
-        <!-- 管理 Modal -->
+        <!-- MODIFIED: Management Modal with Tabs -->
         <div id="management-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
-                <div class="p-6 border-b flex justify-between items-center">
-                    <h2 class="text-xl font-bold text-gray-800">我的地點管理</h2>
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col" style="height: 80vh;">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-gray-800">我的貢獻管理</h2>
                     <button id="close-management-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
                 </div>
-                <div id="management-list-content" class="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    <!-- User's stores will be listed here -->
+                <!-- NEW: Tabs -->
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-6 px-6" aria-label="Tabs">
+                        <button id="manage-locations-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-indigo-500 text-indigo-600">我的地點</button>
+                        <button id="manage-areas-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">我的建築</button>
+                    </nav>
+                </div>
+                <!-- MODIFIED: Content container -->
+                <div class="flex-grow overflow-y-auto custom-scrollbar">
+                    <div id="management-list-content" class="p-6">
+                        <!-- User's point locations will be listed here -->
+                    </div>
+                    <div id="management-area-content" class="p-6 hidden">
+                        <!-- User's community areas will be listed here -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -1739,6 +1753,8 @@
                     setTimeout(() => map.updateSize(), 350);
                 }
                 $('#add-is-area').prop('checked', false);
+                // Clear editing state
+                $('#edit-row-index, #edit-area-row-index, #edit-original-name').val('');
             }
 
             $('#add-location-btn').on('click', function() {
@@ -2210,14 +2226,24 @@
                 
                 const lonLat = ol.proj.toLonLat(finalCoords);
                 const rowIndex = $form.find('#edit-row-index').val();
+                const areaRowIndex = $form.find('#edit-area-row-index').val(); // NEW
                 const originalName = $form.find('#edit-original-name').val();
                 
                 let action = 'create';
-                if (rowIndex) action = 'admin_modify';
-                else if (originalName) action = 'update';
+                if (areaRowIndex) {
+                    action = 'user_update_area';
+                } else if (rowIndex) {
+                    action = 'admin_modify';
+                } else if (originalName) {
+                    action = 'update';
+                }
 
                 const newData = {
-                    action: action, rowIndex: rowIndex, originalName: originalName, 
+                    action: action, 
+                    rowIndex: areaRowIndex || rowIndex, // Use areaRowIndex if it exists
+                    originalName: originalName,
+                    userEmail: userProfile.email, // NEW: send user identifier for area updates
+                    lineUserId: userProfile.lineUserId, // NEW: send user identifier for area updates
                     submitterName: currentUserDisplayName || 'N/A',
                     submitterEmail: userProfile.email || 'N/A',
                     adminEmail: userProfile.email, 
@@ -2233,13 +2259,18 @@
                     areaBounds: areaBoundsStr,
                 };
 
-                fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(newData) })
-                .then(() => {
-                    showNotification("資料已成功送出！感謝您的貢獻。", 'success');
-                    exitAddMode();
-                    setTimeout(loadData, 2000);
+                fetch(APPS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(newData) })
+                .then(res => res.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        showNotification("資料已成功送出！感謝您的貢獻。", 'success');
+                        exitAddMode();
+                        setTimeout(loadData, 2000);
+                    } else {
+                        throw new Error(result.message || 'Unknown error');
+                    }
                 }).catch(error => {
-                    showNotification('送出失敗，請稍後再試。', 'error');
+                    showNotification(`送出失敗: ${error.message}`, 'error');
                 }).finally(() => {
                     $submitBtn.prop('disabled', false).find('.submit-text').removeClass('hidden').end().find('.spinner').addClass('hidden');
                 });
@@ -2292,7 +2323,7 @@
                         }
                     },
                     (err) => {
-                        showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
+                        showNotification('無法取得您的位置，聊天室將顯示「未知區域」。', 'warning');
                         isLocationKnown = true;
                         loadData();
                         if (isLoggedIn) {
@@ -2719,50 +2750,17 @@
             });
             
             $('#manage-btn').on('click', function() {
-                const userReports = rawReports.filter(r => 
-                    (userProfile.email && r.submitterEmail === userProfile.email) ||
-                    (userProfile.lineUserId && r.submitterLineId === userProfile.lineUserId)
-                );
-                const $content = $('#management-list-content');
-                $content.html('');
-
-                if (userReports.length === 0) {
-                    $content.html('<p class="text-gray-500">您尚未提交任何地點。</p>');
-                } else {
-                    userReports.forEach(report => {
-                        const isApproved = String(report['審核']).toUpperCase() === 'TRUE';
-                        const status = isApproved ? '<span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full">已審核</span>' : '<span class="text-xs font-semibold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">審核中</span>';
-                        
-                        const itemHtml = `
-                            <div class="flex justify-between items-center py-2 border-b">
-                                <div>
-                                    <p class="font-bold">${report.areaName || report['地址']}</p>
-                                    <p class="text-sm text-gray-500 truncate">${report['黑名類別']}: ${report['黑名原因']}</p>
-                                </div>
-                                <div class="flex items-center space-x-2 flex-shrink-0">
-                                    ${status}
-                                    <button class="edit-store-btn text-sm text-blue-600 hover:underline" data-row-index="${report.rowIndex}">修改</button>
-                                    <button class="delete-store-btn text-sm text-red-600 hover:underline" data-row-index="${report.rowIndex}">刪除</button>
-                                </div>
-                            </div>
-                        `;
-                        $content.append(itemHtml);
-                    });
-                }
                 $('#management-modal').removeClass('hidden');
+                // Default to locations tab
+                $('#manage-locations-tab').click(); 
             });
 
             $('#close-management-modal').on('click', () => $('#management-modal').addClass('hidden'));
 
             $('#management-list-content').on('click', '.edit-store-btn', function() {
                 const rowIndex = $(this).data('row-index');
-                const reportToEdit = rawReports.find(r => r.rowIndex == rowIndex);
+                const reportToEdit = rawReports.find(r => r.rowIndex == rowIndex && !r.isCommunity);
                 
-                if(reportToEdit && reportToEdit.areaBounds) {
-                    showNotification('網格區域暫不支援修改，請刪除後重新建立。', 'warning');
-                    return;
-                }
-
                 if (reportToEdit) {
                     openEditModalForUser(reportToEdit);
                 } else {
@@ -2929,7 +2927,8 @@
                 const forms = [$('#add-location-form'), $('#add-location-form-mobile')];
                 forms.forEach($f => {
                     $f[0].reset();
-                    $f.find('#edit-row-index').val('');
+                    $f.find('#edit-row-index').val(report.isCommunity ? '' : report.rowIndex);
+                    $f.find('#edit-area-row-index').val(report.isCommunity ? report.rowIndex : '');
                     $f.find('#edit-original-name').val(report['地址']);
                     $f.find('#add-address').val(report['地址']);
                     $f.find('#add-area-name').val(report['areaName'] || '');
