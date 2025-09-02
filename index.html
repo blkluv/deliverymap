@@ -1124,8 +1124,7 @@
                         break;
                     case 'system_join':
                     case 'system_leave':
-                    case 'system_name_change': // NEW: Handle name change message
-                        // Added 'system-message' class for toggling
+                    case 'system_name_change':
                         messageHtml = `
                             <div class="text-center text-xs text-gray-500 italic py-1 system-message">
                                 ${sanitizedMessage}
@@ -1139,8 +1138,7 @@
                     $chatMessages.scrollTop($chatMessages[0].scrollHeight);
                 }
             }
-
-            // MODIFIED: sendChatMessage now relies entirely on the server to broadcast the message back.
+            
             function sendChatMessage() {
                 if (!isLoggedIn) {
                     showNotification('請先登入才能發言！', 'warning');
@@ -2103,6 +2101,7 @@
                 }
             });
 
+            // MODIFIED: handleFormSubmit to include areaBounds compression
             function handleFormSubmit(e) {
                 e.preventDefault(); 
                 const $form = $(e.target);
@@ -2119,7 +2118,6 @@
                 
                 let finalCoords;
                 let areaBoundsStr = null;
-                let areaColorStr = null;
                 const isArea = $form.find('#add-is-area').is(':checked');
                 
                 if (isArea) {
@@ -2128,22 +2126,60 @@
                         return;
                     }
                     
-                    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
-                    const cellsToSave = [];
-                    
-                    selectedGridCells.forEach((data, cellKey) => {
-                        const [lon, lat] = cellKey.split('-').map(Number);
-                        minLon = Math.min(minLon, lon);
-                        maxLon = Math.max(maxLon, lon);
-                        minLat = Math.min(minLat, lat);
-                        maxLat = Math.max(maxLat, lat);
-                        cellsToSave.push({ lon, lat, marker: data.marker, markerColor: data.markerColor, fillColor: data.fillColor });
+                    // --- NEW: areaBounds Compression Logic ---
+                    const cellsArray = Array.from(selectedGridCells.entries());
+                    let minLon = Infinity, minLat = Infinity;
+                    cellsArray.forEach(([key, data]) => {
+                        const [lon, lat] = key.split('-').map(Number);
+                        if (lon < minLon) minLon = lon;
+                        if (lat < minLat) minLat = lat;
+                    });
+
+                    const origin = { lon: minLon, lat: minLat };
+
+                    const fillPalette = [];
+                    const markerPalette = [];
+                    const fillMap = new Map();
+                    const markerMap = new Map();
+
+                    cellsArray.forEach(([key, data]) => {
+                        if (data.fillColor && !fillMap.has(data.fillColor)) {
+                            fillMap.set(data.fillColor, fillPalette.length);
+                            fillPalette.push(data.fillColor);
+                        }
+                        if (data.markerColor && !markerMap.has(data.markerColor)) {
+                            markerMap.set(data.markerColor, markerPalette.length);
+                            markerPalette.push(data.markerColor);
+                        }
                     });
                     
-                    areaBoundsStr = JSON.stringify(cellsToSave);
+                    const palette = { f: fillPalette, m: markerPalette };
+                    const markerCharMap = { 'entrance': 'e', 'exit': 'x', 'table': 't', 'parking': 'p' };
+
+                    const compressedCells = cellsArray.map(([key, data]) => {
+                        const [lon, lat] = key.split('-').map(Number);
+                        const x = Math.round((lon - origin.lon) / GRID_INTERVAL);
+                        const y = Math.round((lat - origin.lat) / GRID_INTERVAL);
+                        
+                        const fillIndex = data.fillColor ? fillMap.get(data.fillColor) : '';
+                        const markerChar = data.marker ? markerCharMap[data.marker] : '';
+                        const markerColorIndex = data.markerColor ? markerMap.get(data.markerColor) : '';
+
+                        return `${x},${y}:${fillIndex}:${markerChar}:${markerColorIndex}`;
+                    });
                     
-                    const centerLon = minLon + (maxLon - minLon) / 2;
-                    const centerLat = minLat + (maxLat - minLat) / 2;
+                    const compressedData = {
+                        v: 1, // Version 1 of the compressed format
+                        o: [origin.lon.toFixed(GRID_PRECISION), origin.lat.toFixed(GRID_PRECISION)],
+                        p: palette,
+                        c: compressedCells,
+                    };
+
+                    areaBoundsStr = JSON.stringify(compressedData);
+                    // --- End of Compression Logic ---
+
+                    const centerLon = minLon + (cellsArray.reduce((max, [k]) => Math.max(max, parseFloat(k.split('-')[0])), 0) - minLon) / 2;
+                    const centerLat = minLat + (cellsArray.reduce((max, [k]) => Math.max(max, parseFloat(k.split('-')[1])), 0) - minLat) / 2;
                     finalCoords = ol.proj.fromLonLat([centerLon, centerLat]);
 
                 } else {
@@ -2235,7 +2271,7 @@
                 if (!navigator.geolocation) {
                     showNotification('您的瀏覽器不支援地理定位', 'warning');
                     loadData(); 
-                    isLocationKnown = true; // Still mark as known to unblock login flow
+                    isLocationKnown = true;
                     if (isLoggedIn) sendJoinMessage();
                     return;
                 }
@@ -2249,17 +2285,17 @@
 
                         const city = await reverseGeocodeForCity(pos.coords.longitude, pos.coords.latitude);
                         currentUserCity = city || '未知區域';
-                        isLocationKnown = true; // MODIFIED: Set flag
+                        isLocationKnown = true;
                         loadData(city);
-                        if (isLoggedIn) { // MODIFIED: Check and send join message
+                        if (isLoggedIn) {
                             sendJoinMessage();
                         }
                     },
                     (err) => {
                         showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
-                        isLocationKnown = true; // MODIFIED: Set flag even on error
+                        isLocationKnown = true;
                         loadData();
-                        if (isLoggedIn) { // MODIFIED: Check and send join message
+                        if (isLoggedIn) {
                             sendJoinMessage();
                         }
                     },
@@ -2285,15 +2321,45 @@
                 }
             }
             
+            // MODIFIED: drawCommunityAreas to decompress areaBounds
             function drawCommunityAreas(areas) {
                 areas.forEach(areaData => {
                     try {
-                        const cells = JSON.parse(areaData.areaBounds);
-                        if (!Array.isArray(cells)) return;
+                        if (!areaData.areaBounds) return;
+                        
+                        let cellsToDraw;
+                        const areaBoundsData = JSON.parse(areaData.areaBounds);
+
+                        if (areaBoundsData.v === 1) { // Decompress new format
+                            const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
+                            const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
+                            const markerReverseMap = { 'e': 'entrance', 'x': 'exit', 't': 'table', 'p': 'parking' };
+                            
+                            cellsToDraw = compressedCells.map(cellString => {
+                                const parts = cellString.split(':');
+                                const [x, y] = parts[0].split(',').map(Number);
+                                const [fillIndex, markerChar, markerColorIndex] = parts.slice(1);
+                                
+                                const lon = origin.lon + x * GRID_INTERVAL;
+                                const lat = origin.lat + y * GRID_INTERVAL;
+                                
+                                const cell = { lon, lat };
+                                if (fillIndex !== '') cell.fillColor = palette.f[parseInt(fillIndex, 10)];
+                                if (markerChar !== '') cell.marker = markerReverseMap[markerChar];
+                                if (markerColorIndex !== '') cell.markerColor = palette.m[parseInt(markerColorIndex, 10)];
+                                
+                                return cell;
+                            });
+
+                        } else { // Handle old, uncompressed format for backward compatibility
+                            cellsToDraw = areaBoundsData;
+                        }
+
+                        if (!Array.isArray(cellsToDraw)) return;
                         
                         let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
 
-                        cells.forEach(cell => {
+                        cellsToDraw.forEach(cell => {
                             const { lon, lat, marker, markerColor, fillColor } = cell;
                             const extent = ol.proj.transformExtent(
                                 [lon, lat, lon + GRID_INTERVAL, lat + GRID_INTERVAL],
