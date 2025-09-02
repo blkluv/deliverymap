@@ -394,6 +394,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">黑名類別</label>
                                 <select id="add-blacklist-category" name="blacklistCategory" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                                    <option value="" disabled selected>請選擇...</option>
                                     <option value="黑客">黑客</option>
                                     <option value="送上樓">送上樓</option>
                                     <option value="拖吊">拖吊</option>
@@ -991,6 +992,8 @@
             let lastPaintedCellKey = null;
 
             let dragPanInteraction; // NEW: To hold the default drag pan interaction
+            let reviewMapInstance = null; // NEW: To hold the map instance for the review panel
+
             map.getInteractions().forEach(interaction => {
                 if (interaction instanceof ol.interaction.DragPan) {
                     dragPanInteraction = interaction;
@@ -2274,8 +2277,8 @@
                 if (!isAreaUpdate && !isPointUpdate) {
                      const reasonText = formData.get('blacklistReason').trim();
                      if (!formData.get('blacklistCategory') || !reasonText) {
-                        showNotification('新增地點時，黑名類別與原因為必填。', 'error');
-                        return;
+                        // showNotification('新增地點時，黑名類別與原因為必填。', 'error');
+                        // return;
                      }
                 }
 
@@ -3128,7 +3131,14 @@
                 $('#approved-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500');
             });
 
-            $('#close-review-modal').on('click', () => $('#review-modal').addClass('hidden'));
+            $('#close-review-modal').on('click', () => {
+                // NEW: Dispose of the map instance when closing the modal
+                if (reviewMapInstance) {
+                    reviewMapInstance.setTarget(null);
+                    reviewMapInstance = null;
+                }
+                $('#review-modal').addClass('hidden');
+            });
             
             $('#pending-tab').on('click', function() {
                 $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
@@ -3149,21 +3159,25 @@
                 $detailPanel.html('<p class="text-gray-500">請從左側列表選擇一個地點以查看詳細資訊。</p>');
 
                 const reportsToReview = rawReports.filter(report => {
-                    const isApproved = String(report['審核']).toUpperCase() === 'TRUE';
-                    return status === 'pending' ? !isApproved : isApproved;
+                    const currentStatus = String(report['審核']).toUpperCase();
+                    if (status === 'pending') {
+                        return currentStatus !== 'TRUE' && currentStatus !== 'REJECT';
+                    } else { // approved
+                        return currentStatus === 'TRUE' || currentStatus === 'REJECT';
+                    }
                 });
 
                 if (reportsToReview.length === 0) {
-                    $listPanel.html(`<p class="p-4 text-sm text-gray-500">沒有${status === 'pending' ? '待審核' : '已審核'}的地點。</p>`);
+                    $listPanel.html(`<p class="p-4 text-sm text-gray-500">沒有${status === 'pending' ? '待審核' : '已審核或已駁回'}的項目。</p>`);
                     return;
                 }
 
                 reportsToReview.forEach(report => {
                     const listItem = $(`
-                        <div class="p-4 border-b cursor-pointer hover:bg-gray-100 review-item" data-row-index="${report.rowIndex}">
+                        <div class="p-4 border-b cursor-pointer hover:bg-gray-100 review-item" data-row-index="${report.rowIndex}" data-is-community="${!!report.isCommunity}">
                             <p class="font-semibold text-gray-800">${report.areaName || report['地址']}</p>
-                            <p class="text-sm text-gray-600 truncate">${report['黑名原因'] || '無原因'}</p>
-                            <p class="text-xs text-gray-400 mt-1">提交者: ${report.submitterEmail || report.submitterLineId || 'N/A'}</p>
+                            <p class="text-sm text-gray-600 truncate">${report['黑名原因'] || '無原因 (社區項目)'}</p>
+                            <p class="text-xs text-gray-400 mt-1">提交者: ${report.submitterEmail || report.submitterLineId || report['製作者'] ||'N/A'}</p>
                         </div>
                     `);
                     $listPanel.append(listItem);
@@ -3174,83 +3188,151 @@
                 $('.review-item').removeClass('bg-indigo-50');
                 $(this).addClass('bg-indigo-50');
                 const rowIndex = $(this).data('row-index');
-                const report = rawReports.find(r => r.rowIndex == rowIndex);
+                const isCommunity = $(this).data('is-community');
+                
+                const report = rawReports.find(r => r.rowIndex == rowIndex && !!r.isCommunity === isCommunity);
+
                 if (report) {
                     displayReviewDetails(report);
                 }
             });
 
+            // MODIFIED: This function now handles both points and areas, and creates a map for areas.
             function displayReviewDetails(report) {
                 const $detailPanel = $('#review-detail-panel');
-                
-                let actionButtons = '';
-                const isApproved = String(report['審核']).toUpperCase() === 'TRUE';
-
-                if (!isApproved) { // 待審核
-                    actionButtons = `
-                        <button class="admin-action-btn flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700" data-action="approve" data-row-index="${report.rowIndex}">審核通過</button>
-                        <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${report.rowIndex}">不通過</button>
-                    `;
-                } else { // 已審核
-                    actionButtons = `
-                        <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${report.rowIndex}">刪除</button>
-                    `;
-                }
-                
                 const submissionDate = report.timestamp ? 
                     new Date(report.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) : 
                     '日期不明';
 
-                const detailHtml = `
-                    <div class="space-y-3 text-sm">
-                        <h3 class="text-xl font-bold text-gray-900">${report.areaName || report['地址']}</h3>
-                        <p class="font-semibold" style="color: ${categoryColors[report['分類']] || categoryColors['其他']}">${report['分類']}</p>
-                        <hr>
-                        <p><strong>黑名類別:</strong> ${report['黑名類別']}</p>
-                        <p><strong>黑名原因:</strong></p>
-                        <p class="whitespace-pre-wrap bg-gray-50 p-2 rounded">${report['黑名原因']}</p>
-                        <hr>
-                        <p><strong>座標:</strong> ${parseFloat(report['經度']).toFixed(5)}, ${parseFloat(report['緯度']).toFixed(5)}</p>
-                        ${report.areaBounds ? '<p><strong>網格資料:</strong> 是</p>' : ''}
-                        <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || report.submitterLineId || 'N/A'})</p>
-                        <p><strong>提交時間:</strong> ${submissionDate}</p>
-                        <p><strong>試算表列數:</strong> ${report.rowIndex}</p>
-                    </div>
-                    <div class="mt-6 flex space-x-4">
-                        ${actionButtons}
-                    </div>
-                `;
-                $detailPanel.html(detailHtml);
+                if (report.isCommunity) {
+                    // --- Area/Building Review UI ---
+                    const detailHtml = `
+                        <div id="review-map-container" class="relative w-full h-64 bg-gray-200 mb-4 rounded-lg overflow-hidden">
+                            <div id="review-map" class="w-full h-full"></div>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <h3 class="text-xl font-bold text-gray-900">${report.areaName || '未命名社區'}</h3>
+                            <hr class="my-2">
+                            <p><strong>座標:</strong> ${parseFloat(report['經度']).toFixed(5)}, ${parseFloat(report['緯度']).toFixed(5)}</p>
+                            <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || report.submitterLineId || report['製作者'] || 'N/A'})</p>
+                            <p><strong>提交時間:</strong> ${submissionDate}</p>
+                            <p><strong>試算表分頁名稱:</strong> 社區列表</p>
+                            <p><strong>試算表列數:</strong> ${report.rowIndex}</p>
+                        </div>
+                        <div class="mt-6 flex space-x-4">
+                            <button class="admin-action-btn flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700" data-action="approve" data-row-index="${report.rowIndex}" data-is-community="true">通過</button>
+                            <button class="admin-action-btn flex-1 bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700" data-action="reject" data-row-index="${report.rowIndex}" data-is-community="true">駁回</button>
+                        </div>
+                    `;
+                    $detailPanel.html(detailHtml);
+
+                    // Initialize review map
+                    if (reviewMapInstance) {
+                        reviewMapInstance.setTarget(null);
+                        reviewMapInstance = null;
+                    }
+                    
+                    const reviewAreaSource = new ol.source.Vector();
+                    reviewMapInstance = new ol.Map({
+                        target: 'review-map',
+                        layers: [
+                            new ol.layer.Tile({ source: new ol.source.OSM() }),
+                            new ol.layer.Vector({ source: reviewAreaSource })
+                        ],
+                        view: new ol.View({
+                            center: ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]),
+                            zoom: 18
+                        }),
+                        controls: []
+                    });
+                    
+                    // Draw area bounds on the review map
+                    try {
+                        const areaBoundsData = JSON.parse(report.areaBounds);
+                        // Using a simplified version of drawCommunityAreas logic here
+                        if (areaBoundsData.v === 1) {
+                            const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
+                            const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
+                            compressedCells.forEach(cellString => {
+                                const parts = cellString.split(':');
+                                const [x, y] = parts[0].split(',').map(Number);
+                                const [fillIndex] = parts.slice(1);
+                                if (fillIndex !== '') {
+                                    const lon = origin.lon + x * GRID_INTERVAL;
+                                    const lat = origin.lat + y * GRID_INTERVAL;
+                                    const extent = ol.proj.transformExtent([lon, lat, lon + GRID_INTERVAL, lat + GRID_INTERVAL], 'EPSG:4326', 'EPSG:3857');
+                                    const cellFeature = new ol.Feature({ geometry: ol.geom.Polygon.fromExtent(extent) });
+                                    cellFeature.setStyle(new ol.style.Style({ fill: new ol.style.Fill({ color: palette.f[parseInt(fillIndex, 10)] || 'rgba(255,0,0,0.5)' }) }));
+                                    reviewAreaSource.addFeature(cellFeature);
+                                }
+                            });
+                        }
+                    } catch(e) { console.error("Could not draw area on review map", e); }
+
+
+                } else {
+                    // --- Point Location Review UI ---
+                     const detailHtml = `
+                        <div class="space-y-3 text-sm">
+                            <h3 class="text-xl font-bold text-gray-900">${report.areaName || report['地址']}</h3>
+                            <p class="font-semibold" style="color: ${categoryColors[report['分類']] || categoryColors['其他']}">${report['分類']}</p>
+                            <hr>
+                            <p><strong>黑名類別:</strong> ${report['黑名類別']}</p>
+                            <p><strong>黑名原因:</strong></p>
+                            <p class="whitespace-pre-wrap bg-gray-50 p-2 rounded">${report['黑名原因']}</p>
+                            <hr>
+                            <p><strong>座標:</strong> ${parseFloat(report['經度']).toFixed(5)}, ${parseFloat(report['緯度']).toFixed(5)}</p>
+                            <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || report.submitterLineId || 'N/A'})</p>
+                            <p><strong>提交時間:</strong> ${submissionDate}</p>
+                             <p><strong>試算表分頁名稱:</strong> 資料回報</p>
+                            <p><strong>試算表列數:</strong> ${report.rowIndex}</p>
+                        </div>
+                        <div class="mt-6 flex space-x-4">
+                            <button class="admin-action-btn flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700" data-action="approve" data-row-index="${report.rowIndex}" data-is-community="false">通過</button>
+                            <button class="admin-action-btn flex-1 bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700" data-action="reject" data-row-index="${report.rowIndex}" data-is-community="false">駁回</button>
+                            <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${report.rowIndex}" data-is-community="false">刪除</button>
+                        </div>
+                    `;
+                    $detailPanel.html(detailHtml);
+                }
             }
             
             $('#review-detail-panel').on('click', '.admin-action-btn', function() {
                 const action = $(this).data('action');
                 const rowIndex = $(this).data('row-index');
+                const isCommunity = $(this).data('is-community');
                 
                 if (action === 'delete') {
                     if (!confirm('確定要刪除這筆資料嗎？此操作將無法復原。')) {
                         return;
                     }
                 }
-                sendAdminAction(action, rowIndex);
+                sendAdminAction(action, rowIndex, isCommunity);
             });
             
-            function sendAdminAction(action, rowIndex) {
+            function sendAdminAction(action, rowIndex, isCommunity) {
                 showNotification(`正在執行操作...`);
 
                 const payload = {
                     action: action,
                     rowIndex: rowIndex,
+                    isCommunity: isCommunity, // NEW: Tell the backend which sheet to modify
                     adminEmail: userProfile.email
                 };
 
-                fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
-                .then(() => {
-                    showNotification("操作成功！資料將在幾分鐘後更新。", 'success');
-                    $('#review-modal').addClass('hidden');
-                    setTimeout(loadData, 2000);
+                fetch(APPS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) })
+                .then(res => res.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                         showNotification("操作成功！資料將在幾分鐘後更新。", 'success');
+                         // Refresh the list after action
+                         const activeTab = $('#pending-tab').hasClass('border-indigo-500') ? 'pending' : 'approved';
+                         loadReviewData(activeTab);
+                    } else {
+                        throw new Error(result.message || 'Unknown error');
+                    }
                 }).catch(error => {
-                    showNotification('操作失敗，請稍後再試。', 'error');
+                    showNotification(`操作失敗: ${error.message}`, 'error');
                 });
             }
 
