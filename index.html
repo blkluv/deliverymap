@@ -392,8 +392,8 @@
                                 <p class="text-xs text-gray-500 mt-1">勾選後，可點擊地圖上的網格來標示範圍。</p>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">黑名類別 <span class="text-red-500">*</span></label>
-                                <select id="add-blacklist-category" name="blacklistCategory" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required>
+                                <label class="block text-sm font-medium text-gray-700">黑名類別</label>
+                                <select id="add-blacklist-category" name="blacklistCategory" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm">
                                     <option value="黑客">黑客</option>
                                     <option value="送上樓">送上樓</option>
                                     <option value="拖吊">拖吊</option>
@@ -404,8 +404,8 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">黑名原因 (最少3個中文字) <span class="text-red-500">*</span></label>
-                                <textarea id="add-blacklist-reason" name="blacklistReason" rows="3" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required></textarea>
+                                <label class="block text-sm font-medium text-gray-700">黑名原因</label>
+                                <textarea id="add-blacklist-reason" name="blacklistReason" rows="3" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm"></textarea>
                             </div>
                         </div>
                     </form>
@@ -1521,7 +1521,7 @@
                 if (cellKey === lastPaintedCellKey) return;
                 lastPaintedCellKey = cellKey;
 
-                const centerCoords = tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
+                const centerCoords = lockedCenterForEditing || (tempMarker ? tempMarker.getPosition() : map.getView().getCenter());
                 const centerLonLat = ol.proj.toLonLat(centerCoords);
                 if (ol.sphere.getDistance(centerLonLat, [snappedLon, snappedLat]) > GRID_DRAW_RADIUS) return;
 
@@ -1593,9 +1593,10 @@
                     
                     $('#location-instruction').text('請在地圖上的網格標示範圍。');
                     
-                    // Do not hide the center marker when editing, it's the reference point
-                    if (isMobile && tempMarker) {
-                         tempMarker.getElement().style.pointerEvents = 'none'; // Make it non-interactive
+                    // Unconditionally hide the center marker when entering grid mode
+                    $('#desktop-center-marker').addClass('hidden');
+                    if (tempMarker) {
+                        tempMarker.getElement().style.display = 'none';
                     }
                     
                     selectedGridCells.clear();
@@ -1648,6 +1649,10 @@
                     if (dragPanInteraction) dragPanInteraction.setActive(true); // Unlock map panning
                     if (isMobile && tempMarker) {
                          tempMarker.getElement().style.pointerEvents = 'auto';
+                         tempMarker.getElement().style.display = 'block';
+                    }
+                    if (!isMobile) {
+                        $('#desktop-center-marker').removeClass('hidden');
                     }
                     $('#location-instruction').text('請移動地圖中心點來選擇位置。');
                     $('#grid-canvas').addClass('hidden');
@@ -1869,6 +1874,19 @@
                     showNotification('請先登入才能新增地點！', 'warning');
                     return;
                 }
+                
+                // NEW: Restore required fields and labels for new additions
+                const forms = [$('#add-location-form'), $('#add-location-form-mobile')];
+                forms.forEach($f => {
+                    const $blCat = $f.find('#add-blacklist-category');
+                    const $blReason = $f.find('#add-blacklist-reason');
+                    $blCat.prop('required', true);
+                    $blReason.prop('required', true);
+                    $blCat.prev('label').html('黑名類別 <span class="text-red-500">*</span>');
+                    $blReason.prev('label').html('黑名原因 (最少3個中文字) <span class="text-red-500">*</span>');
+                });
+
+
                 showNotification('正在取得您的目前位置...');
                 
                 navigator.geolocation.getCurrentPosition(
@@ -2250,14 +2268,15 @@
                 
                 const areaRowIndex = $form.find('#edit-area-row-index').val();
                 const isAreaUpdate = !!areaRowIndex;
+                const isPointUpdate = !!$form.find('#edit-row-index').val();
 
-                if (!isAreaUpdate) {
-                    const reasonText = formData.get('blacklistReason').trim();
-                    const chineseCharMatch = reasonText.match(/[\u4e00-\u9fa5]/g);
-                    if (!chineseCharMatch || chineseCharMatch.length < 3) {
-                        showNotification('黑名原因請至少輸入3個中文字。', 'error');
+                // Validation only for new points, not for any kind of update
+                if (!isAreaUpdate && !isPointUpdate) {
+                     const reasonText = formData.get('blacklistReason').trim();
+                     if (!formData.get('blacklistCategory') || !reasonText) {
+                        showNotification('新增地點時，黑名類別與原因為必填。', 'error');
                         return;
-                    }
+                     }
                 }
 
                 let finalCoords;
@@ -2314,7 +2333,7 @@
                     };
                     areaBoundsStr = JSON.stringify(compressedData);
                     
-                    finalCoords = map.getView().getCenter();
+                    finalCoords = lockedCenterForEditing || map.getView().getCenter();
 
                 } else {
                     finalCoords = isMobile ? (tempMarker ? tempMarker.getPosition() : null) : map.getView().getCenter();
@@ -3258,10 +3277,20 @@
                         $categoryDiv.hide();
                         $blacklistCatDiv.hide();
                         $blacklistReasonDiv.hide();
+                         // Make blacklist fields not required for area edits
+                        $blacklistCatDiv.find('select').prop('required', false);
+                        $blacklistReasonDiv.find('textarea').prop('required', false);
+                        $blacklistCatDiv.find('label').find('span').hide();
+                        $blacklistReasonDiv.find('label').find('span').hide();
                     } else {
                         $categoryDiv.show();
                         $blacklistCatDiv.show();
                         $blacklistReasonDiv.show();
+                         // Restore required fields for non-area edits
+                        $blacklistCatDiv.find('select').prop('required', true);
+                        $blacklistReasonDiv.find('textarea').prop('required', true);
+                        $blacklistCatDiv.find('label').find('span').show();
+                        $blacklistReasonDiv.find('label').find('span').show();
                     }
                 });
 
@@ -3343,7 +3372,7 @@
                     }
 
                     // Chat event listeners
-                    $('#open-chat-btn').on('click', () => $('#chat-modal').removeClass('hidden'));
+                   $('#open-chat-btn').on('click', () => $('#chat-modal').removeClass('hidden'));
                     $('#close-chat-modal').on('click', () => $('#chat-modal').addClass('hidden'));
                     $('#send-chat-btn').on('click', sendChatMessage);
                     $('#chat-input').on('keydown', function(e) {
@@ -3371,3 +3400,4 @@
     </script>
 </body>
 </html>
+
