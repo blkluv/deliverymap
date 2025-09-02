@@ -1,20 +1,19 @@
 // WebSocket Server
 // 這是一個升級版的 Node.js WebSocket 伺服器，
-// 支援聊天記錄、使用者加入/離開通知等功能。
+// 支援聊天記錄、使用者加入/離開通知、暱稱變更、以及防止 Render 休眠的心跳機制。
 
 const WebSocket = require('ws');
 
 // 在 8080 連接埠上建立一個新的 WebSocket 伺服器。
-// 您可以根據需要更改連接埠。
 const wss = new WebSocket.Server({ port: 8080 });
 
-// --- 新增功能：儲存聊天記錄 ---
+// --- 變數定義 ---
 const messageHistory = [];
-const MAX_HISTORY = 200; // 設定要保留的訊息數量上限
+const MAX_HISTORY = 200; // 保留的訊息數量上限
 
 console.log('WebSocket 伺服器已在連接埠 8080 上啟動...');
 
-// 這個函式會將收到的訊息廣播給所有已連線的客戶端。
+// 將訊息廣播給所有已連線的客戶端。
 wss.broadcast = function broadcast(data, sender) {
   wss.clients.forEach(function each(client) {
     // 將訊息發送給除了發送者以外的所有人。
@@ -24,9 +23,12 @@ wss.broadcast = function broadcast(data, sender) {
   });
 };
 
-// 監聽新的客戶端連線。
+// --- 連線處理 ---
 wss.on('connection', function connection(ws) {
   console.log('一個新的客戶端已連線。');
+  
+  // NEW: 為每個連線設定 isAlive 狀態，用於心跳檢查
+  ws.isAlive = true;
 
   // 監聽來自此客戶端的訊息。
   ws.on('message', function incoming(message) {
@@ -34,61 +36,66 @@ wss.on('connection', function connection(ws) {
       const messageString = message.toString('utf8');
       const data = JSON.parse(messageString);
 
-      // --- 新增功能：根據訊息類型做不同處理 ---
+      // --- 根據訊息類型做不同處理 ---
       switch (data.type) {
-        // 處理使用者加入的訊息
         case 'join':
-          // 在連線物件上儲存使用者資訊
           ws.nickname = data.nickname;
           ws.pictureUrl = data.pictureUrl;
+          ws.city = data.city;
 
-          // 1. 馬上將歷史訊息傳送給這位剛連線的使用者
           ws.send(JSON.stringify({ type: 'history', data: messageHistory }));
 
-          // 2. 建立歡迎訊息，並廣播給聊天室中的所有人
           const joinMessage = {
             type: 'system_join',
-            nickname: ws.nickname,
-            pictureUrl: ws.pictureUrl,
             message: `歡迎 ${ws.nickname} 加入聊天室。`,
             timestamp: new Date().toISOString()
           };
           
-          // 將歡迎訊息也加入歷史記錄
           messageHistory.push(joinMessage);
-          if (messageHistory.length > MAX_HISTORY) {
-            messageHistory.shift(); // 保持歷史記錄在200則以內
-          }
+          if (messageHistory.length > MAX_HISTORY) messageHistory.shift();
           
           wss.broadcast(JSON.stringify(joinMessage), ws); // 廣播給其他人
           console.log(`${ws.nickname} 已加入。`);
           break;
 
-        // 處理一般的聊天訊息
         case 'chat':
-          // 建立包含使用者資訊的完整訊息物件
           const chatMessage = {
             type: 'chat',
-            nickname: ws.nickname || '匿名', // 提供預設值以防萬一
-            pictureUrl: ws.pictureUrl || '', // 提供預設值以防萬一
+            nickname: ws.nickname || '匿名',
+            pictureUrl: ws.pictureUrl || '', 
+            city: ws.city || '未知區域',
             message: data.message,
             timestamp: new Date().toISOString()
           };
 
-          // 將聊天訊息加入歷史記錄
           messageHistory.push(chatMessage);
-          if (messageHistory.length > MAX_HISTORY) {
-            messageHistory.shift(); // 保持歷史記錄在200則以內
-          }
+          if (messageHistory.length > MAX_HISTORY) messageHistory.shift();
 
           // 廣播給所有其他客戶端
           wss.broadcast(JSON.stringify(chatMessage), ws);
           console.log(`來自 ${ws.nickname} 的訊息: ${data.message}`);
           break;
         
-        // --- 新增功能：處理心跳機制 ---
+        case 'nickname_change':
+          const oldNickname = ws.nickname;
+          const newNickname = data.newName;
+          ws.nickname = newNickname;
+
+          const nameChangeMessage = {
+            type: 'system_name_change',
+            message: `${oldNickname} 現在改名為 ${newNickname}。`,
+            timestamp: new Date().toISOString()
+          };
+          
+          messageHistory.push(nameChangeMessage);
+          if (messageHistory.length > MAX_HISTORY) messageHistory.shift();
+          
+          wss.broadcast(JSON.stringify(nameChangeMessage), ws);
+          console.log(`${oldNickname} 已改名為 ${newNickname}`);
+          break;
+
         case 'ping':
-          // 當收到客戶端的 ping 時，回傳一個 pong
+          ws.isAlive = true; // NEW: 收到 ping 後，重設 isAlive 狀態
           ws.send(JSON.stringify({ type: 'pong' }));
           break;
 
@@ -101,22 +108,17 @@ wss.on('connection', function connection(ws) {
     }
   });
   
-  // --- 新增功能：處理客戶端斷線 ---
   ws.on('close', () => {
-    // 只有在使用者成功 "join" 之後才廣播離開訊息
     if (ws.nickname) {
       console.log(`${ws.nickname} 已斷線。`);
       const leaveMessage = {
         type: 'system_leave',
-        nickname: ws.nickname,
         message: `${ws.nickname} 離開了聊天室。`,
         timestamp: new Date().toISOString()
       };
       
       messageHistory.push(leaveMessage);
-      if (messageHistory.length > MAX_HISTORY) {
-        messageHistory.shift();
-      }
+      if (messageHistory.length > MAX_HISTORY) messageHistory.shift();
       
       // 將離開訊息廣播給所有還在線上的客戶端
       wss.broadcast(JSON.stringify(leaveMessage), null); // sender 為 null 表示廣播給所有人
@@ -125,9 +127,25 @@ wss.on('connection', function connection(ws) {
     }
   });
   
-  // 處理錯誤。
   ws.on('error', (error) => {
     console.error('WebSocket 錯誤:', error);
   });
+});
+
+// --- 心跳檢查機制 (防止 Render 服務休眠) ---
+const interval = setInterval(function ping() {
+  wss.clients.forEach(function each(ws) {
+    if (ws.isAlive === false) {
+      console.log(`偵測到無回應的連線，正在終止: ${ws.nickname || '未驗證'}`);
+      return ws.terminate();
+    }
+    // 將所有連線設為 false，等待下一次的 ping 來重設為 true
+    ws.isAlive = false;
+  });
+}, 35000); // 每 35 秒檢查一次
+
+// 當伺服器關閉時，清除定時器
+wss.on('close', function close() {
+  clearInterval(interval);
 });
 
