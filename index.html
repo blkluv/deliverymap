@@ -982,7 +982,7 @@
             });
 
 
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby906Jfbab__vOI3uCsAUpiIc-JVdjVs5eCAVPUPZYv0eVf-ok_nnDgBUxsekzc5jKv/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdToFv9YM-9BdaJALujDnrYtCjNDbVgDeT0IXGjuORR5hPg9b_MMG84LU48eUJpr0L/exec';
             
             const visibilityThreshold = 16.5; 
 
@@ -2443,13 +2443,12 @@
                 });
             }
             
+            // MODIFIED: setLoginState to remove localStorage dependency for nickname
             function setLoginState(profile) {
                 isLoggedIn = true;
                 userProfile = profile;
                 
-                const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
-                const storedNickname = localStorage.getItem(storageKey);
-                currentUserDisplayName = storedNickname || profile.name;
+                currentUserDisplayName = profile.name; // Backend now provides the correct, prioritized name
 
                 $('#google-signin-container').hide();
                 $('#add-info').removeClass('hidden').addClass('flex');
@@ -2532,11 +2531,8 @@
 
                     if (result.status === 'success' && result.token) {
                         localStorage.setItem(SESSION_TOKEN_KEY, result.token);
-                        setLoginState({
-                            email: googleProfile.email,
-                            name: googleProfile.given_name || googleProfile.name,
-                            pictureUrl: googleProfile.picture
-                        });
+                        // After login, immediately verify token to get the correct profile data (with prioritized nickname)
+                        await verifyToken();
                     } else {
                         showNotification('登入失敗，請稍後再試。', 'error');
                     }
@@ -2546,19 +2542,17 @@
                 }
             });
 
-            // MODIFIED: Nickname change logic to update chat
+            // MODIFIED: Nickname change logic to remove localStorage
             $(document).on('click', '#edit-nickname-btn', function() {
                 const currentName = $('#user-name').text();
                 const newName = prompt("請輸入您的新暱稱：", currentName);
 
                 if (newName && newName.trim() !== '' && newName.trim() !== currentName) {
-                    const oldName = currentUserDisplayName; // Store old name for chat message
+                    
                     currentUserDisplayName = newName.trim();
-                    const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
-                    localStorage.setItem(storageKey, currentUserDisplayName);
                     $('#user-name').text(currentUserDisplayName);
                     
-                    // NEW: Send nickname change to WebSocket server
+                    // Send nickname change to WebSocket server
                     if (ws && ws.readyState === WebSocket.OPEN) {
                         const payload = { 
                             type: 'nickname_change',
@@ -2575,17 +2569,26 @@
                         newName: currentUserDisplayName
                     };
 
+                    // We use "text/plain" because Apps Script's e.postData.contents expects a string
                     fetch(APPS_SCRIPT_URL, { 
                         method: 'POST', 
-                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain' },
                         body: JSON.stringify(backendPayload) 
                     })
-                    .then(() => {
-                        showNotification('暱稱已同步更新！', 'success');
+                    .then(response => response.json())
+                    .then(data => {
+                        if(data.status === 'success'){
+                           showNotification('暱稱已同步更新！', 'success');
+                        } else {
+                           throw new Error(data.message || 'Unknown error');
+                        }
                     })
                     .catch(error => {
                         console.error('Nickname sync failed:', error);
-                        showNotification('暱稱同步失敗，請稍後再試。', 'error');
+                        showNotification(`暱稱同步失敗: ${error.message}`, 'error');
+                        // Revert UI on failure
+                        $('#user-name').text(currentName);
+                        currentUserDisplayName = currentName;
                     });
 
                 } else if (newName === '') {
@@ -2604,9 +2607,6 @@
                 });
 
                 localStorage.removeItem(SESSION_TOKEN_KEY);
-                const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
-                localStorage.removeItem(storageKey);
-
 
                 if (window.google && google.accounts && google.accounts.id) {
                     google.accounts.id.disableAutoSelect();
