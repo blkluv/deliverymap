@@ -2167,6 +2167,24 @@
                     showNotification('無法解析地址，請手動輸入。', 'warning');
                 }
             }
+            
+            // NEW: Function to convert decimal degrees to DMS format
+            function toDms(dd, type) {
+                const absDd = Math.abs(dd);
+                const degrees = Math.floor(absDd);
+                const minutesDecimal = (absDd - degrees) * 60;
+                const minutes = Math.floor(minutesDecimal);
+                const seconds = ((minutesDecimal - minutes) * 60).toFixed(2);
+
+                let direction;
+                if (type === 'lat') {
+                    direction = dd >= 0 ? '北' : '南';
+                } else { // lon
+                    direction = dd >= 0 ? '東' : '西';
+                }
+                
+                return `${degrees}°${minutes}'${seconds}" ${direction}`;
+            }
 
             // NEW: Function to get address from coordinates without updating a form
             async function getAddressFromCoords(lon, lat) {
@@ -3236,15 +3254,25 @@
                 const coordinate = ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]);
                 
                 if (isAreaEdit) {
-                    if (!report['地址'] && report.areaBounds) {
+                    if (report.areaBounds) {
                         try {
                             const areaBoundsData = JSON.parse(report.areaBounds);
                             if (areaBoundsData.v === 1 && areaBoundsData.o) {
-                                const [lon, lat] = areaBoundsData.o;
-                                const address = await getAddressFromCoords(parseFloat(lon), parseFloat(lat));
-                                forms.forEach($f => $f.find('#add-address').val(address));
+                                const lon = parseFloat(areaBoundsData.o[0]);
+                                const lat = parseFloat(areaBoundsData.o[1]);
+                                const dmsLat = toDms(lat, 'lat');
+                                const dmsLon = toDms(lon, 'lon');
+                                const dmsAddress = `${dmsLat}, ${dmsLon}`;
+                                forms.forEach($f => $f.find('#add-address').val(dmsAddress));
+                            } else {
+                                forms.forEach($f => $f.find('#add-address').val(report['地址'] || '舊格式，無座標'));
                             }
-                        } catch(e) { console.error("Could not parse areaBounds for address", e); }
+                        } catch(e) { 
+                             console.error("Could not parse areaBounds for DMS", e);
+                             forms.forEach($f => $f.find('#add-address').val('無法解析座標'));
+                        }
+                    } else {
+                        forms.forEach($f => $f.find('#add-address').val(report['地址'] || '無範圍資料'));
                     }
 
                     const featuresToRemove = areaGridSource.getFeatures().filter(f => 
