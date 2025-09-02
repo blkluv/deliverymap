@@ -1153,6 +1153,7 @@
                 }
             }
             
+            // MODIFIED: Optimized chat message sending
             function sendChatMessage() {
                 if (!isLoggedIn) {
                     showNotification('請先登入才能發言！', 'warning');
@@ -1163,6 +1164,18 @@
                 const message = $input.val().trim();
 
                 if (message && ws && ws.readyState === WebSocket.OPEN) {
+                    // Instantly display the message locally for a better user experience
+                    const localMessage = {
+                        type: 'chat',
+                        message: message,
+                        nickname: currentUserDisplayName,
+                        city: currentUserCity,
+                        pictureUrl: userProfile.pictureUrl || '',
+                        timestamp: new Date().toISOString()
+                    };
+                    appendChatMessage(localMessage);
+
+                    // Then, send the message to the server
                     const payload = {
                         type: 'chat',
                         message: message
@@ -1556,8 +1569,9 @@
                 lastPaintedCellKey = null;
                 map.un('pointermove', mapPointerMove);
             };
-
-            function toggleAreaSelectionMode(enable) {
+            
+            // MODIFIED: Added areaBoundsToLoad parameter for editing
+            function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
                 isAreaSelectionMode = enable;
                 
                 map.un('moveend', drawGrid);
@@ -1571,7 +1585,48 @@
                     $('#location-instruction').text('請在地圖上的網格標示範圍。');
                     $('#desktop-center-marker').addClass('hidden');
                     if (tempMarker) tempMarker.getElement().style.display = 'none';
+                    
                     selectedGridCells.clear();
+                    if (areaBoundsToLoad) {
+                        try {
+                            const areaBoundsData = JSON.parse(areaBoundsToLoad);
+                            let cellsToLoad;
+                            
+                            if (areaBoundsData.v === 1) { // New compressed format
+                                const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
+                                const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
+                                const markerReverseMap = { 'e': 'entrance', 'x': 'exit', 't': 'table', 'p': 'parking' };
+
+                                cellsToLoad = compressedCells.map(cellString => {
+                                    const parts = cellString.split(':');
+                                    const [x, y] = parts[0].split(',').map(Number);
+                                    const [fillIndex, markerChar, markerColorIndex] = parts.slice(1);
+                                    
+                                    const lon = origin.lon + x * GRID_INTERVAL;
+                                    const lat = origin.lat + y * GRID_INTERVAL;
+                                    
+                                    const data = {};
+                                    if (fillIndex !== '') data.fillColor = palette.f[parseInt(fillIndex, 10)];
+                                    if (markerChar !== '') data.marker = markerReverseMap[markerChar];
+                                    if (markerColorIndex !== '') data.markerColor = palette.m[parseInt(markerColorIndex, 10)];
+                                    
+                                    return { key: `${lon.toFixed(GRID_PRECISION)}-${lat.toFixed(GRID_PRECISION)}`, data };
+                                });
+                            } else { // Old uncompressed format for compatibility
+                                cellsToLoad = areaBoundsData.map(cell => {
+                                    const { lon, lat, ...data } = cell;
+                                    return { key: `${lon.toFixed(GRID_PRECISION)}-${lat.toFixed(GRID_PRECISION)}`, data };
+                                });
+                            }
+                            
+                            cellsToLoad.forEach(item => selectedGridCells.set(item.key, item.data));
+                            
+                        } catch (e) {
+                            console.error("Failed to load area bounds for editing:", e);
+                            showNotification('讀取建築範圍資料失敗！', 'error');
+                        }
+                    }
+                    
                     $('#grid-canvas').removeClass('hidden');
                     drawGrid();
                     map.on('moveend', drawGrid);
@@ -1682,7 +1737,8 @@
                 }
             }
             
-            function enterMobilePlacementMode(coordinate) {
+            // MODIFIED: Added areaBoundsToLoad parameter for editing areas
+            function enterMobilePlacementMode(coordinate, areaBoundsToLoad = null) {
                 initialAddLocationCoords = coordinate;
                 if(tempMarker) map.removeOverlay(tempMarker);
 
@@ -1693,8 +1749,16 @@
                     element: markerEl, position: coordinate, positioning: 'bottom-center', stopEvent: false,
                 });
                 map.addOverlay(tempMarker);
-                drawRadiusCircle(coordinate);
-                $('#complete-placement-btn').removeClass('hidden');
+
+                if (areaBoundsToLoad) {
+                    $('#add-is-area').prop('checked', true); 
+                    toggleAreaSelectionMode(true, areaBoundsToLoad); 
+                    $('#add-location-modal-mobile').removeClass('hidden'); 
+                } else {
+                    drawRadiusCircle(coordinate);
+                    $('#complete-placement-btn').removeClass('hidden');
+                    map.getView().animate({ center: coordinate, zoom: 18, duration: 500 });
+                }
 
                 markerEl.addEventListener('pointerdown', (e) => {
                     isDraggingMarker = true;
@@ -1703,22 +1767,31 @@
                     document.addEventListener('pointerup', handlePointerUp);
                     e.stopPropagation();
                 });
-                
-                map.getView().animate({ center: coordinate, zoom: 18, duration: 500 });
             }
 
-            function enterDesktopAddMode(coordinate) {
+            // MODIFIED: Added areaBoundsToLoad parameter for editing areas
+            function enterDesktopAddMode(coordinate, areaBoundsToLoad = null) {
                 initialAddLocationCoords = coordinate;
                 $('#app-container').addClass('desktop-add-mode');
-                $('#desktop-center-marker').removeClass('hidden');
+                
+                if (areaBoundsToLoad) {
+                    $('#add-is-area').prop('checked', true);
+                    toggleAreaSelectionMode(true, areaBoundsToLoad);
+                } else {
+                    $('#desktop-center-marker').removeClass('hidden');
+                }
                 
                 setTimeout(() => {
                     map.updateSize();
-                    drawRadiusCircle(coordinate);
+                    if (!areaBoundsToLoad) {
+                        drawRadiusCircle(coordinate);
+                    }
                     map.getView().animate({ center: coordinate, zoom: 17, duration: 500 }, () => {
-                        const centerCoords = map.getView().getCenter();
-                        const centerLonLat = ol.proj.toLonLat(centerCoords);
-                        reverseGeocode(centerLonLat[0], centerLonLat[1]);
+                        if (!areaBoundsToLoad) {
+                            const centerCoords = map.getView().getCenter();
+                            const centerLonLat = ol.proj.toLonLat(centerCoords);
+                            reverseGeocode(centerLonLat[0], centerLonLat[1]);
+                        }
                     });
                 }, 350);
 
@@ -1753,8 +1826,9 @@
                     setTimeout(() => map.updateSize(), 350);
                 }
                 $('#add-is-area').prop('checked', false);
-                // Clear editing state
+                // Clear editing state and reload data to show the edited area back on map
                 $('#edit-row-index, #edit-area-row-index, #edit-original-name').val('');
+                loadData();
             }
 
             $('#add-location-btn').on('click', function() {
@@ -2429,7 +2503,7 @@
                                             text: markerText,
                                             font: 'bold 14px sans-serif',
                                             fill: new ol.style.Fill({ color: markerColor || '#000' }),
-                                            backgroundFill: new ol.style.Fill({ color: 'rgba(255,255,255,0.7)' }),
+                                            backgroundFill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.7)' }),
                                             padding: [2, 2, 2, 2]
                                         })
                                     }));
@@ -2749,28 +2823,206 @@
                 }
             });
             
+            // MODIFIED: Management Modal Logic
             $('#manage-btn').on('click', function() {
                 $('#management-modal').removeClass('hidden');
-                // Default to locations tab
-                $('#manage-locations-tab').click(); 
+                $('#manage-locations-tab').click(); // Default to locations tab
             });
 
             $('#close-management-modal').on('click', () => $('#management-modal').addClass('hidden'));
+            
+            $('#manage-locations-tab').on('click', function() {
+                $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500');
+                $('#manage-areas-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500');
+                $('#management-list-content').removeClass('hidden');
+                $('#management-area-content').addClass('hidden');
+                loadUserLocations();
+            });
+
+            $('#manage-areas-tab').on('click', function() {
+                $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500');
+                $('#manage-locations-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500');
+                $('#management-area-content').removeClass('hidden');
+                $('#management-list-content').addClass('hidden');
+                loadUserAreas();
+            });
+            
+            function loadUserLocations() {
+                const $listContent = $('#management-list-content');
+                $listContent.html('');
+
+                if (!isLoggedIn || (!userProfile.email && !userProfile.lineUserId)) {
+                    $listContent.html('<p class="text-gray-500">請先登入以查看您提交的地點。</p>');
+                    return;
+                }
+
+                const userSubmissions = rawReports.filter(r => 
+                    !r.isCommunity && (r.submitterEmail === userProfile.email || r.lineUserId === userProfile.lineUserId)
+                );
+
+                if (userSubmissions.length === 0) {
+                    $listContent.html('<p class="text-gray-500">您尚未提交任何地點資料。</p>');
+                    return;
+                }
+
+                userSubmissions.forEach(report => {
+                    const isApproved = String(report['審核']).toUpperCase() === 'TRUE';
+                    const status = isApproved ?
+                        '<span class="text-green-600 font-semibold">已通過審核</span>' :
+                        '<span class="text-yellow-600 font-semibold">待審核</span>';
+
+                    const itemHtml = `
+                        <div class="border-b py-3 flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold">${report['地址']}</p>
+                                <p class="text-sm text-gray-600">${report['黑名類別']} - ${report['黑名原因']}</p>
+                                <p class="text-xs text-gray-500 mt-1">狀態: ${status}</p>
+                            </div>
+                            <div>
+                                <button class="edit-store-btn text-sm text-blue-600 hover:underline mr-4" data-row-index="${report.rowIndex}">修改</button>
+                                <button class="delete-store-btn text-sm text-red-600 hover:underline" data-row-index="${report.rowIndex}">刪除</button>
+                            </div>
+                        </div>
+                    `;
+                    $listContent.append(itemHtml);
+                });
+            }
+            
+            function renderAreaPreview(canvas, areaBoundsStr) {
+                if (!canvas || !areaBoundsStr) return;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                try {
+                    let cellsToDraw;
+                    const areaBoundsData = JSON.parse(areaBoundsStr);
+
+                    if (areaBoundsData.v === 1) {
+                        const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
+                        const markerReverseMap = { 'e': 'entrance', 'x': 'exit', 't': 'table', 'p': 'parking' };
+                        cellsToDraw = compressedCells.map(cellString => {
+                             const parts = cellString.split(':');
+                             const [x, y] = parts[0].split(',').map(Number);
+                             const [fillIndex, markerChar, markerColorIndex] = parts.slice(1);
+                             const data = { x, y, palette };
+                             if (fillIndex !== '') data.fillColor = palette.f[parseInt(fillIndex, 10)];
+                             if (markerChar !== '') data.marker = markerReverseMap[markerChar];
+                             if (markerColorIndex !== '') data.markerColor = palette.m[parseInt(markerColorIndex, 10)];
+                             return data;
+                        });
+                    } else {
+                         let minX = Infinity, minY = Infinity;
+                         const cellsWithCoords = areaBoundsData.map(cell => {
+                            const x = Math.round(cell.lon / GRID_INTERVAL);
+                            const y = Math.round(cell.lat / GRID_INTERVAL);
+                            minX = Math.min(minX, x);
+                            minY = Math.min(minY, y);
+                            return { ...cell, x, y };
+                         });
+                         cellsToDraw = cellsWithCoords.map(cell => ({ ...cell, x: cell.x - minX, y: cell.y - minY }));
+                    }
+
+                    if (!Array.isArray(cellsToDraw) || cellsToDraw.length === 0) return;
+
+                    let maxX = 0, maxY = 0;
+                    cellsToDraw.forEach(cell => { maxX = Math.max(maxX, cell.x); maxY = Math.max(maxY, cell.y); });
+
+                    const gridWidth = maxX + 1;
+                    const gridHeight = maxY + 1;
+                    const cellSize = Math.min(canvas.width / gridWidth, canvas.height / gridHeight);
+                    const offsetX = (canvas.width - gridWidth * cellSize) / 2;
+                    const offsetY = (canvas.height - gridHeight * cellSize) / 2;
+                    
+                    ctx.font = `bold ${cellSize * 0.8}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+
+                    cellsToDraw.forEach(cell => {
+                        const { x, y, fillColor, marker, markerColor } = cell;
+                        const canvasX = offsetX + x * cellSize;
+                        const canvasY = offsetY + (gridHeight - 1 - y) * cellSize; 
+                        if (fillColor) {
+                            ctx.fillStyle = fillColor;
+                            ctx.fillRect(canvasX, canvasY, cellSize, cellSize);
+                        }
+                        if (marker) {
+                            const markerText = { 'entrance': '入', 'exit': '出', 'table': '桌', 'parking': '停' }[marker];
+                            ctx.fillStyle = markerColor || '#000000';
+                            ctx.fillText(markerText, canvasX + cellSize / 2, canvasY + cellSize / 2);
+                        }
+                    });
+
+                } catch (e) {
+                    console.error("Error rendering area preview:", e);
+                    ctx.fillStyle = 'red';
+                    ctx.font = 'bold 24px sans-serif';
+                    ctx.fillText('!', canvas.width/2, canvas.height/2);
+                }
+            }
+
+            function loadUserAreas() {
+                const $content = $('#management-area-content');
+                $content.html('');
+
+                if (!isLoggedIn || (!userProfile.email && !userProfile.lineUserId)) {
+                    $content.html('<p class="text-gray-500">請先登入以查看您提交的建築。</p>');
+                    return;
+                }
+
+                const userAreas = rawReports.filter(r => r.isCommunity && (r.submitterEmail === userProfile.email || r.lineUserId === userProfile.lineUserId));
+
+                if (userAreas.length === 0) {
+                    $content.html('<p class="text-gray-500">您尚未提交任何建築資料。</p>');
+                    return;
+                }
+
+                userAreas.forEach(area => {
+                    const status = String(area['審核']).toUpperCase() === 'TRUE' ? 
+                        '<span class="text-green-600 font-semibold">已通過審核</span>' :
+                        '<span class="text-yellow-600 font-semibold">待審核</span>';
+                    
+                    const areaHtml = $(`
+                        <div class="border rounded-lg p-4 mb-4 flex items-center space-x-4">
+                            <canvas class="w-24 h-24 bg-gray-100 rounded border border-gray-300"></canvas>
+                            <div class="flex-grow">
+                                <h4 class="font-bold text-lg">${area.areaName || '未命名社區'}</h4>
+                                <p class="text-sm text-gray-600">${area['地址']}</p>
+                                <div class="mt-2">狀態: ${status}</div>
+                            </div>
+                            <div class="flex flex-col space-y-2">
+                                <button class="edit-area-btn bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm" data-row-index="${area.rowIndex}">修改</button>
+                                <button class="delete-store-btn bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm" data-row-index="${area.rowIndex}">刪除</button>
+                            </div>
+                        </div>
+                    `);
+                    
+                    $content.append(areaHtml);
+                    const canvas = areaHtml.find('canvas')[0];
+                    canvas.width = 96 * (window.devicePixelRatio || 1);
+                    canvas.height = 96 * (window.devicePixelRatio || 1);
+                    canvas.style.width = '96px';
+                    canvas.style.height = '96px';
+                    
+                    setTimeout(() => renderAreaPreview(canvas, area.areaBounds), 0);
+                });
+            }
 
             $('#management-list-content').on('click', '.edit-store-btn', function() {
                 const rowIndex = $(this).data('row-index');
                 const reportToEdit = rawReports.find(r => r.rowIndex == rowIndex && !r.isCommunity);
-                
-                if (reportToEdit) {
-                    openEditModalForUser(reportToEdit);
-                } else {
-                    showNotification('找不到地點資料，可能已被刪除或更新。', 'error');
-                }
+                if (reportToEdit) openEditModalForUser(reportToEdit);
+                else showNotification('找不到地點資料，可能已被刪除或更新。', 'error');
+            });
+            
+            $('#management-area-content').on('click', '.edit-area-btn', function() {
+                const rowIndex = $(this).data('row-index');
+                const reportToEdit = rawReports.find(r => r.rowIndex == rowIndex && r.isCommunity);
+                if (reportToEdit) openEditModalForUser(reportToEdit);
+                else showNotification('找不到建築資料，可能已被刪除或更新。', 'error');
             });
 
-            $('#management-list-content').on('click', '.delete-store-btn', function() {
+            $('#management-list-content, #management-area-content').on('click', '.delete-store-btn', function() {
                 const rowIndex = $(this).data('row-index');
-                if (window.confirm('確定要刪除這筆您提交的資料嗎？此操作將無法復原。')) {
+                if (confirm('確定要刪除這筆您提交的資料嗎？此操作將無法復原。')) {
                     showNotification('正在刪除...');
                     const payload = {
                         action: 'user_delete',
@@ -2778,15 +3030,12 @@
                         userEmail: userProfile.email,
                         lineUserId: userProfile.lineUserId
                     };
-
                     fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
                     .then(() => {
                         showNotification("資料已成功刪除！", 'success');
                         $('#management-modal').addClass('hidden');
                         setTimeout(loadData, 2000);
-                    }).catch(error => {
-                        showNotification('刪除失敗，請稍後再試。', 'error');
-                    });
+                    }).catch(error => showNotification('刪除失敗，請稍後再試。', 'error'));
                 }
             });
 
@@ -2897,7 +3146,7 @@
                 const rowIndex = $(this).data('row-index');
                 
                 if (action === 'delete') {
-                    if (!window.confirm('確定要刪除這筆資料嗎？此操作將無法復原。')) {
+                    if (!confirm('確定要刪除這筆資料嗎？此操作將無法復原。')) {
                         return;
                     }
                 }
@@ -2923,30 +3172,48 @@
                 });
             }
 
+            // MODIFIED: Handle both point and area editing
             function openEditModalForUser(report) {
                 const forms = [$('#add-location-form'), $('#add-location-form-mobile')];
+                const isAreaEdit = !!report.isCommunity;
+                
                 forms.forEach($f => {
                     $f[0].reset();
-                    $f.find('#edit-row-index').val(report.isCommunity ? '' : report.rowIndex);
-                    $f.find('#edit-area-row-index').val(report.isCommunity ? report.rowIndex : '');
+                    $f.find('#edit-row-index').val(isAreaEdit ? '' : report.rowIndex);
+                    $f.find('#edit-area-row-index').val(isAreaEdit ? report.rowIndex : '');
                     $f.find('#edit-original-name').val(report['地址']);
                     $f.find('#add-address').val(report['地址']);
                     $f.find('#add-area-name').val(report['areaName'] || '');
                     $f.find('#add-category').val(report['分類']);
                     $f.find('#add-blacklist-category').val(report['黑名類別']);
                     $f.find('#add-blacklist-reason').val(report['黑名原因']);
-                    $f.closest('div[id^="add-location-modal"]').find('h2').text('修改地點');
+                    $f.closest('div[id^="add-location-modal"]').find('h2').text(isAreaEdit ? '修改建築' : '修改地點');
                 });
 
                 $('#management-modal').addClass('hidden');
                 
                 const coordinate = ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]);
-                if (isMobile) {
-                    enterMobilePlacementMode(coordinate);
-                    $('#add-location-modal-mobile').removeClass('hidden');
-                    $('#complete-placement-btn').addClass('hidden');
+                
+                if (isAreaEdit) {
+                    // Temporarily remove the features for the area being edited from the main map
+                    const featuresToRemove = areaGridSource.getFeatures().filter(f => 
+                        f.get('parentData') && f.get('parentData').rowIndex == report.rowIndex
+                    );
+                    featuresToRemove.forEach(f => areaGridSource.removeFeature(f));
+                    
+                    if (isMobile) {
+                        enterMobilePlacementMode(coordinate, report.areaBounds);
+                    } else {
+                        enterDesktopAddMode(coordinate, report.areaBounds);
+                    }
                 } else {
-                    enterDesktopAddMode(coordinate);
+                    if (isMobile) {
+                        enterMobilePlacementMode(coordinate);
+                        $('#add-location-modal-mobile').removeClass('hidden');
+                        $('#complete-placement-btn').addClass('hidden');
+                    } else {
+                        enterDesktopAddMode(coordinate);
+                    }
                 }
             }
             
@@ -3012,4 +3279,3 @@
     </script>
 </body>
 </html>
-
