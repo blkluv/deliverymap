@@ -3283,10 +3283,8 @@
                         } catch(e) { console.error("Could not parse areaBounds for address", e); }
                     }
 
-                    const featuresToRemove = areaGridSource.getFeatures().filter(f => 
-                        f.get('parentData') && f.get('parentData').rowIndex == report.rowIndex
-                    );
-                    featuresToRemove.forEach(f => areaGridSource.removeFeature(f));
+                    // NEW: Clear ALL buildings from the map before entering edit mode
+                    areaGridSource.clear();
                     
                     if (isMobile) {
                         enterMobilePlacementMode(coordinate, report.areaBounds);
@@ -3373,5 +3371,3 @@
     </script>
 </body>
 </html>
-
-
