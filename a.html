@@ -1010,7 +1010,7 @@
             });
 
 
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbySBPovbAoWWQEhGq_wShGeY5EdheS8IwVkmgB6T_E1UpnztQ1cQq0KS7MBdhHd1buO/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzYsrtdIA2O2hxeWOFDi0zEVdQitCuzKSD9beNRGaKFEby6i6ANSr-ftuyVcf7zrWq8/exec';
             
             const visibilityThreshold = 16.5; 
 
@@ -1054,7 +1054,7 @@
                     $badge.addClass('hidden');
                 }
             }
-
+            
             // --- MODIFIED: Chat Logic ---
             function initializeChat() {
                 const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/';
@@ -1150,7 +1150,7 @@
                             unreadMessageCount++;
                             updateChatBadge();
                         }
-                        
+
                         const nicknameColor = 'text-blue-600'; 
                         
                         messageHtml = `
@@ -1617,12 +1617,11 @@
                     
                     $('#location-instruction').text('請在地圖上的網格標示範圍。');
                     
-                    // MODIFICATION START: Unconditionally hide markers when entering grid mode
+                    // Unconditionally hide the center marker when entering grid mode
                     $('#desktop-center-marker').addClass('hidden');
                     if (tempMarker) {
                         tempMarker.getElement().style.display = 'none';
                     }
-                    // MODIFICATION END
                     
                     selectedGridCells.clear();
                     if (areaBoundsToLoad) {
