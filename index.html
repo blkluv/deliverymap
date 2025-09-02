@@ -2167,6 +2167,23 @@
                     showNotification('無法解析地址，請手動輸入。', 'warning');
                 }
             }
+
+            // NEW: Function to get address from coordinates without updating a form
+            async function getAddressFromCoords(lon, lat) {
+                const apiKey = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
+                try {
+                    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${apiKey}&language=zh-TW`);
+                    if (!response.ok) return '無法取得地址';
+                    const data = await response.json();
+                    if (data.results && data.results.length > 0) {
+                        return data.results[0].formatted_address;
+                    }
+                    return '無法解析地址';
+                } catch (error) {
+                    console.error("Reverse geocoding failed:", error);
+                    return '地址解析失敗';
+                }
+            }
             
             $(document).on('change', '#add-address', async function() {
                 const $form = $(this).closest('form');
@@ -2959,8 +2976,8 @@
                 }
             }
 
-            // MODIFIED: This function now correctly checks the '製作者' field.
-            function loadUserAreas() {
+            // MODIFIED: This function now correctly checks the '製作者' field and fetches address from coords if needed.
+            async function loadUserAreas() {
                 const $content = $('#management-area-content');
                 $content.html('');
 
@@ -2984,17 +3001,18 @@
                     return;
                 }
 
-                userAreas.forEach(area => {
+                for (const area of userAreas) {
                     const status = String(area['審核']).toUpperCase() === 'TRUE' ? 
                         '<span class="text-green-600 font-semibold">已通過審核</span>' :
                         '<span class="text-yellow-600 font-semibold">待審核</span>';
                     
+                    const addressId = `area-address-${area.rowIndex}`;
                     const areaHtml = $(`
                         <div class="border rounded-lg p-4 mb-4 flex items-center space-x-4">
                             <canvas class="w-24 h-24 bg-gray-100 rounded border border-gray-300"></canvas>
                             <div class="flex-grow">
                                 <h4 class="font-bold text-lg">${area.areaName || '未命名社區'}</h4>
-                                <p class="text-sm text-gray-600">${area['地址']}</p>
+                                <p id="${addressId}" class="text-sm text-gray-600">${area['地址'] || '正在取得地址...'}</p>
                                 <div class="mt-2">狀態: ${status}</div>
                             </div>
                             <div class="flex flex-col space-y-2">
@@ -3005,6 +3023,21 @@
                     `);
                     
                     $content.append(areaHtml);
+
+                    if (!area['地址'] && area.areaBounds) {
+                        try {
+                            const areaBoundsData = JSON.parse(area.areaBounds);
+                            if (areaBoundsData.v === 1 && areaBoundsData.o) {
+                                const [lon, lat] = areaBoundsData.o;
+                                const fetchedAddress = await getAddressFromCoords(parseFloat(lon), parseFloat(lat));
+                                $(`#${addressId}`).text(fetchedAddress);
+                            }
+                        } catch (e) {
+                             $(`#${addressId}`).text('地址格式錯誤');
+                             console.error("Could not parse areaBounds to get address:", e);
+                        }
+                    }
+
                     const canvas = areaHtml.find('canvas')[0];
                     canvas.width = 96 * (window.devicePixelRatio || 1);
                     canvas.height = 96 * (window.devicePixelRatio || 1);
@@ -3012,7 +3045,7 @@
                     canvas.style.height = '96px';
                     
                     setTimeout(() => renderAreaPreview(canvas, area.areaBounds), 0);
-                });
+                }
             }
 
             $('#management-list-content').on('click', '.edit-store-btn', function() {
