@@ -14,7 +14,7 @@ wss.broadcast = function broadcast(data, sender) {
   wss.clients.forEach(function each(client) {
     // 將訊息發送給除了發送者以外的所有人。
     if (client !== sender && client.readyState === WebSocket.OPEN) {
-      // 直接轉發收到的 Buffer/String 資料。
+      // 傳送字串資料。
       client.send(data);
     }
   });
@@ -26,10 +26,12 @@ wss.on('connection', function connection(ws) {
 
   // 監聽來自此客戶端的訊息。
   ws.on('message', function incoming(message) {
-    console.log('收到訊息: %s', message);
+    // 將收到的訊息 (可能是 Buffer) 轉換為 UTF-8 字串。
+    const messageString = message.toString('utf8');
+    console.log('收到訊息字串: %s', messageString);
     
-    // 將收到的訊息廣播給所有其他客戶端。
-    wss.broadcast(message, ws);
+    // 將字串訊息廣播給所有其他客戶端。
+    wss.broadcast(messageString, ws);
   });
   
   // 處理客戶端斷線。
@@ -42,3 +44,4 @@ wss.on('connection', function connection(ws) {
     console.error('WebSocket 錯誤:', error);
   });
 });
+
