@@ -2210,30 +2210,33 @@
 
             // MODIFIED: handleFormSubmit to include areaBounds compression
             function handleFormSubmit(e) {
-                e.preventDefault(); 
+                e.preventDefault();
                 const $form = $(e.target);
                 const $submitBtn = $form.find('.submit-text').parent();
-                
                 const formData = new FormData($form[0]);
-                const reasonText = formData.get('blacklistReason').trim();
-                const chineseCharMatch = reasonText.match(/[\u4e00-\u9fa5]/g);
-
-                if (!chineseCharMatch || chineseCharMatch.length < 3) {
-                    showNotification('黑名原因請至少輸入3個中文字。', 'error');
-                    return;
-                }
                 
+                const areaRowIndex = $form.find('#edit-area-row-index').val();
+                const isAreaUpdate = !!areaRowIndex;
+
+                if (!isAreaUpdate) {
+                    const reasonText = formData.get('blacklistReason').trim();
+                    const chineseCharMatch = reasonText.match(/[\u4e00-\u9fa5]/g);
+                    if (!chineseCharMatch || chineseCharMatch.length < 3) {
+                        showNotification('黑名原因請至少輸入3個中文字。', 'error');
+                        return;
+                    }
+                }
+
                 let finalCoords;
                 let areaBoundsStr = null;
                 const isArea = $form.find('#add-is-area').is(':checked');
-                
+
                 if (isArea) {
                     if (selectedGridCells.size === 0) {
                         showNotification('請在地圖網格上至少選取一個區塊。', 'error');
                         return;
                     }
                     
-                    // --- NEW: areaBounds Compression Logic ---
                     const cellsArray = Array.from(selectedGridCells.entries());
                     let minLon = Infinity, minLat = Infinity;
                     cellsArray.forEach(([key, data]) => {
@@ -2243,11 +2246,8 @@
                     });
 
                     const origin = { lon: minLon, lat: minLat };
-
-                    const fillPalette = [];
-                    const markerPalette = [];
-                    const fillMap = new Map();
-                    const markerMap = new Map();
+                    const fillPalette = [], markerPalette = [];
+                    const fillMap = new Map(), markerMap = new Map();
 
                     cellsArray.forEach(([key, data]) => {
                         if (data.fillColor && !fillMap.has(data.fillColor)) {
@@ -2267,88 +2267,73 @@
                         const [lon, lat] = key.split('-').map(Number);
                         const x = Math.round((lon - origin.lon) / GRID_INTERVAL);
                         const y = Math.round((lat - origin.lat) / GRID_INTERVAL);
-                        
                         const fillIndex = data.fillColor ? fillMap.get(data.fillColor) : '';
                         const markerChar = data.marker ? markerCharMap[data.marker] : '';
                         const markerColorIndex = data.markerColor ? markerMap.get(data.markerColor) : '';
-
                         return `${x},${y}:${fillIndex}:${markerChar}:${markerColorIndex}`;
                     });
                     
                     const compressedData = {
-                        v: 1, // Version 1 of the compressed format
+                        v: 1,
                         o: [origin.lon.toFixed(GRID_PRECISION), origin.lat.toFixed(GRID_PRECISION)],
                         p: palette,
                         c: compressedCells,
                     };
-
                     areaBoundsStr = JSON.stringify(compressedData);
-                    // --- End of Compression Logic ---
-
+                    
                     const centerLon = minLon + (cellsArray.reduce((max, [k]) => Math.max(max, parseFloat(k.split('-')[0])), 0) - minLon) / 2;
                     const centerLat = minLat + (cellsArray.reduce((max, [k]) => Math.max(max, parseFloat(k.split('-')[1])), 0) - minLat) / 2;
                     finalCoords = ol.proj.fromLonLat([centerLon, centerLat]);
 
                 } else {
-                    if (isMobile) {
-                        if (!tempMarker) {
-                            showNotification('請在地圖上設定一個位置。', 'error');
-                            return;
-                        }
-                        finalCoords = tempMarker.getPosition();
-                    } else {
-                        finalCoords = map.getView().getCenter();
+                    finalCoords = isMobile ? (tempMarker ? tempMarker.getPosition() : null) : map.getView().getCenter();
+                    if (!finalCoords) {
+                        showNotification('請在地圖上設定一個位置。', 'error');
+                        return;
                     }
-
                     if (initialAddLocationCoords) {
-                        const initialLonLat = ol.proj.toLonLat(initialAddLocationCoords);
-                        const finalLonLat = ol.proj.toLonLat(finalCoords);
-                        const distance = ol.sphere.getDistance(initialLonLat, finalLonLat);
-                        const maxDistance = 500;
-                        if (distance > maxDistance) {
-                            showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點${maxDistance}公尺。`, 'error');
+                        const distance = ol.sphere.getDistance(ol.proj.toLonLat(initialAddLocationCoords), ol.proj.toLonLat(finalCoords));
+                        if (distance > 500) {
+                            showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點500公尺。`, 'error');
                             return;
                         }
                     }
                 }
                 
-                $submitBtn.prop('disabled', true).find('.submit-text').addClass('hidden');
-                $submitBtn.find('.spinner').removeClass('hidden');
+                $submitBtn.prop('disabled', true).find('.submit-text').addClass('hidden').end().find('.spinner').removeClass('hidden');
                 
                 const lonLat = ol.proj.toLonLat(finalCoords);
                 const rowIndex = $form.find('#edit-row-index').val();
-                const areaRowIndex = $form.find('#edit-area-row-index').val(); // NEW
                 const originalName = $form.find('#edit-original-name').val();
                 
                 let action = 'create';
-                if (areaRowIndex) {
-                    action = 'user_update_area';
-                } else if (rowIndex) {
-                    action = 'admin_modify';
-                } else if (originalName) {
-                    action = 'update';
-                }
+                if (isAreaUpdate) action = 'user_update_area';
+                else if (rowIndex) action = 'admin_modify';
+                else if (originalName) action = 'update';
 
                 const newData = {
-                    action: action, 
-                    rowIndex: areaRowIndex || rowIndex, // Use areaRowIndex if it exists
+                    action: action,
+                    rowIndex: areaRowIndex || rowIndex,
                     originalName: originalName,
-                    userEmail: userProfile.email, // NEW: send user identifier for area updates
-                    lineUserId: userProfile.lineUserId, // NEW: send user identifier for area updates
+                    userEmail: userProfile.email,
+                    lineUserId: userProfile.lineUserId,
                     submitterName: currentUserDisplayName || 'N/A',
                     submitterEmail: userProfile.email || 'N/A',
-                    adminEmail: userProfile.email, 
-                    name: formData.get('address'), 
+                    adminEmail: userProfile.email,
+                    name: formData.get('address'),
                     areaName: formData.get('areaName'),
-                    category: formData.get('category'), 
-                    address: formData.get('address'), 
-                    blacklistCategory: formData.get('blacklistCategory'),
-                    blacklistReason: reasonText,
-                    lon: lonLat[0], 
+                    address: formData.get('address'),
+                    lon: lonLat[0],
                     lat: lonLat[1],
                     timestamp: new Date().toISOString(),
                     areaBounds: areaBoundsStr,
                 };
+
+                if (!isAreaUpdate) {
+                    newData.category = formData.get('category');
+                    newData.blacklistCategory = formData.get('blacklistCategory');
+                    newData.blacklistReason = formData.get('blacklistReason').trim();
+                }
 
                 fetch(APPS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(newData) })
                 .then(res => res.json())
@@ -2656,11 +2641,11 @@
                         // After login, immediately verify token to get the correct profile data (with prioritized nickname)
                         await verifyToken();
                     } else {
-                        showNotification('登入失敗，請稍後再試。', 'error');
+                        showNotification('登入失败，请稍后再试。', 'error');
                     }
                 } catch(error) {
                     console.error('Google login process failed:', error);
-                    showNotification('登入時發生錯誤。', 'error');
+                    showNotification('登入时发生错误。', 'error');
                 }
             });
 
@@ -3215,7 +3200,7 @@
             }
 
             // MODIFIED: Handle both point and area editing
-            function openEditModalForUser(report) {
+            async function openEditModalForUser(report) {
                 const forms = [$('#add-location-form'), $('#add-location-form-mobile')];
                 const isAreaEdit = !!report.isCommunity;
                 
@@ -3230,6 +3215,20 @@
                     $f.find('#add-blacklist-category').val(report['黑名類別']);
                     $f.find('#add-blacklist-reason').val(report['黑名原因']);
                     $f.closest('div[id^="add-location-modal"]').find('h2').text(isAreaEdit ? '修改建築' : '修改地點');
+                    
+                    const $categoryDiv = $f.find('#add-category').closest('div');
+                    const $blacklistCatDiv = $f.find('#add-blacklist-category').closest('div');
+                    const $blacklistReasonDiv = $f.find('#add-blacklist-reason').closest('div');
+                    
+                    if (isAreaEdit) {
+                        $categoryDiv.hide();
+                        $blacklistCatDiv.hide();
+                        $blacklistReasonDiv.hide();
+                    } else {
+                        $categoryDiv.show();
+                        $blacklistCatDiv.show();
+                        $blacklistReasonDiv.show();
+                    }
                 });
 
                 $('#management-modal').addClass('hidden');
@@ -3237,7 +3236,17 @@
                 const coordinate = ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]);
                 
                 if (isAreaEdit) {
-                    // Temporarily remove the features for the area being edited from the main map
+                    if (!report['地址'] && report.areaBounds) {
+                        try {
+                            const areaBoundsData = JSON.parse(report.areaBounds);
+                            if (areaBoundsData.v === 1 && areaBoundsData.o) {
+                                const [lon, lat] = areaBoundsData.o;
+                                const address = await getAddressFromCoords(parseFloat(lon), parseFloat(lat));
+                                forms.forEach($f => $f.find('#add-address').val(address));
+                            }
+                        } catch(e) { console.error("Could not parse areaBounds for address", e); }
+                    }
+
                     const featuresToRemove = areaGridSource.getFeatures().filter(f => 
                         f.get('parentData') && f.get('parentData').rowIndex == report.rowIndex
                     );
