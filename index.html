@@ -1591,8 +1591,8 @@
                     const isAreaEdit = !!($('#edit-area-row-index').val());
                     if (!isAreaEdit) {
                         $('#desktop-center-marker').addClass('hidden');
+                        if (tempMarker) tempMarker.getElement().style.display = 'none';
                     }
-                    if (tempMarker) tempMarker.getElement().style.display = 'none';
                     
                     selectedGridCells.clear();
                     if (areaBoundsToLoad) {
@@ -1793,7 +1793,7 @@
                 initialAddLocationCoords = coordinate;
                 $('#app-container').addClass('desktop-add-mode');
                 
-                $('#desktop-center-marker').removeClass('hidden');
+                $('#desktop-center-marker').removeClass('hidden'); // Always show the marker initially
 
                 if (areaBoundsToLoad) {
                      $('#add-is-area').prop('checked', false); // Start unchecked
@@ -1816,7 +1816,12 @@
             }
             
             function handleDesktopMapMove() {
-                if ($('#app-container').hasClass('desktop-add-mode') && !isAreaSelectionMode) {
+                const isAreaEdit = !!($('#edit-area-row-index').val());
+                if ($('#app-container').hasClass('desktop-add-mode')) {
+                     if (isAreaEdit && $('#add-is-area').is(':checked')) {
+                        // Don't reverse geocode if editing grid, keep the address stable
+                        return; 
+                     }
                     const centerCoords = map.getView().getCenter();
                     const centerLonLat = ol.proj.toLonLat(centerCoords);
                     reverseGeocode(centerLonLat[0], centerLonLat[1]);
@@ -3254,25 +3259,17 @@
                 const coordinate = ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]);
                 
                 if (isAreaEdit) {
-                    if (report.areaBounds) {
+                    areaBoundsForEditing = report.areaBounds; // Store bounds for when checkbox is clicked
+
+                    if (!report['地址'] && report.areaBounds) {
                         try {
                             const areaBoundsData = JSON.parse(report.areaBounds);
                             if (areaBoundsData.v === 1 && areaBoundsData.o) {
-                                const lon = parseFloat(areaBoundsData.o[0]);
-                                const lat = parseFloat(areaBoundsData.o[1]);
-                                // NEW: Use reverse geocoding instead of DMS
-                                getAddressFromCoords(lon, lat).then(address => {
-                                    forms.forEach($f => $f.find('#add-address').val(address));
-                                });
-                            } else {
-                                forms.forEach($f => $f.find('#add-address').val(report['地址'] || '舊格式，無座標'));
+                                const [lon, lat] = areaBoundsData.o;
+                                const address = await getAddressFromCoords(parseFloat(lon), parseFloat(lat));
+                                forms.forEach($f => $f.find('#add-address').val(address));
                             }
-                        } catch(e) { 
-                             console.error("Could not parse areaBounds for address", e);
-                             forms.forEach($f => $f.find('#add-address').val('無法解析座標'));
-                        }
-                    } else {
-                        forms.forEach($f => $f.find('#add-address').val(report['地址'] || '無範圍資料'));
+                        } catch(e) { console.error("Could not parse areaBounds for address", e); }
                     }
 
                     const featuresToRemove = areaGridSource.getFeatures().filter(f => 
@@ -3282,6 +3279,13 @@
                     
                     if (isMobile) {
                         enterMobilePlacementMode(coordinate, report.areaBounds);
+                        // We also need to clone form content for mobile modal
+                        const formContent = $('#add-location-form > .px-6').clone(true, true);
+                        $('#add-location-form-mobile > .px-6').replaceWith(formContent);
+                         // And manually hide irrelevant fields again after cloning
+                        $('#add-location-form-mobile').find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').hide();
+                        $('#add-location-modal-mobile').removeClass('hidden');
+                        $('#complete-placement-btn').addClass('hidden');
                     } else {
                         enterDesktopAddMode(coordinate, report.areaBounds);
                     }
