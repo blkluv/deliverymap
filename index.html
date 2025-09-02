@@ -1052,6 +1052,7 @@
                                 case 'chat':
                                 case 'system_join':
                                 case 'system_leave':
+                                case 'system_name_change': // NEW: Handle name change system message
                                     appendChatMessage(data);
                                     break;
                                 case 'pong':
@@ -1123,7 +1124,8 @@
                         break;
                     case 'system_join':
                     case 'system_leave':
-                        // NEW: Added 'system-message' class for toggling
+                    case 'system_name_change': // NEW: Handle name change message
+                        // Added 'system-message' class for toggling
                         messageHtml = `
                             <div class="text-center text-xs text-gray-500 italic py-1 system-message">
                                 ${sanitizedMessage}
@@ -1138,7 +1140,7 @@
                 }
             }
 
-            // MODIFIED: Removed optimistic message append. Now relies on server broadcast.
+            // MODIFIED: sendChatMessage now relies entirely on the server to broadcast the message back.
             function sendChatMessage() {
                 if (!isLoggedIn) {
                     showNotification('請先登入才能發言！', 'warning');
@@ -2396,8 +2398,6 @@
 
                 checkIfAdmin(userProfile.email);
                 
-                // MODIFIED: Only send join message if location is already known.
-                // Otherwise, the location handler will send it once it's ready.
                 if (isLocationKnown) {
                     sendJoinMessage();
                 }
@@ -2480,17 +2480,29 @@
                 }
             });
 
+            // MODIFIED: Nickname change logic to update chat
             $(document).on('click', '#edit-nickname-btn', function() {
                 const currentName = $('#user-name').text();
                 const newName = prompt("請輸入您的新暱稱：", currentName);
 
                 if (newName && newName.trim() !== '' && newName.trim() !== currentName) {
+                    const oldName = currentUserDisplayName; // Store old name for chat message
                     currentUserDisplayName = newName.trim();
                     const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
                     localStorage.setItem(storageKey, currentUserDisplayName);
                     $('#user-name').text(currentUserDisplayName);
                     
-                    const payload = {
+                    // NEW: Send nickname change to WebSocket server
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const payload = { 
+                            type: 'nickname_change',
+                            newName: currentUserDisplayName
+                        };
+                        ws.send(JSON.stringify(payload));
+                    }
+
+                    // Send to backend for persistence
+                    const backendPayload = {
                         action: 'update_nickname',
                         userEmail: userProfile.email,
                         lineUserId: userProfile.lineUserId,
@@ -2500,7 +2512,7 @@
                     fetch(APPS_SCRIPT_URL, { 
                         method: 'POST', 
                         mode: 'no-cors',
-                        body: JSON.stringify(payload) 
+                        body: JSON.stringify(backendPayload) 
                     })
                     .then(() => {
                         showNotification('暱稱已同步更新！', 'success');
@@ -2935,5 +2947,4 @@
     </script>
 </body>
 </html>
-
 
