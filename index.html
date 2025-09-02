@@ -1583,7 +1583,11 @@
                     $('#map').addClass('map-enhanced grid-mode-active paint-mode');
                     if (dragPanInteraction) dragPanInteraction.setActive(false);
                     $('#location-instruction').text('請在地圖上的網格標示範圍。');
-                    $('#desktop-center-marker').addClass('hidden');
+                    
+                    // MODIFICATION: Do not hide center marker when editing an area
+                    if (!areaBoundsToLoad) {
+                        $('#desktop-center-marker').addClass('hidden');
+                    }
                     if (tempMarker) tempMarker.getElement().style.display = 'none';
                     
                     selectedGridCells.clear();
@@ -1774,11 +1778,12 @@
                 initialAddLocationCoords = coordinate;
                 $('#app-container').addClass('desktop-add-mode');
                 
+                // MODIFICATION: Always show the center marker in this mode now
+                $('#desktop-center-marker').removeClass('hidden');
+
                 if (areaBoundsToLoad) {
                     $('#add-is-area').prop('checked', true);
                     toggleAreaSelectionMode(true, areaBoundsToLoad);
-                } else {
-                    $('#desktop-center-marker').removeClass('hidden');
                 }
                 
                 setTimeout(() => {
@@ -1787,11 +1792,9 @@
                         drawRadiusCircle(coordinate);
                     }
                     map.getView().animate({ center: coordinate, zoom: 17, duration: 500 }, () => {
-                        if (!areaBoundsToLoad) {
-                            const centerCoords = map.getView().getCenter();
-                            const centerLonLat = ol.proj.toLonLat(centerCoords);
-                            reverseGeocode(centerLonLat[0], centerLonLat[1]);
-                        }
+                        const centerCoords = map.getView().getCenter();
+                        const centerLonLat = ol.proj.toLonLat(centerCoords);
+                        reverseGeocode(centerLonLat[0], centerLonLat[1]);
                     });
                 }, 350);
 
@@ -2208,7 +2211,7 @@
                 }
             });
 
-            // MODIFIED: handleFormSubmit to include areaBounds compression
+            // MODIFIED: handleFormSubmit to include areaBounds compression and correct coordinate handling for area edits
             function handleFormSubmit(e) {
                 e.preventDefault();
                 const $form = $(e.target);
@@ -2281,9 +2284,7 @@
                     };
                     areaBoundsStr = JSON.stringify(compressedData);
                     
-                    const centerLon = minLon + (cellsArray.reduce((max, [k]) => Math.max(max, parseFloat(k.split('-')[0])), 0) - minLon) / 2;
-                    const centerLat = minLat + (cellsArray.reduce((max, [k]) => Math.max(max, parseFloat(k.split('-')[1])), 0) - minLat) / 2;
-                    finalCoords = ol.proj.fromLonLat([centerLon, centerLat]);
+                    finalCoords = map.getView().getCenter();
 
                 } else {
                     finalCoords = isMobile ? (tempMarker ? tempMarker.getPosition() : null) : map.getView().getCenter();
@@ -2641,11 +2642,11 @@
                         // After login, immediately verify token to get the correct profile data (with prioritized nickname)
                         await verifyToken();
                     } else {
-                        showNotification('登入失败，请稍后再试。', 'error');
+                        showNotification('登入失敗，請稍後再試。', 'error');
                     }
                 } catch(error) {
                     console.error('Google login process failed:', error);
-                    showNotification('登入时发生错误。', 'error');
+                    showNotification('登入時發生錯誤。', 'error');
                 }
             });
 
