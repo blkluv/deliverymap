@@ -966,6 +966,7 @@
             let isDraggingMarker = false;
             let latestGeocodeBounds = null; // NEW: Store latest geocode bounds
             let areaBoundsForEditing = null; // NEW: Store area bounds when editing
+            let lockedCenterForEditing = null; // NEW: To store the locked center point for area edits
             
             // --- NEW: Area Selection Variables ---
             const gridCanvas = document.getElementById('grid-canvas');
@@ -1434,16 +1435,11 @@
                 
                 const startLon = Math.floor(minLon / GRID_INTERVAL) * GRID_INTERVAL;
                 const startLat = Math.floor(minLat / GRID_INTERVAL) * GRID_INTERVAL;
-
-                const centerCoords = tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
-                const centerLonLat = ol.proj.toLonLat(centerCoords);
-
+                
                 gridCtx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
                 gridCtx.lineWidth = 1;
                 gridCtx.beginPath();
                 for (let lon = startLon; lon < maxLon; lon += GRID_INTERVAL) {
-                    const distance = ol.sphere.getDistance(centerLonLat, [lon, (minLat+maxLat)/2]);
-                    if(distance > GRID_DRAW_RADIUS) continue; 
                     const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([lon, minLat]));
                     if(pixel) {
                         gridCtx.moveTo(pixel[0], 0);
@@ -1451,8 +1447,6 @@
                     }
                 }
                 for (let lat = startLat; lat < maxLat; lat += GRID_INTERVAL) {
-                    const distance = ol.sphere.getDistance(centerLonLat, [(minLon+maxLon)/2, lat]);
-                    if(distance > GRID_DRAW_RADIUS) continue;
                     const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([minLon, lat]));
                     if(pixel) {
                         gridCtx.moveTo(0, pixel[1]);
@@ -1467,8 +1461,6 @@
                 
                 selectedGridCells.forEach((data, cellKey) => {
                     const [lon, lat] = cellKey.split('-').map(Number);
-                    const distance = ol.sphere.getDistance(centerLonLat, [lon, lat]);
-                    if(distance > GRID_DRAW_RADIUS) return;
 
                     const bottomLeft = ol.proj.fromLonLat([lon, lat]);
                     const topRight = ol.proj.fromLonLat([lon + GRID_INTERVAL, lat + GRID_INTERVAL]);
@@ -1497,6 +1489,20 @@
                         gridCtx.fillText(markerText, p1[0] + width / 2, p2[1] + height / 2);
                     }
                 });
+
+                // NEW: Draw locked center point
+                if (lockedCenterForEditing) {
+                    const pixel = map.getPixelFromCoordinate(lockedCenterForEditing);
+                    if (pixel) {
+                        gridCtx.beginPath();
+                        gridCtx.arc(pixel[0], pixel[1], 5, 0, 2 * Math.PI, false);
+                        gridCtx.fillStyle = 'red';
+                        gridCtx.fill();
+                        gridCtx.lineWidth = 2;
+                        gridCtx.strokeStyle = 'white';
+                        gridCtx.stroke();
+                    }
+                }
             }
 
             function paintCell(evt) {
@@ -1587,11 +1593,9 @@
                     
                     $('#location-instruction').text('請在地圖上的網格標示範圍。');
                     
-                    // Do not hide the marker if we are editing an area
-                    const isAreaEdit = !!($('#edit-area-row-index').val());
-                    if (!isAreaEdit) {
-                        $('#desktop-center-marker').addClass('hidden');
-                        if (tempMarker) tempMarker.getElement().style.display = 'none';
+                    // Do not hide the center marker when editing, it's the reference point
+                    if (isMobile && tempMarker) {
+                         tempMarker.getElement().style.pointerEvents = 'none'; // Make it non-interactive
                     }
                     
                     selectedGridCells.clear();
@@ -1642,9 +1646,10 @@
                 } else {
                     $('#map').removeClass('map-enhanced grid-mode-active paint-mode pan-mode');
                     if (dragPanInteraction) dragPanInteraction.setActive(true); // Unlock map panning
+                    if (isMobile && tempMarker) {
+                         tempMarker.getElement().style.pointerEvents = 'auto';
+                    }
                     $('#location-instruction').text('請移動地圖中心點來選擇位置。');
-                    $('#desktop-center-marker').removeClass('hidden');
-                    if (tempMarker) tempMarker.getElement().style.display = 'block';
                     $('#grid-canvas').addClass('hidden');
                     $('#grid-toolbar').addClass('hidden').removeClass('flex');
                     gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
@@ -1705,8 +1710,13 @@
                 const isAreaEdit = !!($('#edit-area-row-index').val());
 
                 if (isChecked) {
+                    // When checking the box during an area edit, lock the center point
+                    if (isAreaEdit) {
+                        lockedCenterForEditing = isMobile ? tempMarker.getPosition() : map.getView().getCenter();
+                    }
                     toggleAreaSelectionMode(true, isAreaEdit ? areaBoundsForEditing : null);
                 } else {
+                    lockedCenterForEditing = null; // Clear the lock when unchecking
                     toggleAreaSelectionMode(false);
                 }
             });
@@ -1835,6 +1845,7 @@
                 
                 radiusSource.clear();
                 initialAddLocationCoords = null;
+                lockedCenterForEditing = null; // NEW: Reset locked center
                 
                 if (isMobile) {
                     if(tempMarker) map.removeOverlay(tempMarker);
