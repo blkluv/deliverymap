@@ -2168,24 +2168,6 @@
                 }
             }
             
-            // NEW: Function to convert decimal degrees to DMS format
-            function toDms(dd, type) {
-                const absDd = Math.abs(dd);
-                const degrees = Math.floor(absDd);
-                const minutesDecimal = (absDd - degrees) * 60;
-                const minutes = Math.floor(minutesDecimal);
-                const seconds = ((minutesDecimal - minutes) * 60).toFixed(2);
-
-                let direction;
-                if (type === 'lat') {
-                    direction = dd >= 0 ? '北' : '南';
-                } else { // lon
-                    direction = dd >= 0 ? '東' : '西';
-                }
-                
-                return `${degrees}°${minutes}'${seconds}" ${direction}`;
-            }
-
             // NEW: Function to get address from coordinates without updating a form
             async function getAddressFromCoords(lon, lat) {
                 const apiKey = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
@@ -3227,7 +3209,7 @@
                     $f.find('#edit-row-index').val(isAreaEdit ? '' : report.rowIndex);
                     $f.find('#edit-area-row-index').val(isAreaEdit ? report.rowIndex : '');
                     $f.find('#edit-original-name').val(report['地址']);
-                    $f.find('#add-address').val(report['地址']);
+                    $f.find('#add-address').val(report['地址']); // Keep this as a fallback
                     $f.find('#add-area-name').val(report['areaName'] || '');
                     $f.find('#add-category').val(report['分類']);
                     $f.find('#add-blacklist-category').val(report['黑名類別']);
@@ -3260,15 +3242,15 @@
                             if (areaBoundsData.v === 1 && areaBoundsData.o) {
                                 const lon = parseFloat(areaBoundsData.o[0]);
                                 const lat = parseFloat(areaBoundsData.o[1]);
-                                const dmsLat = toDms(lat, 'lat');
-                                const dmsLon = toDms(lon, 'lon');
-                                const dmsAddress = `${dmsLat}, ${dmsLon}`;
-                                forms.forEach($f => $f.find('#add-address').val(dmsAddress));
+                                // NEW: Use reverse geocoding instead of DMS
+                                getAddressFromCoords(lon, lat).then(address => {
+                                    forms.forEach($f => $f.find('#add-address').val(address));
+                                });
                             } else {
                                 forms.forEach($f => $f.find('#add-address').val(report['地址'] || '舊格式，無座標'));
                             }
                         } catch(e) { 
-                             console.error("Could not parse areaBounds for DMS", e);
+                             console.error("Could not parse areaBounds for address", e);
                              forms.forEach($f => $f.find('#add-address').val('無法解析座標'));
                         }
                     } else {
@@ -3358,4 +3340,3 @@
     </script>
 </body>
 </html>
-
