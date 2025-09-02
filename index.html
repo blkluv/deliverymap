@@ -996,6 +996,7 @@
             let loginCheckInterval = null; // 修正: 用於存放定時器的變數
             let ws = null; // NEW: WebSocket variable
             let heartbeatInterval = null; // NEW: For WebSocket heartbeat
+            let isLocationKnown = false; // NEW: Flag to track if location has been determined
 
             function loadUserVotes() {
                 try {
@@ -1028,7 +1029,7 @@
 
                     ws.onopen = function() {
                         console.log('聊天室已連線。');
-                        sendJoinMessage();
+                        // sendJoinMessage(); // REMOVED: No longer called here, will be called when both login and location are ready
                         
                         // NEW: Start heartbeat to keep connection alive
                         if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -2232,6 +2233,8 @@
                 if (!navigator.geolocation) {
                     showNotification('您的瀏覽器不支援地理定位', 'warning');
                     loadData(); 
+                    isLocationKnown = true; // Still mark as known to unblock login flow
+                    if (isLoggedIn) sendJoinMessage();
                     return;
                 }
                 
@@ -2244,11 +2247,19 @@
 
                         const city = await reverseGeocodeForCity(pos.coords.longitude, pos.coords.latitude);
                         currentUserCity = city || '未知區域';
+                        isLocationKnown = true; // MODIFIED: Set flag
                         loadData(city);
+                        if (isLoggedIn) { // MODIFIED: Check and send join message
+                            sendJoinMessage();
+                        }
                     },
                     (err) => {
                         showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
+                        isLocationKnown = true; // MODIFIED: Set flag even on error
                         loadData();
+                        if (isLoggedIn) { // MODIFIED: Check and send join message
+                            sendJoinMessage();
+                        }
                     },
                     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
                 );
@@ -2384,7 +2395,12 @@
                 }
 
                 checkIfAdmin(userProfile.email);
-                sendJoinMessage();
+                
+                // MODIFIED: Only send join message if location is already known.
+                // Otherwise, the location handler will send it once it's ready.
+                if (isLocationKnown) {
+                    sendJoinMessage();
+                }
             }
 
             function initializeGoogleButton() {
@@ -2919,4 +2935,5 @@
     </script>
 </body>
 </html>
+
 
