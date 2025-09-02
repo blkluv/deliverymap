@@ -14,11 +14,10 @@ const MAX_HISTORY = 200; // 設定要保留的訊息數量上限
 
 console.log('WebSocket 伺服器已在連接埠 8080 上啟動...');
 
-// 這個函式會將收到的訊息廣播給所有已連線的客戶端。
-wss.broadcast = function broadcast(data, sender) {
+// MODIFIED: 這個函式現在會將訊息廣播給所有已連線的客戶端，包含發送者自己。
+wss.broadcast = function broadcast(data) {
   wss.clients.forEach(function each(client) {
-    // 將訊息發送給除了發送者以外的所有人。
-    if (client !== sender && client.readyState === WebSocket.OPEN) {
+    if (client.readyState === WebSocket.OPEN) {
       client.send(data);
     }
   });
@@ -41,6 +40,7 @@ wss.on('connection', function connection(ws) {
           // 在連線物件上儲存使用者資訊
           ws.nickname = data.nickname;
           ws.pictureUrl = data.pictureUrl;
+          ws.city = data.city; // 儲存城市資訊
 
           // 1. 馬上將歷史訊息傳送給這位剛連線的使用者
           ws.send(JSON.stringify({ type: 'history', data: messageHistory }));
@@ -60,7 +60,8 @@ wss.on('connection', function connection(ws) {
             messageHistory.shift(); // 保持歷史記錄在200則以內
           }
           
-          wss.broadcast(JSON.stringify(joinMessage), ws); // 廣播給其他人
+          // MODIFIED: 廣播給包含發送者在內的所有人
+          wss.broadcast(JSON.stringify(joinMessage)); 
           console.log(`${ws.nickname} 已加入。`);
           break;
 
@@ -70,7 +71,8 @@ wss.on('connection', function connection(ws) {
           const chatMessage = {
             type: 'chat',
             nickname: ws.nickname || '匿名', // 提供預設值以防萬一
-            pictureUrl: ws.pictureUrl || '', // 提供預設值以防萬一
+            pictureUrl: ws.pictureUrl || '', 
+            city: ws.city || '未知區域', // 附上城市資訊
             message: data.message,
             timestamp: new Date().toISOString()
           };
@@ -78,12 +80,18 @@ wss.on('connection', function connection(ws) {
           // 將聊天訊息加入歷史記錄
           messageHistory.push(chatMessage);
           if (messageHistory.length > MAX_HISTORY) {
-            messageHistory.shift(); // 保持歷史記錄在200則以內
+            messageHistory.shift(); 
           }
 
-          // 廣播給所有其他客戶端
-          wss.broadcast(JSON.stringify(chatMessage), ws);
+          // MODIFIED: 廣播給包含發送者在內的所有人
+          wss.broadcast(JSON.stringify(chatMessage));
           console.log(`來自 ${ws.nickname} 的訊息: ${data.message}`);
+          break;
+        
+        // --- 新增功能：處理心跳機制 ---
+        case 'ping':
+          // 當收到客戶端的 ping 時，回傳一個 pong
+          ws.send(JSON.stringify({ type: 'pong' }));
           break;
 
         default:
@@ -112,8 +120,8 @@ wss.on('connection', function connection(ws) {
         messageHistory.shift();
       }
       
-      // 將離開訊息廣播給所有還在線上的客戶端
-      wss.broadcast(JSON.stringify(leaveMessage), null); // sender 為 null 表示廣播給所有人
+      // MODIFIED: 廣播給所有還在線上的客戶端
+      wss.broadcast(JSON.stringify(leaveMessage));
     } else {
       console.log('一個未驗證的客戶端已斷線。');
     }
