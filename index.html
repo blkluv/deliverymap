@@ -965,6 +965,7 @@
             let tempMarker = null; // Draggable marker for mobile
             let isDraggingMarker = false;
             let latestGeocodeBounds = null; // NEW: Store latest geocode bounds
+            let areaBoundsForEditing = null; // NEW: Store area bounds when editing
             
             // --- NEW: Area Selection Variables ---
             const gridCanvas = document.getElementById('grid-canvas');
@@ -1581,11 +1582,14 @@
                     const zoomThreshold = isMobile ? GRID_ZOOM_LEVEL_MOBILE : GRID_ZOOM_LEVEL_WEB;
                     map.getView().animate({ zoom: zoomThreshold, duration: 800 });
                     $('#map').addClass('map-enhanced grid-mode-active paint-mode');
-                    if (dragPanInteraction) dragPanInteraction.setActive(false);
+                    
+                    if (dragPanInteraction) dragPanInteraction.setActive(false); // Lock map panning
+                    
                     $('#location-instruction').text('請在地圖上的網格標示範圍。');
                     
-                    // MODIFICATION: Do not hide center marker when editing an area
-                    if (!areaBoundsToLoad) {
+                    // Do not hide the marker if we are editing an area
+                    const isAreaEdit = !!($('#edit-area-row-index').val());
+                    if (!isAreaEdit) {
                         $('#desktop-center-marker').addClass('hidden');
                     }
                     if (tempMarker) tempMarker.getElement().style.display = 'none';
@@ -1637,7 +1641,7 @@
                     map.on('pointerdown', mapPointerDown);
                 } else {
                     $('#map').removeClass('map-enhanced grid-mode-active paint-mode pan-mode');
-                    if (dragPanInteraction) dragPanInteraction.setActive(true);
+                    if (dragPanInteraction) dragPanInteraction.setActive(true); // Unlock map panning
                     $('#location-instruction').text('請移動地圖中心點來選擇位置。');
                     $('#desktop-center-marker').removeClass('hidden');
                     if (tempMarker) tempMarker.getElement().style.display = 'block';
@@ -1697,7 +1701,14 @@
             }
             
             $(document).on('change', '#add-is-area', function() {
-                toggleAreaSelectionMode($(this).is(':checked'));
+                const isChecked = $(this).is(':checked');
+                const isAreaEdit = !!($('#edit-area-row-index').val());
+
+                if (isChecked) {
+                    toggleAreaSelectionMode(true, isAreaEdit ? areaBoundsForEditing : null);
+                } else {
+                    toggleAreaSelectionMode(false);
+                }
             });
 
             function drawRadiusCircle(centerCoords) {
@@ -1755,8 +1766,8 @@
                 map.addOverlay(tempMarker);
 
                 if (areaBoundsToLoad) {
-                    $('#add-is-area').prop('checked', true); 
-                    toggleAreaSelectionMode(true, areaBoundsToLoad); 
+                    $('#add-is-area').prop('checked', false); // Start unchecked
+                    toggleAreaSelectionMode(false); 
                     $('#add-location-modal-mobile').removeClass('hidden'); 
                 } else {
                     drawRadiusCircle(coordinate);
@@ -1765,6 +1776,10 @@
                 }
 
                 markerEl.addEventListener('pointerdown', (e) => {
+                    const isAreaEdit = !!($('#edit-area-row-index').val());
+                    if (isAreaEdit && $('#add-is-area').is(':checked')) {
+                        return; // Prevent moving marker if area editing is active
+                    }
                     isDraggingMarker = true;
                     map.getInteractions().forEach(i => { if(i instanceof ol.interaction.DragPan) i.setActive(false); });
                     document.addEventListener('pointermove', handlePointerMove);
@@ -1778,12 +1793,11 @@
                 initialAddLocationCoords = coordinate;
                 $('#app-container').addClass('desktop-add-mode');
                 
-                // MODIFICATION: Always show the center marker in this mode now
                 $('#desktop-center-marker').removeClass('hidden');
 
                 if (areaBoundsToLoad) {
-                    $('#add-is-area').prop('checked', true);
-                    toggleAreaSelectionMode(true, areaBoundsToLoad);
+                     $('#add-is-area').prop('checked', false); // Start unchecked
+                    toggleAreaSelectionMode(false);
                 }
                 
                 setTimeout(() => {
@@ -3205,8 +3219,11 @@
                 const forms = [$('#add-location-form'), $('#add-location-form-mobile')];
                 const isAreaEdit = !!report.isCommunity;
                 
+                areaBoundsForEditing = null; // Reset before use
+
                 forms.forEach($f => {
                     $f[0].reset();
+                    $f.find('#add-is-area').prop('checked', false); // Start with checkbox unchecked
                     $f.find('#edit-row-index').val(isAreaEdit ? '' : report.rowIndex);
                     $f.find('#edit-area-row-index').val(isAreaEdit ? report.rowIndex : '');
                     $f.find('#edit-original-name').val(report['地址']);
@@ -3341,3 +3358,5 @@
     </script>
 </body>
 </html>
+
+
