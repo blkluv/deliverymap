@@ -337,6 +337,11 @@
             border: none;
             border-radius: 0.25rem; /* rounded */
         }
+
+        /* NEW: Styles for hiding system messages in chat */
+        #chat-messages.hide-system-messages .system-message {
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -665,12 +670,18 @@
             </div>
         </div>
 
-        <!-- NEW: Chat Modal -->
+        <!-- MODIFIED: Chat Modal with system message toggle -->
         <div id="chat-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col" style="height: 70vh;">
                 <div class="p-4 border-b flex justify-between items-center">
                     <h2 class="text-xl font-bold text-gray-800">公開聊天室</h2>
-                    <button id="close-chat-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+                    <div class="flex items-center space-x-4">
+                         <label class="flex items-center text-sm text-gray-600 cursor-pointer">
+                            <input type="checkbox" id="hide-system-msgs-checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <span class="ml-2 whitespace-nowrap">隱藏系統訊息</span>
+                         </label>
+                        <button id="close-chat-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+                    </div>
                 </div>
                 <div id="chat-messages" class="flex-grow p-4 overflow-y-auto custom-scrollbar flex flex-col space-y-2 bg-gray-50">
                     <!-- Messages will be appended here -->
@@ -984,6 +995,7 @@
             const SESSION_TOKEN_KEY = 'userSessionToken'; // NEW
             let loginCheckInterval = null; // 修正: 用於存放定時器的變數
             let ws = null; // NEW: WebSocket variable
+            let heartbeatInterval = null; // NEW: For WebSocket heartbeat
 
             function loadUserVotes() {
                 try {
@@ -1008,27 +1020,41 @@
                 const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/';
                 
                 function connect() {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        return; // Already connected
+                    }
+
                     ws = new WebSocket(WEBSOCKET_URL);
 
                     ws.onopen = function() {
                         console.log('聊天室已連線。');
-                        sendJoinMessage(); // NEW: Announce user joining
+                        sendJoinMessage();
+                        
+                        // NEW: Start heartbeat to keep connection alive
+                        if (heartbeatInterval) clearInterval(heartbeatInterval);
+                        heartbeatInterval = setInterval(() => {
+                            if (ws && ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({ type: 'ping' }));
+                            }
+                        }, 30000); // Send ping every 30 seconds
                     };
 
                     ws.onmessage = function(event) {
                         try {
                             const data = JSON.parse(event.data);
                             
-                            // NEW: Handle different message types
                             switch (data.type) {
                                 case 'history':
-                                    $('#chat-messages').empty(); // Clear before loading history
+                                    $('#chat-messages').empty();
                                     data.data.forEach(msg => appendChatMessage(msg));
                                     break;
                                 case 'chat':
                                 case 'system_join':
                                 case 'system_leave':
                                     appendChatMessage(data);
+                                    break;
+                                case 'pong':
+                                    // Pong received, connection is healthy.
                                     break;
                                 default:
                                     console.warn("收到未知的訊息類型:", data.type);
@@ -1040,7 +1066,8 @@
 
                     ws.onclose = function() {
                         console.log('聊天室連線已中斷，3秒後嘗試重新連線...');
-                        setTimeout(connect, 3000); // Reconnect after 3 seconds
+                        if (heartbeatInterval) clearInterval(heartbeatInterval);
+                        setTimeout(connect, 3000);
                     };
 
                     ws.onerror = function(error) {
@@ -1052,7 +1079,6 @@
                 connect();
             }
             
-            // NEW: Send join message to server
             function sendJoinMessage() {
                 if (isLoggedIn && ws && ws.readyState === WebSocket.OPEN) {
                     const payload = {
@@ -1065,12 +1091,10 @@
                 }
             }
 
-            // MODIFIED: Append chat message with new structure
             function appendChatMessage(data) {
                 const $chatMessages = $('#chat-messages');
                 const messageTime = new Date(data.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' });
                 
-                // Sanitize all inputs to prevent XSS
                 const sanitizedMessage = $('<div>').text(data.message || '').html();
                 const sanitizedNickname = $('<div>').text(data.nickname || '匿名').html();
                 const sanitizedCity = $('<div>').text(data.city || '未知區域').html();
@@ -1080,7 +1104,6 @@
 
                 switch (data.type) {
                     case 'chat':
-                        // *** 您可以在此處修改暱稱顏色，例如 'text-green-600' ***
                         const nicknameColor = 'text-blue-600'; 
                         
                         messageHtml = `
@@ -1099,8 +1122,9 @@
                         break;
                     case 'system_join':
                     case 'system_leave':
+                        // NEW: Added 'system-message' class for toggling
                         messageHtml = `
-                            <div class="text-center text-xs text-gray-500 italic py-1">
+                            <div class="text-center text-xs text-gray-500 italic py-1 system-message">
                                 ${sanitizedMessage}
                             </div>
                         `;
@@ -1109,12 +1133,11 @@
                 
                 if(messageHtml) {
                     $chatMessages.append(messageHtml);
-                    // Scroll to the bottom
                     $chatMessages.scrollTop($chatMessages[0].scrollHeight);
                 }
             }
 
-            // MODIFIED: Send chat message with new structure
+            // MODIFIED: Removed optimistic message append. Now relies on server broadcast.
             function sendChatMessage() {
                 if (!isLoggedIn) {
                     showNotification('請先登入才能發言！', 'warning');
@@ -1159,19 +1182,16 @@
                     if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
                     
                     const results = await response.json();
-                    rawReports = results; // Store raw data for admin panel
+                    rawReports = results;
                     
                     const groupedData = new Map();
-                    // NEW: Group community areas separately
                     const communityAreas = [];
 
                     results.forEach(data => {
-                        // NEW: Check if it's a community area with areaBounds
                         if (data.isCommunity) {
                             communityAreas.push(data);
                         }
 
-                        // Also process for point data, unless it's ONLY an area
                         const baseAddress = (data['地址'] || '').split(/樓|之|-/)[0].trim();
                         if (baseAddress) {
                             if (!groupedData.has(baseAddress)) {
@@ -1182,16 +1202,13 @@
                     });
 
                     vectorSource.clear();
-                    areaGridSource.clear(); // NEW: Clear area grid source
+                    areaGridSource.clear();
                     allFeatures = [];
                     const pinyinOptions = { pattern: 'pinyin', toneType: 'none', removeNonZh: true };
                     
-                    // NEW: Process and draw community areas first
                     drawCommunityAreas(communityAreas);
 
-                    // Process point data
                     groupedData.forEach((group, baseAddress) => {
-                         // Don't create a point if this group only contains area data
                         if(group.every(item => item.isCommunity)) return;
                         createPointFeature(group, baseAddress, pinyin, pinyinOptions);
                     });
@@ -1250,7 +1267,6 @@
                 }
             }
 
-            // MODIFIED: populateFiltersAndLegend to use icons
             function populateFiltersAndLegend() {
                 const $categorySelect = $('#category-select');
                 const $addCategorySelect = $('#add-category');
@@ -1263,10 +1279,10 @@
                 $storeListFilters.html('<button data-category="" class="store-filter-btn active bg-blue-600 text-white px-2 py-0.5 text-xs rounded-full mr-2 flex-shrink-0">全部</button>');
                 
                 allCategories.forEach(category => {
-                     if (legendIcons[category]) { // Use legendIcons here
+                     if (legendIcons[category]) {
                         $categorySelect.append(`<option value="${category}">${category}</option>`);
                         $addCategorySelect.append($('<option>', { value: category, text: category }));
-                        const iconSrc = legendIcons[category]; // Use legendIcons here
+                        const iconSrc = legendIcons[category];
                         $legendContent.append(`<div class="flex items-center"><img src="${iconSrc}" class="h-4 w-4 mr-1.5">${category}</div>`);
                         $storeListFilters.append(`<button data-category="${category}" class="store-filter-btn text-nowrap bg-white text-black px-2 py-0.5 text-xs rounded-full mr-2 flex-shrink-0 border" style="border-color: ${categoryColors[category]};">${category}</button>`);
                      }
@@ -1314,7 +1330,6 @@
                 else showNotification('無法定位您的位置。', 'warning');
             });
             
-            // --- NEW: Search Address Panel Logic ---
             async function performSearch(address) {
                 if (!address || address.trim() === '') return;
 
@@ -1323,7 +1338,6 @@
                 const $notification = $('#notification');
                 
                 if (data && data.results && data.results.length > 0) {
-                    // Hide the 'searching' notification on success
                     if ($notification.text() === '正在搜尋地址...') {
                         $notification.addClass('hidden');
                     }
@@ -1341,10 +1355,9 @@
                 
                 if ($searchPanel.hasClass('hidden')) { 
                     $searchPanel.removeClass('hidden');
-                    $('#search-address-input').val('').focus(); // Clear and focus input
+                    $('#search-address-input').val('').focus();
 
                     try {
-                        // This API requires a secure context (HTTPS) and user permission.
                         const permission = await navigator.permissions.query({ name: 'clipboard-read' });
                         if (permission.state === 'granted' || permission.state === 'prompt') {
                             const text = await navigator.clipboard.readText();
@@ -1376,8 +1389,6 @@
                 }
             });
 
-            // --- NEW/MODIFIED Add Location & Area Selection Logic ---
-
             function drawGrid() {
                 if (!isAreaSelectionMode) return;
                 
@@ -1398,7 +1409,6 @@
                 const centerCoords = tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
                 const centerLonLat = ol.proj.toLonLat(centerCoords);
 
-                // Draw grid lines
                 gridCtx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
                 gridCtx.lineWidth = 1;
                 gridCtx.beginPath();
@@ -1422,7 +1432,6 @@
                 }
                 gridCtx.stroke();
 
-                // Draw selected cells and markers
                 gridCtx.font = 'bold 16px sans-serif';
                 gridCtx.textAlign = 'center';
                 gridCtx.textBaseline = 'middle';
@@ -1461,7 +1470,6 @@
                 });
             }
 
-            // MODIFIED: paintCell function with new logic
             function paintCell(evt) {
                 if (currentAreaTool === 'pan') return;
 
@@ -1577,7 +1585,6 @@
                     const b = parseInt(hexColor.slice(5, 7), 16);
                     currentAreaColor = `rgba(${r}, ${g}, ${b}, 0.7)`;
                     $fillToolSvg.css('stroke', hexColor);
-                    // No need to call drawGrid() here, color is applied on paint
                 });
 
                 $('#palette-marker-color').on('input', function() {
@@ -1585,7 +1592,6 @@
                     $markerToolBtns.css('color', currentMarkerColor);
                 });
 
-                // Initial color sync
                 $fillToolSvg.css('stroke', $('#palette-fill-color').val());
                 $markerToolBtns.css('color', $('#palette-marker-color').val());
 
@@ -1779,8 +1785,6 @@
             });
 
             $('#close-add-location-modal, #close-add-location-modal-mobile').on('click', exitAddMode);
-
-            // --- REFACTORED: Popup Logic ---
 
             function extractAddressNumbers(address) {
                 if (!address) return [Infinity];
@@ -1987,21 +1991,17 @@
                 
                 let featureClicked = false;
                 
-                // NEW: Check area grid layer first
                 const areaFeature = map.forEachFeatureAtPixel(evt.pixel, f => f.get('parentData') ? f : null, {
                     layerFilter: layer => layer === areaGridLayer
                 });
                 
                 if(areaFeature) {
                     featureClicked = true;
-                    // For now, don't show a popup for area clicks to avoid clutter
-                    // but you could implement one here if needed.
                     console.log("Clicked on area:", areaFeature);
                 }
 
                 if (featureClicked) return;
 
-                // Original cluster logic
                 const clusterFeature = map.forEachFeatureAtPixel(evt.pixel, f => f, {
                     layerFilter: layer => layer === clusterLayer
                 });
@@ -2139,7 +2139,6 @@
                     
                     areaBoundsStr = JSON.stringify(cellsToSave);
                     
-                    // Use the center of the selected area for the single lat/lon point
                     const centerLon = minLon + (maxLon - minLon) / 2;
                     const centerLat = minLat + (maxLat - minLat) / 2;
                     finalCoords = ol.proj.fromLonLat([centerLon, centerLat]);
@@ -2159,7 +2158,6 @@
                         const initialLonLat = ol.proj.toLonLat(initialAddLocationCoords);
                         const finalLonLat = ol.proj.toLonLat(finalCoords);
                         const distance = ol.sphere.getDistance(initialLonLat, finalLonLat);
-                        // *** 可修改數字：修改後的位置與初始定位點的最大允許距離（單位：公尺），預設為500公尺 ***
                         const maxDistance = 500;
                         if (distance > maxDistance) {
                             showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點${maxDistance}公尺。`, 'error');
@@ -2245,12 +2243,12 @@
                         $('#user-location').removeClass('hidden');
 
                         const city = await reverseGeocodeForCity(pos.coords.longitude, pos.coords.latitude);
-                        currentUserCity = city || '未知區域'; // NEW: Store city
+                        currentUserCity = city || '未知區域';
                         loadData(city);
                     },
                     (err) => {
                         showNotification('無法取得您的位置，將顯示全台地圖。', 'warning');
-                        loadData(); // Load all data on error
+                        loadData();
                     },
                     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
                 );
@@ -2274,7 +2272,6 @@
                 }
             }
             
-            // --- NEW: Function to draw saved community areas ---
             function drawCommunityAreas(areas) {
                 areas.forEach(areaData => {
                     try {
@@ -2300,7 +2297,6 @@
                                 parentData: areaData
                             });
 
-                             // Define the style function for each cell
                             const cellStyleFunction = function(feature, resolution) {
                                 const zoom = map.getView().getZoomForResolution(resolution);
                                 const styles = [];
@@ -2335,7 +2331,6 @@
                             areaGridSource.addFeature(cellFeature);
                         });
                         
-                        // Add area name label
                         if (areaData.areaName) {
                             const centerLon = minLon + (maxLon - minLon) / 2;
                             const centerLat = minLat + (maxLat - minLat) / 2;
@@ -2369,7 +2364,6 @@
                 });
             }
             
-            // --- MODIFIED: Login Logic to interact with Chat ---
             function setLoginState(profile) {
                 isLoggedIn = true;
                 userProfile = profile;
@@ -2390,7 +2384,7 @@
                 }
 
                 checkIfAdmin(userProfile.email);
-                sendJoinMessage(); // NEW: Announce user in chat upon login
+                sendJoinMessage();
             }
 
             function initializeGoogleButton() {
@@ -2623,9 +2617,6 @@
                 updateStoreList();
             });
             
-            // 修正: 移除舊的按鈕點擊事件
-            // $('#toggle-store-list-btn').on('click', function() { ... });
-
             map.getView().on('change:resolution', () => {
                 const zoom = map.getView().getZoom();
                 if (zoom <= visibilityThreshold) {
@@ -2633,7 +2624,6 @@
                 }
             });
             
-            // --- REFACTORED: Management Modal Logic ---
             $('#manage-btn').on('click', function() {
                 const userReports = rawReports.filter(r => 
                     (userProfile.email && r.submitterEmail === userProfile.email) ||
@@ -2707,8 +2697,6 @@
                     });
                 }
             });
-
-            // --- Review Modal Logic (REFACTORED) ---
 
             $('#review-btn').on('click', function() {
                 $('#review-modal').removeClass('hidden');
@@ -2871,42 +2859,35 @@
             
             // --- Initial Load ---
             async function main() {
-                // 修正：將所有邏輯移到一個函式中，以便在 DOMContentLoaded 後執行
                 const initializeApp = async () => {
                     setupGridToolbar();
                     initializeChat();
                     
                     const lineLoginLiffUrl = 'https://liff.line.me/2008020548-lVYKgg0B';
                     
-                    // 1. 優先載入地圖與使用者定位
                     loadUserVotes();
                     initializeUserLocation();
 
-                    // 2. 在背景驗證登入狀態
                     const isTokenLoggedIn = await verifyToken();
 
-                    // 3. 根據環境和登入狀態決定下一步
                     if (isLineApp && !isTokenLoggedIn) {
-                        // 在 LINE 環境且未登入，直接導向登入頁
                         window.location.href = lineLoginLiffUrl;
-                        return; // 導向後停止後續執行
+                        return;
                     } else if (!isLineApp && !isTokenLoggedIn) {
-                        // 在非 LINE 環境且未登入，才顯示 Google 登入按鈕
                         initializeGoogleButton();
-                         // 修正: 啟動定時檢查器
                         if (loginCheckInterval) clearInterval(loginCheckInterval);
-                        let attempts = 0; // 防止無限迴圈
+                        let attempts = 0;
                         loginCheckInterval = setInterval(async () => {
                             attempts++;
                             if (!isLoggedIn) {
                                 const success = await verifyToken();
-                                if (success || attempts > 30) { // 成功或超過30秒後停止
+                                if (success || attempts > 30) {
                                     clearInterval(loginCheckInterval);
                                 }
                             } else {
                                      clearInterval(loginCheckInterval);
                             }
-                        }, 1000); // 每秒檢查一次
+                        }, 1000);
                     }
 
                     // Chat event listeners
@@ -2919,9 +2900,13 @@
                             sendChatMessage();
                         }
                     });
+
+                    // NEW: System message toggle listener
+                    $('#hide-system-msgs-checkbox').on('change', function() {
+                        $('#chat-messages').toggleClass('hide-system-messages', $(this).is(':checked'));
+                    });
                 };
                 
-                // 確保 DOM 完全載入後再執行主程式
                 if (document.readyState === 'loading') {
                     document.addEventListener('DOMContentLoaded', initializeApp);
                 } else {
