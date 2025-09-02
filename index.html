@@ -2478,9 +2478,14 @@
                 }
             }
             
-            // MODIFIED: drawCommunityAreas to decompress areaBounds
+            // MODIFIED: drawCommunityAreas to decompress areaBounds and check for approval status
             function drawCommunityAreas(areas) {
                 areas.forEach(areaData => {
+                    // NEW: Check if the area is approved before drawing
+                    if (String(areaData['審核']).toUpperCase() !== 'TRUE') {
+                        return; // Skip this area if not approved
+                    }
+
                     try {
                         if (!areaData.areaBounds) return;
                         
@@ -3401,4 +3406,3 @@
     </script>
 </body>
 </html>
-
