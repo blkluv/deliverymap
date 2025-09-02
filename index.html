@@ -669,7 +669,7 @@
         <div id="chat-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col" style="height: 70vh;">
                 <div class="p-4 border-b flex justify-between items-center">
-                    <h2 class="text-xl font-bold text-gray-800">外送員聊天室</h2>
+                    <h2 class="text-xl font-bold text-gray-800">公開聊天室</h2>
                     <button id="close-chat-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
                 </div>
                 <div id="chat-messages" class="flex-grow p-4 overflow-y-auto custom-scrollbar flex flex-col space-y-2 bg-gray-50">
@@ -979,6 +979,7 @@
             let currentFeatureData = null; // Store data of the main feature
             let userVotes = {};
             let currentUserDisplayName = '';
+            let currentUserCity = '未知區域'; // NEW: Store user's city
             const VOTES_STORAGE_KEY = 'userBlacklistVotes';
             const SESSION_TOKEN_KEY = 'userSessionToken'; // NEW
             let loginCheckInterval = null; // 修正: 用於存放定時器的變數
@@ -1002,30 +1003,43 @@
                 }
             }
             
-            // --- NEW: Chat Logic ---
+            // --- MODIFIED: Chat Logic ---
             function initializeChat() {
-                const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/'; // Public echo server for demo
+                const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/';
                 
                 function connect() {
                     ws = new WebSocket(WEBSOCKET_URL);
 
                     ws.onopen = function() {
                         console.log('聊天室已連線。');
+                        sendJoinMessage(); // NEW: Announce user joining
                     };
 
                     ws.onmessage = function(event) {
                         try {
                             const data = JSON.parse(event.data);
-                            if (data.nickname && data.message && data.timestamp) {
-                                appendChatMessage(data);
+                            
+                            // NEW: Handle different message types
+                            switch (data.type) {
+                                case 'history':
+                                    $('#chat-messages').empty(); // Clear before loading history
+                                    data.data.forEach(msg => appendChatMessage(msg));
+                                    break;
+                                case 'chat':
+                                case 'system_join':
+                                case 'system_leave':
+                                    appendChatMessage(data);
+                                    break;
+                                default:
+                                    console.warn("收到未知的訊息類型:", data.type);
                             }
                         } catch (e) {
-                            console.log("收到非 JSON 格式的訊息:", event.data);
+                            console.error("無法解析收到的訊息:", event.data, e);
                         }
                     };
 
                     ws.onclose = function() {
-                        console.log('聊天室連線已中斷，嘗試重新連線...');
+                        console.log('聊天室連線已中斷，3秒後嘗試重新連線...');
                         setTimeout(connect, 3000); // Reconnect after 3 seconds
                     };
 
@@ -1035,30 +1049,72 @@
                     };
                 }
 
-                connect(); // Initial connection
+                connect();
+            }
+            
+            // NEW: Send join message to server
+            function sendJoinMessage() {
+                if (isLoggedIn && ws && ws.readyState === WebSocket.OPEN) {
+                    const payload = {
+                        type: 'join',
+                        nickname: currentUserDisplayName,
+                        pictureUrl: userProfile.pictureUrl || '',
+                        city: currentUserCity
+                    };
+                    ws.send(JSON.stringify(payload));
+                }
             }
 
+            // MODIFIED: Append chat message with new structure
             function appendChatMessage(data) {
                 const $chatMessages = $('#chat-messages');
                 const messageTime = new Date(data.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' });
                 
-                // Sanitize input to prevent XSS
-                const sanitizedNickname = $('<div>').text(data.nickname).html();
-                const sanitizedMessage = $('<div>').text(data.message).html();
+                // Sanitize all inputs to prevent XSS
+                const sanitizedMessage = $('<div>').text(data.message || '').html();
+                const sanitizedNickname = $('<div>').text(data.nickname || '匿名').html();
+                const sanitizedCity = $('<div>').text(data.city || '未知區域').html();
+                const sanitizedPictureUrl = data.pictureUrl ? $('<div>').text(data.pictureUrl).html() : 'https://placehold.co/40x40/E2E8F0/A0AEC0?text=?';
 
-                const messageHtml = `
-                    <div>
-                        <span class="text-xs text-gray-500 mr-2">[${messageTime}]</span>
-                        <span class="font-bold">${sanitizedNickname}:</span>
-                        <span class="text-gray-800 break-words">${sanitizedMessage}</span>
-                    </div>
-                `;
+                let messageHtml = '';
+
+                switch (data.type) {
+                    case 'chat':
+                        // *** 您可以在此處修改暱稱顏色，例如 'text-green-600' ***
+                        const nicknameColor = 'text-blue-600'; 
+                        
+                        messageHtml = `
+                            <div class="flex items-start space-x-3">
+                                <img src="${sanitizedPictureUrl}" alt="avatar" class="w-8 h-8 rounded-full flex-shrink-0">
+                                <div class="flex-grow">
+                                    <div class="flex items-baseline space-x-2">
+                                        <span class="font-bold ${nicknameColor}">${sanitizedNickname}</span>
+                                        <span class="text-xs text-gray-500">(${sanitizedCity})</span>
+                                        <span class="text-xs text-gray-400">${messageTime}</span>
+                                    </div>
+                                    <p class="text-gray-800 break-words">${sanitizedMessage}</p>
+                                </div>
+                            </div>
+                        `;
+                        break;
+                    case 'system_join':
+                    case 'system_leave':
+                        messageHtml = `
+                            <div class="text-center text-xs text-gray-500 italic py-1">
+                                ${sanitizedMessage}
+                            </div>
+                        `;
+                        break;
+                }
                 
-                $chatMessages.append(messageHtml);
-                // Scroll to the bottom
-                $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+                if(messageHtml) {
+                    $chatMessages.append(messageHtml);
+                    // Scroll to the bottom
+                    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+                }
             }
 
+            // MODIFIED: Send chat message with new structure
             function sendChatMessage() {
                 if (!isLoggedIn) {
                     showNotification('請先登入才能發言！', 'warning');
@@ -1070,13 +1126,11 @@
 
                 if (message && ws && ws.readyState === WebSocket.OPEN) {
                     const payload = {
-                        nickname: currentUserDisplayName,
-                        message: message,
-                        timestamp: new Date().toISOString()
+                        type: 'chat',
+                        message: message
                     };
                     ws.send(JSON.stringify(payload));
-                    appendChatMessage(payload); // 修正：立即在本地顯示自己發送的訊息
-                    $input.val(''); // Clear input after sending
+                    $input.val('');
                 }
             }
 
@@ -2191,6 +2245,7 @@
                         $('#user-location').removeClass('hidden');
 
                         const city = await reverseGeocodeForCity(pos.coords.longitude, pos.coords.latitude);
+                        currentUserCity = city || '未知區域'; // NEW: Store city
                         loadData(city);
                     },
                     (err) => {
@@ -2314,11 +2369,10 @@
                 });
             }
             
-            // --- NEW/MODIFIED Login Logic ---
-
+            // --- MODIFIED: Login Logic to interact with Chat ---
             function setLoginState(profile) {
                 isLoggedIn = true;
-                userProfile = profile; // This now contains { name, email?, lineUserId?, pictureUrl? }
+                userProfile = profile;
                 
                 const storageKey = userProfile.email ? `nickname_${userProfile.email}` : `nickname_${userProfile.lineUserId}`;
                 const storedNickname = localStorage.getItem(storageKey);
@@ -2328,7 +2382,6 @@
                 $('#add-info').removeClass('hidden').addClass('flex');
                 $('#user-name').text(currentUserDisplayName);
                 
-                // NEW: Handle profile picture
                 const $userPicture = $('#user-picture');
                 if (profile.pictureUrl) {
                     $userPicture.attr('src', profile.pictureUrl).removeClass('hidden');
@@ -2337,11 +2390,11 @@
                 }
 
                 checkIfAdmin(userProfile.email);
+                sendJoinMessage(); // NEW: Announce user in chat upon login
             }
 
             function initializeGoogleButton() {
                 const $container = $('#google-signin-container');
-                // 在非 LINE 環境中，才顯示 Google 登入按鈕
                 if (!isLineApp && window.google && window.google.accounts && window.google.accounts.id) {
                     google.accounts.id.initialize({
                         client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
@@ -2367,7 +2420,7 @@
             async function verifyToken() {
                 const token = localStorage.getItem(SESSION_TOKEN_KEY);
                 if (!token) {
-                    return false; // 表示沒有 token
+                    return false;
                 }
 
                 try {
@@ -2379,15 +2432,15 @@
                     const result = await response.json();
                     if (result.status === 'success' && result.user) {
                         setLoginState(result.user);
-                        return true; // 表示 token 驗證成功
+                        return true;
                     } else {
                         localStorage.removeItem(SESSION_TOKEN_KEY);
-                        return false; // 表示 token 無效
+                        return false;
                     }
                 } catch(error) {
                     console.error('Token 驗證失敗:', error);
                     localStorage.removeItem(SESSION_TOKEN_KEY);
-                    return false; // 表示驗證過程出錯
+                    return false;
                 }
             }
 
@@ -2406,7 +2459,7 @@
                         setLoginState({
                             email: googleProfile.email,
                             name: googleProfile.given_name || googleProfile.name,
-                            pictureUrl: googleProfile.picture // Google a/c picture
+                            pictureUrl: googleProfile.picture
                         });
                     } else {
                         showNotification('登入失敗，請稍後再試。', 'error');
@@ -2881,3 +2934,4 @@
     </script>
 </body>
 </html>
+
