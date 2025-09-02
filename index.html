@@ -664,12 +664,20 @@
             <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col" style="height: 90vh;">
                 <div class="p-4 border-b flex justify-between items-center">
                     <h2 class="text-xl font-bold text-gray-800">審核地點</h2>
-                    <button id="close-review-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+                    <!-- NEW: Refresh button container -->
+                    <div class="flex items-center space-x-2">
+                        <button id="review-refresh-btn" class="p-2 rounded-full hover:bg-gray-100 transition-colors" title="重新整理">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 4l16 16" transform="rotate(90 12 12)"></path>
+                            </svg>
+                        </button>
+                        <button id="close-review-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+                    </div>
                 </div>
                 <div class="border-b border-gray-200">
                     <nav class="-mb-px flex space-x-6 px-6" aria-label="Tabs">
                         <button id="pending-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-indigo-500 text-indigo-600">待審核</button>
-                        <button id="approved-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">已審核</button>
+                        <button id="approved-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">已審核/已駁回</button>
                     </nav>
                 </div>
                 <div class="flex-grow overflow-y-hidden flex">
@@ -993,6 +1001,7 @@
 
             let dragPanInteraction; // NEW: To hold the default drag pan interaction
             let reviewMapInstance = null; // NEW: To hold the map instance for the review panel
+            let managementAreaMaps = {}; // NEW: To hold map instances for the management panel
 
             map.getInteractions().forEach(interaction => {
                 if (interaction instanceof ol.interaction.DragPan) {
@@ -1883,10 +1892,10 @@
                 forms.forEach($f => {
                     const $blCat = $f.find('#add-blacklist-category');
                     const $blReason = $f.find('#add-blacklist-reason');
-                    $blCat.prop('required', true);
-                    $blReason.prop('required', true);
-                    $blCat.prev('label').html('黑名類別 <span class="text-red-500">*</span>');
-                    $blReason.prev('label').html('黑名原因 (最少3個中文字) <span class="text-red-500">*</span>');
+                    $blCat.prop('required', false);
+                    $blReason.prop('required', false);
+                    $blCat.prev('label').html('黑名類別');
+                    $blReason.prev('label').html('黑名原因');
                 });
 
 
@@ -2883,13 +2892,23 @@
                 }
             });
             
-            // MODIFIED: Management Modal Logic
-            $('#manage-btn').on('click', function() {
+            // MODIFIED: Management Modal Logic to reload data
+            $('#manage-btn').on('click', async function() {
+                await loadData();
                 $('#management-modal').removeClass('hidden');
                 $('#manage-locations-tab').click(); // Default to locations tab
             });
 
-            $('#close-management-modal').on('click', () => $('#management-modal').addClass('hidden'));
+            $('#close-management-modal').on('click', () => {
+                // NEW: Dispose of any map instances in the management modal
+                Object.values(managementAreaMaps).forEach(mapInstance => {
+                    if (mapInstance) {
+                        mapInstance.setTarget(null);
+                    }
+                });
+                managementAreaMaps = {};
+                $('#management-modal').addClass('hidden');
+            });
             
             $('#manage-locations-tab').on('click', function() {
                 $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500');
@@ -2948,81 +2967,72 @@
                 });
             }
             
-            function renderAreaPreview(canvas, areaBoundsStr) {
-                if (!canvas || !areaBoundsStr) return;
-                const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // NEW: Function to render a mini-map for area previews
+            function renderAreaOnMap(targetId, areaBoundsStr) {
+                if (!document.getElementById(targetId) || !areaBoundsStr) return null;
+                
+                const areaSource = new ol.source.Vector();
+                const areaMap = new ol.Map({
+                    target: targetId,
+                    layers: [
+                        new ol.layer.Tile({ source: nlscLayer.getSource() }),
+                        new ol.layer.Vector({ source: areaSource })
+                    ],
+                    controls: [],
+                    interactions: [] // Make it non-interactive
+                });
+
                 try {
-                    let cellsToDraw;
                     const areaBoundsData = JSON.parse(areaBoundsStr);
-
-                    if (areaBoundsData.v === 1) {
+                    if (areaBoundsData.v === 1) { // New compressed format
                         const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
-                        const markerReverseMap = { 'e': 'entrance', 'x': 'exit', 't': 'table', 'p': 'parking' };
-                        cellsToDraw = compressedCells.map(cellString => {
-                             const parts = cellString.split(':');
-                             const [x, y] = parts[0].split(',').map(Number);
-                             const [fillIndex, markerChar, markerColorIndex] = parts.slice(1);
-                             const data = { x, y, palette };
-                             if (fillIndex !== '') data.fillColor = palette.f[parseInt(fillIndex, 10)];
-                             if (markerChar !== '') data.marker = markerReverseMap[markerChar];
-                             if (markerColorIndex !== '') data.markerColor = palette.m[parseInt(markerColorIndex, 10)];
-                             return data;
+                        const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
+                        
+                        compressedCells.forEach(cellString => {
+                            const parts = cellString.split(':');
+                            const [x, y] = parts[0].split(',').map(Number);
+                            const [fillIndex] = parts.slice(1);
+                            
+                            if (fillIndex !== '') {
+                                const lon = origin.lon + x * GRID_INTERVAL;
+                                const lat = origin.lat + y * GRID_INTERVAL;
+                                const extent = ol.proj.transformExtent(
+                                    [lon, lat, lon + GRID_INTERVAL, lat + GRID_INTERVAL],
+                                    'EPSG:4326', 'EPSG:3857'
+                                );
+                                const cellFeature = new ol.Feature({ geometry: ol.geom.Polygon.fromExtent(extent) });
+                                const fillColor = palette.f[parseInt(fillIndex, 10)] || 'rgba(239, 68, 68, 0.7)';
+                                cellFeature.setStyle(new ol.style.Style({
+                                    fill: new ol.style.Fill({ color: fillColor })
+                                }));
+                                areaSource.addFeature(cellFeature);
+                            }
                         });
-                    } else {
-                         let minX = Infinity, minY = Infinity;
-                         const cellsWithCoords = areaBoundsData.map(cell => {
-                            const x = Math.round(cell.lon / GRID_INTERVAL);
-                            const y = Math.round(cell.lat / GRID_INTERVAL);
-                            minX = Math.min(minX, x);
-                            minY = Math.min(minY, y);
-                            return { ...cell, x, y };
-                         });
-                         cellsToDraw = cellsWithCoords.map(cell => ({ ...cell, x: cell.x - minX, y: cell.y - minY }));
                     }
-
-                    if (!Array.isArray(cellsToDraw) || cellsToDraw.length === 0) return;
-
-                    let maxX = 0, maxY = 0;
-                    cellsToDraw.forEach(cell => { maxX = Math.max(maxX, cell.x); maxY = Math.max(maxY, cell.y); });
-
-                    const gridWidth = maxX + 1;
-                    const gridHeight = maxY + 1;
-                    const cellSize = Math.min(canvas.width / gridWidth, canvas.height / gridHeight);
-                    const offsetX = (canvas.width - gridWidth * cellSize) / 2;
-                    const offsetY = (canvas.height - gridHeight * cellSize) / 2;
                     
-                    ctx.font = `bold ${cellSize * 0.8}px sans-serif`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-
-                    cellsToDraw.forEach(cell => {
-                        const { x, y, fillColor, marker, markerColor } = cell;
-                        const canvasX = offsetX + x * cellSize;
-                        const canvasY = offsetY + (gridHeight - 1 - y) * cellSize; 
-                        if (fillColor) {
-                            ctx.fillStyle = fillColor;
-                            ctx.fillRect(canvasX, canvasY, cellSize, cellSize);
+                    setTimeout(() => {
+                        const extent = areaSource.getExtent();
+                        if (extent && !ol.extent.isEmpty(extent)) {
+                            areaMap.getView().fit(extent, { padding: [10, 10, 10, 10], duration: 50 });
                         }
-                        if (marker) {
-                            const markerText = { 'entrance': '入', 'exit': '出', 'table': '桌', 'parking': '停' }[marker];
-                            ctx.fillStyle = markerColor || '#000000';
-                            ctx.fillText(markerText, canvasX + cellSize / 2, canvasY + cellSize / 2);
-                        }
-                    });
+                    }, 100);
 
                 } catch (e) {
-                    console.error("Error rendering area preview:", e);
-                    ctx.fillStyle = 'red';
-                    ctx.font = 'bold 24px sans-serif';
-                    ctx.fillText('!', canvas.width/2, canvas.height/2);
+                    console.error(`Error rendering map preview for ${targetId}:`, e);
                 }
+                return areaMap;
             }
 
-            // MODIFIED: This function now correctly checks the '製作者' field and fetches address from coords if needed.
+            // MODIFIED: This function now correctly checks the '製作者' field and renders mini-maps.
             async function loadUserAreas() {
                 const $content = $('#management-area-content');
                 $content.html('');
+
+                // Clear previous map instances
+                 Object.values(managementAreaMaps).forEach(mapInstance => {
+                    if (mapInstance) mapInstance.setTarget(null);
+                });
+                managementAreaMaps = {};
 
                 if (!isLoggedIn || (!userProfile.email && !userProfile.lineUserId)) {
                     $content.html('<p class="text-gray-500">請先登入以查看您提交的建築。</p>');
@@ -3045,14 +3055,22 @@
                 }
 
                 for (const area of userAreas) {
-                    const status = String(area['審核']).toUpperCase() === 'TRUE' ? 
-                        '<span class="text-green-600 font-semibold">已通過審核</span>' :
-                        '<span class="text-yellow-600 font-semibold">待審核</span>';
+                    const statusKey = String(area['審核']).toUpperCase();
+                    let status;
+                    if (statusKey === 'TRUE') {
+                        status = '<span class="text-green-600 font-semibold">已通過審核</span>';
+                    } else if (statusKey === 'REJECT') {
+                        status = '<span class="text-red-600 font-semibold">已駁回</span>';
+                    } else {
+                        status = '<span class="text-yellow-600 font-semibold">待審核</span>';
+                    }
                     
                     const addressId = `area-address-${area.rowIndex}`;
+                    const mapId = `management-map-${area.rowIndex}`;
+
                     const areaHtml = $(`
                         <div class="border rounded-lg p-4 mb-4 flex items-center space-x-4">
-                            <canvas class="w-24 h-24 bg-gray-100 rounded border border-gray-300"></canvas>
+                            <div id="${mapId}" class="w-24 h-24 bg-gray-100 rounded border border-gray-300 flex-shrink-0"></div>
                             <div class="flex-grow">
                                 <h4 class="font-bold text-lg">${area.areaName || '未命名社區'}</h4>
                                 <p id="${addressId}" class="text-sm text-gray-600">${area['地址'] || '正在取得地址...'}</p>
@@ -3080,14 +3098,13 @@
                              console.error("Could not parse areaBounds to get address:", e);
                         }
                     }
-
-                    const canvas = areaHtml.find('canvas')[0];
-                    canvas.width = 96 * (window.devicePixelRatio || 1);
-                    canvas.height = 96 * (window.devicePixelRatio || 1);
-                    canvas.style.width = '96px';
-                    canvas.style.height = '96px';
                     
-                    setTimeout(() => renderAreaPreview(canvas, area.areaBounds), 0);
+                    setTimeout(() => {
+                       const mapInstance = renderAreaOnMap(mapId, area.areaBounds);
+                       if (mapInstance) {
+                           managementAreaMaps[area.rowIndex] = mapInstance;
+                       }
+                    }, 0);
                 }
             }
 
@@ -3124,7 +3141,9 @@
                 }
             });
 
-            $('#review-btn').on('click', function() {
+            // MODIFIED: Review Modal Logic to reload data
+            $('#review-btn').on('click', async function() {
+                await loadData();
                 $('#review-modal').removeClass('hidden');
                 loadReviewData('pending');
                 $('#pending-tab').addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500');
@@ -3150,6 +3169,14 @@
                 $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
                 $('#pending-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
                 loadReviewData('approved');
+            });
+            
+            // NEW: Refresh button listener
+            $('#review-modal').on('click', '#review-refresh-btn', async function() {
+                showNotification('正在更新列表...', 'info');
+                await loadData();
+                const activeTab = $('#pending-tab').hasClass('border-indigo-500') ? 'pending' : 'approved';
+                loadReviewData(activeTab);
             });
 
             function loadReviewData(status = 'pending') {
@@ -3236,7 +3263,7 @@
                     reviewMapInstance = new ol.Map({
                         target: 'review-map',
                         layers: [
-                            new ol.layer.Tile({ source: new ol.source.OSM() }),
+                            new ol.layer.Tile({ source: nlscLayer.getSource() }),
                             new ol.layer.Vector({ source: reviewAreaSource })
                         ],
                         view: new ol.View({
@@ -3328,6 +3355,7 @@
                          // Refresh the list after action
                          const activeTab = $('#pending-tab').hasClass('border-indigo-500') ? 'pending' : 'approved';
                          loadReviewData(activeTab);
+                         $detailPanel.html('<p class="text-gray-500">操作完成，請從左側選擇下一個項目。</p>')
                     } else {
                         throw new Error(result.message || 'Unknown error');
                     }
