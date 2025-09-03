@@ -1,7 +1,7 @@
 // --- 設定 ---
 
 // NEW: 主要 App Script 的網址，用於讀取黑名單和屏蔽詞
-const MAIN_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzYsrtdIA2O2hxeWOFDi0zEVdQitCuzKSD9beNRGaKFEby6i6ANSr-ftuyVcf7zrWq8/exec';
+const MAIN_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzefREwCRHxXhmglYZ0XTMcdM6LaI8LPCwz8I2rlPZ0lC2Jikgd5gj2TvYLW8qGcSDj/exec';
 // 用於存檔的 App Script 網址
 const APPS_SCRIPT_ARCHIVE_URL = 'https://script.google.com/macros/s/AKfycbzr_Xmv4WeUCDOjpZmXdHLwtWg4kAOhcMB0brJQWkzquFqOLjupnFcB7AvdQM022dqWrQ/exec'; 
 
