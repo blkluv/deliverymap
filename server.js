@@ -1,3 +1,11 @@
+// --- 設定 ---
+//
+// !!! *** 極度重要 *** !!!
+// !!! 請將下方的 'YOUR_APPS_SCRIPT_URL_HERE' 替換為您自己部署的 Google Apps Script 網路應用程式網址 !!!
+const APPS_SCRIPT_ARCHIVE_URL = 'https://script.google.com/macros/s/AKfycbxnISJdohfBKEdkHkSRO43ENW8nHr5CCvXKCkjeDllkOS1kKOvhqHEIrVR-YjYjPj4MEA/exec'; 
+const ARCHIVE_INTERVAL = 1 * 60 * 1000; // 存檔間隔：5 分鐘
+
+
 // WebSocket Server
 // 這是一個升級版的 Node.js WebSocket 伺服器，
 // 支援聊天記錄、使用者加入/離開通知、暱稱變更、心跳機制，以及定時將聊天紀錄存檔至 Google Sheets。
@@ -5,10 +13,7 @@
 const WebSocket = require('ws');
 const fetch = require('node-fetch'); // NEW: 用於發送 HTTP 請求到 Google Apps Script
 
-// --- 設定 ---
-// !!! 重要：請將此處的網址替換為您自己部署的 Google Apps Script 網路應用程式網址 !!!
-const APPS_SCRIPT_ARCHIVE_URL = 'https://script.google.com/macros/s/AKfycbxnISJdohfBKEdkHkSRO43ENW8nHr5CCvXKCkjeDllkOS1kKOvhqHEIrVR-YjYjPj4MEA/exec'; 
-const ARCHIVE_INTERVAL = 1 * 60 * 1000; // 存檔間隔：5 分鐘
+
 
 // 在 8080 連接埠上建立一個新的 WebSocket 伺服器。
 const wss = new WebSocket.Server({ port: 8080 });
@@ -46,15 +51,20 @@ async function archiveMessages() {
     console.log(`正在嘗試存檔 ${messages.length} 筆訊息...`);
 
     try {
+        const payload = {
+            action: 'archive_chat',
+            messages: messages
+        };
+
+        // MODIFIED: 在 LOG 中顯示準備要傳送的資料內容
+        console.log('傳送至 Apps Script 的資料:', JSON.stringify(payload, null, 2));
+
         const response = await fetch(APPS_SCRIPT_ARCHIVE_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                action: 'archive_chat',
-                messages: messages
-            })
+            body: JSON.stringify(payload)
         });
         
         // Google Apps Script 的 fetch 會觸發重新導向，所以直接檢查 text()
@@ -130,8 +140,7 @@ wss.on('connection', function connection(ws, req) {
           messageHistory.push(chatMessage);
           if (messageHistory.length > MAX_HISTORY) messageHistory.shift();
 
-          // NEW: 建立準備存檔到 Google Sheet 的物件
-          // MODIFIED: 新增 chat_log 欄位以儲存聊天內容
+          // MODIFIED: 修正準備存檔的物件，將 chat_log 欄位名稱改為 message，以符合 Apps Script 預期
           const archiveEntry = {
               conversation_id: ws.userId,
               conversation_name: ws.nickname,
@@ -139,7 +148,7 @@ wss.on('connection', function connection(ws, req) {
               updated_time: chatMessage.timestamp,
               conversation_location: ws.city,
               ip: ws.ip,
-              chat_log: chatMessage.message // <-- ***重要修改***
+              message: chatMessage.message // <-- ***重要修改***：將 chat_log 改為 message
           };
           messagesToArchive.push(archiveEntry);
 
