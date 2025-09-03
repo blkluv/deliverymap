@@ -718,9 +718,9 @@
                 }
             });
 
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzYsrtdIA2O2hxeWOFDi0zEVdQitCuzKSD9beNRGaKFEby6i6ANSr-ftuyVcf7zrWq8/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw93ckEaMhqOmcrsGiMFY3gkxQVLDlKItY_O-xmEaswKibQ8YlscrVjHuB2viTV0XZg/exec';
             const CHAT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_Xmv4WeUCDOjpZmXdHLwtWg4kAOhcMB0brJQWkzquFqOLjupnFcB7AvdQM022dqWrQ/exec';
-            const MAIN_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw93ckEaMhqOmcrsGiMFY3gkxQVLDlKItY_O-xmEaswKibQ8YlscrVjHuB2viTV0XZg/exec';
+            const MAIN_APPS_SCRIPT_URL = '';
 
             const visibilityThreshold = 16.5; 
 
@@ -3268,7 +3268,7 @@
                         
                         showNotification(`正在禁言 ${contextMenuTarget.userName}...`, 'info');
 
-                        fetch(MAIN_APPS_SCRIPT_URL, {
+                        fetch(APPS_SCRIPT_URL, {
                             method: 'POST',
                             headers: { 'Content-Type': 'text/plain' },
                             body: JSON.stringify(payload)
@@ -3338,4 +3338,3 @@
     </script>
 </body>
 </html>
-
