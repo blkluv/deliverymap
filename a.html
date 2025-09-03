@@ -935,18 +935,18 @@
                 const message = $input.val().trim();
 
                 if (message && ws && ws.readyState === WebSocket.OPEN) {
-//                    const localMessage = {
-//                        type: 'chat',
-//                        message: message,
-//                        nickname: currentUserDisplayName,
-//                        city: currentUserCity,
-//                        pictureUrl: userProfile.pictureUrl || '',
-//                        timestamp: new Date().toISOString(),
-//                        userId: userProfile.email || userProfile.lineUserId
-//                    };
-//                    appendChatMessage(localMessage);
-//                    const $chatMessages = $('#chat-messages');
-//                    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+                    const localMessage = {
+                        type: 'chat',
+                        message: message,
+                        nickname: currentUserDisplayName,
+                        city: currentUserCity,
+                        pictureUrl: userProfile.pictureUrl || '',
+                        timestamp: new Date().toISOString(),
+                        userId: userProfile.email || userProfile.lineUserId
+                    };
+                    appendChatMessage(localMessage);
+                    const $chatMessages = $('#chat-messages');
+                    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
 
                     const payload = {
                         type: 'chat',
