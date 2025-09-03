@@ -131,13 +131,15 @@ wss.on('connection', function connection(ws, req) {
           if (messageHistory.length > MAX_HISTORY) messageHistory.shift();
 
           // NEW: 建立準備存檔到 Google Sheet 的物件
+          // MODIFIED: 新增 chat_log 欄位以儲存聊天內容
           const archiveEntry = {
               conversation_id: ws.userId,
               conversation_name: ws.nickname,
               conversation_type: 'public', // 目前都是公開聊天
               updated_time: chatMessage.timestamp,
               conversation_location: ws.city,
-              ip: ws.ip
+              ip: ws.ip,
+              chat_log: chatMessage.message // <-- ***重要修改***
           };
           messagesToArchive.push(archiveEntry);
 
@@ -214,3 +216,4 @@ const interval = setInterval(function ping() {
 wss.on('close', function close() {
   clearInterval(interval);
 });
+
