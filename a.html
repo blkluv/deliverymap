@@ -720,7 +720,8 @@
 
             const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzYsrtdIA2O2hxeWOFDi0zEVdQitCuzKSD9beNRGaKFEby6i6ANSr-ftuyVcf7zrWq8/exec';
             const CHAT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_Xmv4WeUCDOjpZmXdHLwtWg4kAOhcMB0brJQWkzquFqOLjupnFcB7AvdQM022dqWrQ/exec';
-            
+            const MAIN_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzefREwCRHxXhmglYZ0XTMcdM6LaI8LPCwz8I2rlPZ0lC2Jikgd5gj2TvYLW8qGcSDj/exec';
+
             const visibilityThreshold = 16.5; 
 
             let currentFeatureData = null;
@@ -3267,7 +3268,7 @@
                         
                         showNotification(`正在禁言 ${contextMenuTarget.userName}...`, 'info');
 
-                        fetch(APPS_SCRIPT_URL, {
+                        fetch(MAIN_APPS_SCRIPT_URL, {
                             method: 'POST',
                             headers: { 'Content-Type': 'text/plain' },
                             body: JSON.stringify(payload)
