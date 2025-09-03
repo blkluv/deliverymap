@@ -1,15 +1,18 @@
 {
-  "name": "simple-chat-server",
+  "name": "render-websocket-chat-server",
   "version": "1.0.0",
-  "description": "A simple WebSocket chat server for my map application.",
+  "description": "WebSocket chat server with Google Sheets archival for Render.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.17.0",
+    "node-fetch": "^2.7.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=16"
   }
 }
