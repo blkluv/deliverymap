@@ -528,16 +528,14 @@
                           <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
                         </svg>
                     </button>
-                    <!-- NEW: Chat Button Container -->
-                    <div class="relative">
-                        <button id="open-chat-btn" class="bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="聊天室">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
-                            </svg>
-                        </button>
+                    <!-- MODIFIED: Chat Button with unread badge container -->
+                    <button id="open-chat-btn" class="relative bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="聊天室">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+                        </svg>
                         <!-- NEW: Unread message badge -->
-                        <span id="chat-badge" class="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center hidden">0</span>
-                    </div>
+                        <span id="chat-unread-badge" class="hidden absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center"></span>
+                    </button>
                     <button id="add-location-btn" class="bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="新增地點">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
@@ -979,6 +977,7 @@
             let isDraggingMarker = false;
             let latestGeocodeBounds = null; // NEW: Store latest geocode bounds
             let areaBoundsForEditing = null; // NEW: Store area bounds when editing
+            let lockedCenterForEditing = null; // NEW: To store the locked center point for area edits
             
             // --- NEW: Area Selection Variables ---
             const gridCanvas = document.getElementById('grid-canvas');
@@ -1003,6 +1002,9 @@
             let lastPaintedCellKey = null;
 
             let dragPanInteraction; // NEW: To hold the default drag pan interaction
+            let reviewMapInstance = null; // NEW: To hold the map instance for the review panel
+            let managementAreaMaps = {}; // NEW: To hold map instances for the management panel
+
             map.getInteractions().forEach(interaction => {
                 if (interaction instanceof ol.interaction.DragPan) {
                     dragPanInteraction = interaction;
@@ -1011,6 +1013,8 @@
 
 
             const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzYsrtdIA2O2hxeWOFDi0zEVdQitCuzKSD9beNRGaKFEby6i6ANSr-ftuyVcf7zrWq8/exec';
+            // NEW: URL for the new chat-specific Apps Script
+            const CHAT_APPS_SCRIPT_URL = 'YOUR_CHAT_APPS_SCRIPT_URL_HERE'; // !!! 請替換成您的 ChatAppScript 部署網址
             
             const visibilityThreshold = 16.5; 
 
@@ -1025,7 +1029,7 @@
             let ws = null; // NEW: WebSocket variable
             let heartbeatInterval = null; // NEW: For WebSocket heartbeat
             let isLocationKnown = false; // NEW: Flag to track if location has been determined
-            let unreadMessageCount = 0; // NEW: For chat notifications
+            let unreadChatCount = 0; // NEW: For unread message counter
 
             function loadUserVotes() {
                 try {
@@ -1045,16 +1049,39 @@
                 }
             }
             
-            // NEW: Function to update the chat badge
-            function updateChatBadge() {
-                const $badge = $('#chat-badge');
-                if (unreadMessageCount > 0) {
-                    $badge.text(unreadMessageCount).removeClass('hidden');
-                } else {
-                    $badge.addClass('hidden');
+            // --- NEW: Function to load archived chat history from Google Sheets ---
+            async function loadArchivedChatHistory() {
+                if (!isLoggedIn || !CHAT_APPS_SCRIPT_URL.startsWith('https')) {
+                    return;
+                }
+                console.log("正在從 Google Sheet 載入歷史訊息...");
+                try {
+                    const response = await fetch(`${CHAT_APPS_SCRIPT_URL}?action=get_chat_history&t=${new Date().getTime()}`);
+                    const history = await response.json();
+                    
+                    if (Array.isArray(history)) {
+                         $('#chat-messages').empty(); // 清空現有訊息
+                         history.forEach(log => {
+                            // 將存檔格式轉換為聊天室顯示格式
+                            const messageData = {
+                                type: 'chat',
+                                message: `(歷史訊息) ${log.conversation_name} 說: ... (此為示意)`, // 注意：您的存檔沒有訊息內容
+                                nickname: log.conversation_name,
+                                city: log.conversation_location,
+                                pictureUrl: '', // 存檔中沒有頭像 URL
+                                timestamp: log.updated_time,
+                            };
+                            // appendChatMessage(messageData, true); // 暫時註解，因為存檔沒有訊息內容
+                         });
+                         console.log(`已載入 ${history.length} 筆歷史訊息。`);
+                    }
+                } catch (error) {
+                    console.error("無法載入歷史聊天紀錄:", error);
+                    showNotification('載入歷史聊天紀錄失敗', 'error');
                 }
             }
-            
+
+
             // --- MODIFIED: Chat Logic ---
             function initializeChat() {
                 const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/';
@@ -1068,15 +1095,14 @@
 
                     ws.onopen = function() {
                         console.log('聊天室已連線。');
-                        // sendJoinMessage(); // REMOVED: No longer called here, will be called when both login and location are ready
+                        sendJoinMessage();
                         
-                        // NEW: Start heartbeat to keep connection alive
                         if (heartbeatInterval) clearInterval(heartbeatInterval);
                         heartbeatInterval = setInterval(() => {
                             if (ws && ws.readyState === WebSocket.OPEN) {
                                 ws.send(JSON.stringify({ type: 'ping' }));
                             }
-                        }, 30000); // Send ping every 30 seconds
+                        }, 30000);
                     };
 
                     ws.onmessage = function(event) {
@@ -1085,17 +1111,25 @@
                             
                             switch (data.type) {
                                 case 'history':
-                                    $('#chat-messages').empty();
+                                    // 清空由 WebSocket 來的歷史紀錄，因為我們已經從 Google Sheet 載入了
+                                    // $('#chat-messages').empty(); 
                                     data.data.forEach(msg => appendChatMessage(msg));
                                     break;
                                 case 'chat':
+                                    // NEW: Handle unread counter
+                                    if ($('#chat-modal').hasClass('hidden')) {
+                                        unreadChatCount++;
+                                        const $badge = $('#chat-unread-badge');
+                                        $badge.text(unreadChatCount).removeClass('hidden');
+                                    }
+                                    appendChatMessage(data);
+                                    break;
                                 case 'system_join':
                                 case 'system_leave':
-                                case 'system_name_change': // NEW: Handle name change system message
+                                case 'system_name_change':
                                     appendChatMessage(data);
                                     break;
                                 case 'pong':
-                                    // Pong received, connection is healthy.
                                     break;
                                 default:
                                     console.warn("收到未知的訊息類型:", data.type);
@@ -1120,10 +1154,12 @@
                 connect();
             }
             
+            // MODIFIED: sendJoinMessage to include userId
             function sendJoinMessage() {
                 if (isLoggedIn && ws && ws.readyState === WebSocket.OPEN) {
                     const payload = {
                         type: 'join',
+                        userId: userProfile.email || userProfile.lineUserId, // NEW: for archiving
                         nickname: currentUserDisplayName,
                         pictureUrl: userProfile.pictureUrl || '',
                         city: currentUserCity
@@ -1131,9 +1167,16 @@
                     ws.send(JSON.stringify(payload));
                 }
             }
-
-            function appendChatMessage(data) {
+            
+            // MODIFIED: appendChatMessage to prevent duplicates
+            function appendChatMessage(data, isFromArchive = false) {
                 const $chatMessages = $('#chat-messages');
+
+                // NEW: Check for duplicate messages using timestamp
+                if ($chatMessages.find(`[data-timestamp="${data.timestamp}"]`).length > 0) {
+                    return; // Message already exists, do not append
+                }
+                
                 const messageTime = new Date(data.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' });
                 
                 const sanitizedMessage = $('<div>').text(data.message || '').html();
@@ -1145,16 +1188,10 @@
 
                 switch (data.type) {
                     case 'chat':
-                        // NEW: Increment unread count if chat is not visible
-                        if ($('#chat-modal').hasClass('hidden')) {
-                            unreadMessageCount++;
-                            updateChatBadge();
-                        }
-
                         const nicknameColor = 'text-blue-600'; 
                         
                         messageHtml = `
-                            <div class="flex items-start space-x-3">
+                            <div class="flex items-start space-x-3" data-timestamp="${data.timestamp}">
                                 <img src="${sanitizedPictureUrl}" alt="avatar" class="w-8 h-8 rounded-full flex-shrink-0">
                                 <div class="flex-grow">
                                     <div class="flex items-baseline space-x-2">
@@ -1171,7 +1208,7 @@
                     case 'system_leave':
                     case 'system_name_change':
                         messageHtml = `
-                            <div class="text-center text-xs text-gray-500 italic py-1 system-message">
+                            <div class="text-center text-xs text-gray-500 italic py-1 system-message" data-timestamp="${data.timestamp}">
                                 ${sanitizedMessage}
                             </div>
                         `;
@@ -1179,12 +1216,16 @@
                 }
                 
                 if(messageHtml) {
-                    $chatMessages.append(messageHtml);
-                    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+                    // Prepend archived messages, append live messages
+                    if (isFromArchive) {
+                        $chatMessages.prepend(messageHtml);
+                    } else {
+                        $chatMessages.append(messageHtml);
+                        $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+                    }
                 }
             }
             
-            // MODIFIED: Optimized chat message sending
             function sendChatMessage() {
                 if (!isLoggedIn) {
                     showNotification('請先登入才能發言！', 'warning');
@@ -1195,7 +1236,7 @@
                 const message = $input.val().trim();
 
                 if (message && ws && ws.readyState === WebSocket.OPEN) {
-                    // Instantly display the message locally for a better user experience
+                    // Instantly display the message locally
                     const localMessage = {
                         type: 'chat',
                         message: message,
@@ -1206,7 +1247,7 @@
                     };
                     appendChatMessage(localMessage);
 
-                    // Then, send the message to the server
+                    // Send to server
                     const payload = {
                         type: 'chat',
                         message: message
@@ -1464,16 +1505,11 @@
                 
                 const startLon = Math.floor(minLon / GRID_INTERVAL) * GRID_INTERVAL;
                 const startLat = Math.floor(minLat / GRID_INTERVAL) * GRID_INTERVAL;
-
-                const centerCoords = tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
-                const centerLonLat = ol.proj.toLonLat(centerCoords);
-
+                
                 gridCtx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
                 gridCtx.lineWidth = 1;
                 gridCtx.beginPath();
                 for (let lon = startLon; lon < maxLon; lon += GRID_INTERVAL) {
-                    const distance = ol.sphere.getDistance(centerLonLat, [lon, (minLat+maxLat)/2]);
-                    if(distance > GRID_DRAW_RADIUS) continue; 
                     const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([lon, minLat]));
                     if(pixel) {
                         gridCtx.moveTo(pixel[0], 0);
@@ -1481,8 +1517,6 @@
                     }
                 }
                 for (let lat = startLat; lat < maxLat; lat += GRID_INTERVAL) {
-                    const distance = ol.sphere.getDistance(centerLonLat, [(minLon+maxLon)/2, lat]);
-                    if(distance > GRID_DRAW_RADIUS) continue;
                     const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([minLon, lat]));
                     if(pixel) {
                         gridCtx.moveTo(0, pixel[1]);
@@ -1497,8 +1531,6 @@
                 
                 selectedGridCells.forEach((data, cellKey) => {
                     const [lon, lat] = cellKey.split('-').map(Number);
-                    const distance = ol.sphere.getDistance(centerLonLat, [lon, lat]);
-                    if(distance > GRID_DRAW_RADIUS) return;
 
                     const bottomLeft = ol.proj.fromLonLat([lon, lat]);
                     const topRight = ol.proj.fromLonLat([lon + GRID_INTERVAL, lat + GRID_INTERVAL]);
@@ -1527,6 +1559,20 @@
                         gridCtx.fillText(markerText, p1[0] + width / 2, p2[1] + height / 2);
                     }
                 });
+
+                // NEW: Draw locked center point
+                if (lockedCenterForEditing) {
+                    const pixel = map.getPixelFromCoordinate(lockedCenterForEditing);
+                    if (pixel) {
+                        gridCtx.beginPath();
+                        gridCtx.arc(pixel[0], pixel[1], 5, 0, 2 * Math.PI, false);
+                        gridCtx.fillStyle = 'red';
+                        gridCtx.fill();
+                        gridCtx.lineWidth = 2;
+                        gridCtx.strokeStyle = 'white';
+                        gridCtx.stroke();
+                    }
+                }
             }
 
             function paintCell(evt) {
@@ -1545,7 +1591,7 @@
                 if (cellKey === lastPaintedCellKey) return;
                 lastPaintedCellKey = cellKey;
 
-                const centerCoords = tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
+                const centerCoords = lockedCenterForEditing || (tempMarker ? tempMarker.getPosition() : map.getView().getCenter());
                 const centerLonLat = ol.proj.toLonLat(centerCoords);
                 if (ol.sphere.getDistance(centerLonLat, [snappedLon, snappedLat]) > GRID_DRAW_RADIUS) return;
 
@@ -1671,9 +1717,14 @@
                 } else {
                     $('#map').removeClass('map-enhanced grid-mode-active paint-mode pan-mode');
                     if (dragPanInteraction) dragPanInteraction.setActive(true); // Unlock map panning
+                    if (isMobile && tempMarker) {
+                         tempMarker.getElement().style.pointerEvents = 'auto';
+                         tempMarker.getElement().style.display = 'block';
+                    }
+                    if (!isMobile) {
+                        $('#desktop-center-marker').removeClass('hidden');
+                    }
                     $('#location-instruction').text('請移動地圖中心點來選擇位置。');
-                    $('#desktop-center-marker').removeClass('hidden');
-                    if (tempMarker) tempMarker.getElement().style.display = 'block';
                     $('#grid-canvas').addClass('hidden');
                     $('#grid-toolbar').addClass('hidden').removeClass('flex');
                     gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
@@ -1734,8 +1785,13 @@
                 const isAreaEdit = !!($('#edit-area-row-index').val());
 
                 if (isChecked) {
+                    // When checking the box during an area edit, lock the center point
+                    if (isAreaEdit) {
+                        lockedCenterForEditing = isMobile ? tempMarker.getPosition() : map.getView().getCenter();
+                    }
                     toggleAreaSelectionMode(true, isAreaEdit ? areaBoundsForEditing : null);
                 } else {
+                    lockedCenterForEditing = null; // Clear the lock when unchecking
                     toggleAreaSelectionMode(false);
                 }
             });
@@ -1781,7 +1837,8 @@
                 }
             }
             
-            function enterMobilePlacementMode(coordinate) {
+            // MODIFIED: Added areaBoundsToLoad parameter for editing areas
+            function enterMobilePlacementMode(coordinate, areaBoundsToLoad = null) {
                 initialAddLocationCoords = coordinate;
                 if(tempMarker) map.removeOverlay(tempMarker);
 
@@ -1792,28 +1849,47 @@
                     element: markerEl, position: coordinate, positioning: 'bottom-center', stopEvent: false,
                 });
                 map.addOverlay(tempMarker);
-                drawRadiusCircle(coordinate);
-                $('#complete-placement-btn').removeClass('hidden');
+
+                if (areaBoundsToLoad) {
+                    $('#add-is-area').prop('checked', false); // Start unchecked
+                    toggleAreaSelectionMode(false); 
+                    $('#add-location-modal-mobile').removeClass('hidden'); 
+                } else {
+                    drawRadiusCircle(coordinate);
+                    $('#complete-placement-btn').removeClass('hidden');
+                    map.getView().animate({ center: coordinate, zoom: 18, duration: 500 });
+                }
 
                 markerEl.addEventListener('pointerdown', (e) => {
+                    const isAreaEdit = !!($('#edit-area-row-index').val());
+                    if (isAreaEdit && $('#add-is-area').is(':checked')) {
+                        return; // Prevent moving marker if area editing is active
+                    }
                     isDraggingMarker = true;
                     map.getInteractions().forEach(i => { if(i instanceof ol.interaction.DragPan) i.setActive(false); });
                     document.addEventListener('pointermove', handlePointerMove);
                     document.addEventListener('pointerup', handlePointerUp);
                     e.stopPropagation();
                 });
-                
-                map.getView().animate({ center: coordinate, zoom: 18, duration: 500 });
             }
 
-            function enterDesktopAddMode(coordinate) {
+            // MODIFIED: Added areaBoundsToLoad parameter for editing areas
+            function enterDesktopAddMode(coordinate, areaBoundsToLoad = null) {
                 initialAddLocationCoords = coordinate;
                 $('#app-container').addClass('desktop-add-mode');
-                $('#desktop-center-marker').removeClass('hidden');
+                
+                $('#desktop-center-marker').removeClass('hidden'); // Always show the marker initially
+
+                if (areaBoundsToLoad) {
+                     $('#add-is-area').prop('checked', false); // Start unchecked
+                    toggleAreaSelectionMode(false);
+                }
                 
                 setTimeout(() => {
                     map.updateSize();
-                    drawRadiusCircle(coordinate);
+                    if (!areaBoundsToLoad) {
+                        drawRadiusCircle(coordinate);
+                    }
                     map.getView().animate({ center: coordinate, zoom: 17, duration: 500 }, () => {
                         const centerCoords = map.getView().getCenter();
                         const centerLonLat = ol.proj.toLonLat(centerCoords);
@@ -1825,7 +1901,12 @@
             }
             
             function handleDesktopMapMove() {
-                if ($('#app-container').hasClass('desktop-add-mode') && !isAreaSelectionMode) {
+                const isAreaEdit = !!($('#edit-area-row-index').val());
+                if ($('#app-container').hasClass('desktop-add-mode')) {
+                     if (isAreaEdit && $('#add-is-area').is(':checked')) {
+                        // Don't reverse geocode if editing grid, keep the address stable
+                        return; 
+                     }
                     const centerCoords = map.getView().getCenter();
                     const centerLonLat = ol.proj.toLonLat(centerCoords);
                     reverseGeocode(centerLonLat[0], centerLonLat[1]);
@@ -1839,6 +1920,7 @@
                 
                 radiusSource.clear();
                 initialAddLocationCoords = null;
+                lockedCenterForEditing = null; // NEW: Reset locked center
                 
                 if (isMobile) {
                     if(tempMarker) map.removeOverlay(tempMarker);
@@ -1852,8 +1934,9 @@
                     setTimeout(() => map.updateSize(), 350);
                 }
                 $('#add-is-area').prop('checked', false);
-                // Clear editing state
+                // Clear editing state and reload data to show the edited area back on map
                 $('#edit-row-index, #edit-area-row-index, #edit-original-name').val('');
+                loadData();
             }
 
             $('#add-location-btn').on('click', function() {
@@ -1861,6 +1944,19 @@
                     showNotification('請先登入才能新增地點！', 'warning');
                     return;
                 }
+                
+                // NEW: Restore required fields and labels for new additions
+                const forms = [$('#add-location-form'), $('#add-location-form-mobile')];
+                forms.forEach($f => {
+                    const $blCat = $f.find('#add-blacklist-category');
+                    const $blReason = $f.find('#add-blacklist-reason');
+                    $blCat.prop('required', false);
+                    $blReason.prop('required', false);
+                    $blCat.prev('label').html('黑名類別');
+                    $blReason.prev('label').html('黑名原因');
+                });
+
+
                 showNotification('正在取得您的目前位置...');
                 
                 navigator.geolocation.getCurrentPosition(
@@ -2307,7 +2403,7 @@
                     };
                     areaBoundsStr = JSON.stringify(compressedData);
                     
-                    finalCoords = map.getView().getCenter();
+                    finalCoords = lockedCenterForEditing || map.getView().getCenter();
 
                 } else {
                     finalCoords = isMobile ? (tempMarker ? tempMarker.getPosition() : null) : map.getView().getCenter();
@@ -2579,12 +2675,12 @@
                 });
             }
             
-            // MODIFIED: setLoginState to remove localStorage dependency for nickname
-            function setLoginState(profile) {
+            // MODIFIED: setLoginState to load archived chat
+            async function setLoginState(profile) {
                 isLoggedIn = true;
                 userProfile = profile;
                 
-                currentUserDisplayName = profile.name; // Backend now provides the correct, prioritized name
+                currentUserDisplayName = profile.name;
 
                 $('#google-signin-container').hide();
                 $('#add-info').removeClass('hidden').addClass('flex');
@@ -2598,6 +2694,9 @@
                 }
 
                 checkIfAdmin(userProfile.email);
+                
+                // NEW: Load archived chat after login
+                // await loadArchivedChatHistory(); // 暫時註解，因為存檔沒有訊息內容，載入會造成困惑
                 
                 if (isLocationKnown) {
                     sendJoinMessage();
@@ -2667,7 +2766,6 @@
 
                     if (result.status === 'success' && result.token) {
                         localStorage.setItem(SESSION_TOKEN_KEY, result.token);
-                        // After login, immediately verify token to get the correct profile data (with prioritized nickname)
                         await verifyToken();
                     } else {
                         showNotification('登入失敗，請稍後再試。', 'error');
@@ -2678,7 +2776,6 @@
                 }
             });
 
-            // MODIFIED: Nickname change logic to remove localStorage
             $(document).on('click', '#edit-nickname-btn', function() {
                 const currentName = $('#user-name').text();
                 const newName = prompt("請輸入您的新暱稱：", currentName);
@@ -2688,7 +2785,6 @@
                     currentUserDisplayName = newName.trim();
                     $('#user-name').text(currentUserDisplayName);
                     
-                    // Send nickname change to WebSocket server
                     if (ws && ws.readyState === WebSocket.OPEN) {
                         const payload = { 
                             type: 'nickname_change',
@@ -2697,7 +2793,6 @@
                         ws.send(JSON.stringify(payload));
                     }
 
-                    // Send to backend for persistence
                     const backendPayload = {
                         action: 'update_nickname',
                         userEmail: userProfile.email,
@@ -2705,7 +2800,6 @@
                         newName: currentUserDisplayName
                     };
 
-                    // We use "text/plain" because Apps Script's e.postData.contents expects a string
                     fetch(APPS_SCRIPT_URL, { 
                         method: 'POST', 
                         headers: { 'Content-Type': 'text/plain' },
@@ -2722,7 +2816,6 @@
                     .catch(error => {
                         console.error('Nickname sync failed:', error);
                         showNotification(`暱稱同步失敗: ${error.message}`, 'error');
-                        // Revert UI on failure
                         $('#user-name').text(currentName);
                         currentUserDisplayName = currentName;
                     });
@@ -2854,68 +2947,270 @@
                 }
             });
             
-            $('#manage-btn').on('click', function() {
+            $('#manage-btn').on('click', async function() {
+                await loadData();
                 $('#management-modal').removeClass('hidden');
-                // Default to locations tab
-                $('#manage-locations-tab').click(); 
+                $('#manage-locations-tab').click();
             });
 
-            $('#close-management-modal').on('click', () => $('#management-modal').addClass('hidden'));
+            $('#close-management-modal').on('click', () => {
+                Object.values(managementAreaMaps).forEach(mapInstance => {
+                    if (mapInstance) {
+                        mapInstance.setTarget(null);
+                    }
+                });
+                managementAreaMaps = {};
+                $('#management-modal').addClass('hidden');
+            });
+            
+            $('#manage-locations-tab').on('click', function() {
+                $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500');
+                $('#manage-areas-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500');
+                $('#management-list-content').removeClass('hidden');
+                $('#management-area-content').addClass('hidden');
+                loadUserLocations();
+            });
+
+            $('#manage-areas-tab').on('click', function() {
+                $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500');
+                $('#manage-locations-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500');
+                $('#management-area-content').removeClass('hidden');
+                $('#management-list-content').addClass('hidden');
+                loadUserAreas();
+            });
+            
+            function loadUserLocations() {
+                const $listContent = $('#management-list-content');
+                $listContent.html('');
+
+                if (!isLoggedIn || (!userProfile.email && !userProfile.lineUserId)) {
+                    $listContent.html('<p class="text-gray-500">請先登入以查看您提交的地點。</p>');
+                    return;
+                }
+
+                const userSubmissions = rawReports.filter(r => 
+                    !r.isCommunity && (r.submitterEmail === userProfile.email || r.lineUserId === userProfile.lineUserId)
+                );
+
+                if (userSubmissions.length === 0) {
+                    $listContent.html('<p class="text-gray-500">您尚未提交任何地點資料。</p>');
+                    return;
+                }
+
+                userSubmissions.forEach(report => {
+                    const isApproved = String(report['審核']).toUpperCase() === 'TRUE';
+                    const status = isApproved ?
+                        '<span class="text-green-600 font-semibold">已通過審核</span>' :
+                        '<span class="text-yellow-600 font-semibold">待審核</span>';
+
+                    const itemHtml = `
+                        <div class="border-b py-3 flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold">${report['地址']}</p>
+                                <p class="text-sm text-gray-600">${report['黑名類別']} - ${report['黑名原因']}</p>
+                                <p class="text-xs text-gray-500 mt-1">狀態: ${status}</p>
+                            </div>
+                            <div>
+                                <button class="edit-store-btn text-sm text-blue-600 hover:underline mr-4" data-row-index="${report.rowIndex}">修改</button>
+                                <button class="delete-store-btn text-sm text-red-600 hover:underline" data-row-index="${report.rowIndex}">刪除</button>
+                            </div>
+                        </div>
+                    `;
+                    $listContent.append(itemHtml);
+                });
+            }
+            
+            // NEW: Function to render a mini-map for area previews
+            function renderAreaOnMap(targetId, areaBoundsStr) {
+                if (!document.getElementById(targetId) || !areaBoundsStr) return null;
+                
+                const areaSource = new ol.source.Vector();
+                const areaMap = new ol.Map({
+                    target: targetId,
+                    layers: [
+                        new ol.layer.Tile({ source: nlscLayer.getSource() }),
+                        new ol.layer.Vector({ source: areaSource })
+                    ],
+                    controls: [],
+                    interactions: [] // Make it non-interactive
+                });
+
+                try {
+                    const areaBoundsData = JSON.parse(areaBoundsStr);
+                    if (areaBoundsData.v === 1) { // New compressed format
+                        const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
+                        const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
+                        
+                        compressedCells.forEach(cellString => {
+                            const parts = cellString.split(':');
+                            const [x, y] = parts[0].split(',').map(Number);
+                            const [fillIndex] = parts.slice(1);
+                            
+                            if (fillIndex !== '') {
+                                const lon = origin.lon + x * GRID_INTERVAL;
+                                const lat = origin.lat + y * GRID_INTERVAL;
+                                const extent = ol.proj.transformExtent(
+                                    [lon, lat, lon + GRID_INTERVAL, lat + GRID_INTERVAL],
+                                    'EPSG:4326', 'EPSG:3857'
+                                );
+                                const cellFeature = new ol.Feature({ geometry: ol.geom.Polygon.fromExtent(extent) });
+                                const fillColor = palette.f[parseInt(fillIndex, 10)] || 'rgba(239, 68, 68, 0.7)';
+                                cellFeature.setStyle(new ol.style.Style({
+                                    fill: new ol.style.Fill({ color: fillColor })
+                                }));
+                                areaSource.addFeature(cellFeature);
+                            }
+                        });
+                    }
+                    
+                    setTimeout(() => {
+                        const extent = areaSource.getExtent();
+                        if (extent && !ol.extent.isEmpty(extent)) {
+                            areaMap.getView().fit(extent, { padding: [10, 10, 10, 10], duration: 50 });
+                        }
+                    }, 100);
+
+                } catch (e) {
+                    console.error(`Error rendering map preview for ${targetId}:`, e);
+                }
+                return areaMap;
+            }
+
+            // MODIFIED: This function now correctly checks the '製作者' field and renders mini-maps.
+            async function loadUserAreas() {
+                const $content = $('#management-area-content');
+                $content.html('');
+
+                // Clear previous map instances
+                 Object.values(managementAreaMaps).forEach(mapInstance => {
+                    if (mapInstance) mapInstance.setTarget(null);
+                });
+                managementAreaMaps = {};
+
+                if (!isLoggedIn || (!userProfile.email && !userProfile.lineUserId)) {
+                    $content.html('<p class="text-gray-500">請先登入以查看您提交的建築。</p>');
+                    return;
+                }
+
+                const userAreas = rawReports.filter(r => 
+                    r.isCommunity && 
+                    (
+                        r.submitterEmail === userProfile.email || 
+                        r.lineUserId === userProfile.lineUserId ||
+                        r['製作者'] === userProfile.email ||
+                        r['製作者'] === userProfile.lineUserId
+                    )
+                );
+
+                if (userAreas.length === 0) {
+                    $content.html('<p class="text-gray-500">您尚未提交任何建築資料。</p>');
+                    return;
+                }
+
+                for (const area of userAreas) {
+                    const statusKey = String(area['審核']).toUpperCase();
+                    let status;
+                    if (statusKey === 'TRUE') {
+                        status = '<span class="text-green-600 font-semibold">已通過審核</span>';
+                    } else if (statusKey === 'REJECT') {
+                        status = '<span class="text-red-600 font-semibold">已駁回</span>';
+                    } else {
+                        status = '<span class="text-yellow-600 font-semibold">待審核</span>';
+                    }
+                    
+                    const addressId = `area-address-${area.rowIndex}`;
+                    const mapId = `management-map-${area.rowIndex}`;
+
+                    const areaHtml = $(`
+                        <div class="border rounded-lg p-4 mb-4 flex items-center space-x-4">
+                            <div id="${mapId}" class="w-24 h-24 bg-gray-100 rounded border border-gray-300 flex-shrink-0"></div>
+                            <div class="flex-grow">
+                                <h4 class="font-bold text-lg">${area.areaName || '未命名社區'}</h4>
+                                <p id="${addressId}" class="text-sm text-gray-600">${area['地址'] || '正在取得地址...'}</p>
+                                <div class="mt-2">狀態: ${status}</div>
+                            </div>
+                            <div class="flex flex-col space-y-2">
+                                <button class="edit-area-btn bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm" data-row-index="${area.rowIndex}">修改</button>
+                                <button class="delete-store-btn bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm" data-row-index="${area.rowIndex}">刪除</button>
+                            </div>
+                        </div>
+                    `);
+                    
+                    $content.append(areaHtml);
+
+                    if (!area['地址'] && area.areaBounds) {
+                        try {
+                            const areaBoundsData = JSON.parse(area.areaBounds);
+                            if (areaBoundsData.v === 1 && areaBoundsData.o) {
+                                const [lon, lat] = areaBoundsData.o;
+                                const fetchedAddress = await getAddressFromCoords(parseFloat(lon), parseFloat(lat));
+                                $(`#${addressId}`).text(fetchedAddress);
+                            }
+                        } catch (e) {
+                             $(`#${addressId}`).text('地址格式錯誤');
+                             console.error("Could not parse areaBounds to get address:", e);
+                        }
+                    }
+                    
+                    setTimeout(() => {
+                       const mapInstance = renderAreaOnMap(mapId, area.areaBounds);
+                       if (mapInstance) {
+                           managementAreaMaps[area.rowIndex] = mapInstance;
+                       }
+                    }, 0);
+                }
+            }
 
             $('#management-list-content').on('click', '.edit-store-btn', function() {
                 const rowIndex = $(this).data('row-index');
                 const reportToEdit = rawReports.find(r => r.rowIndex == rowIndex && !r.isCommunity);
-                
-                if (reportToEdit) {
-                    openEditModalForUser(reportToEdit);
-                } else {
-                    showNotification('找不到地點資料，可能已被刪除或更新。', 'error');
-                }
+                if (reportToEdit) openEditModalForUser(reportToEdit);
+                else showNotification('找不到地點資料，可能已被刪除或更新。', 'error');
             });
-
+            
             $('#management-area-content').on('click', '.edit-area-btn', function() {
                 const rowIndex = $(this).data('row-index');
                 const reportToEdit = rawReports.find(r => r.rowIndex == rowIndex && r.isCommunity);
-                
-                if (reportToEdit) {
-                    openEditModalForUser(reportToEdit);
-                } else {
-                    showNotification('找不到建築資料，可能已被刪除或更新。', 'error');
-                }
+                if (reportToEdit) openEditModalForUser(reportToEdit);
+                else showNotification('找不到建築資料，可能已被刪除或更新。', 'error');
             });
 
             $('#management-list-content, #management-area-content').on('click', '.delete-store-btn', function() {
                 const rowIndex = $(this).data('row-index');
-                const isArea = $(this).closest('#management-area-content').length > 0;
-                
                 if (confirm('確定要刪除這筆您提交的資料嗎？此操作將無法復原。')) {
                     showNotification('正在刪除...');
                     const payload = {
-                        action: isArea ? 'user_delete_area' : 'user_delete',
+                        action: 'user_delete',
                         rowIndex: rowIndex,
                         userEmail: userProfile.email,
                         lineUserId: userProfile.lineUserId
                     };
-
                     fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
                     .then(() => {
                         showNotification("資料已成功刪除！", 'success');
                         $('#management-modal').addClass('hidden');
                         setTimeout(loadData, 2000);
-                    }).catch(error => {
-                        showNotification('刪除失敗，請稍後再試。', 'error');
-                    });
+                    }).catch(error => showNotification('刪除失敗，請稍後再試。', 'error'));
                 }
             });
 
-            $('#review-btn').on('click', function() {
+            // MODIFIED: Review Modal Logic to reload data
+            $('#review-btn').on('click', async function() {
+                await loadData();
                 $('#review-modal').removeClass('hidden');
                 loadReviewData('pending');
                 $('#pending-tab').addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500');
                 $('#approved-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500');
             });
 
-            $('#close-review-modal').on('click', () => $('#review-modal').addClass('hidden'));
+            $('#close-review-modal').on('click', () => {
+                // NEW: Dispose of the map instance when closing the modal
+                if (reviewMapInstance) {
+                    reviewMapInstance.setTarget(null);
+                    reviewMapInstance = null;
+                }
+                $('#review-modal').addClass('hidden');
+            });
             
             $('#pending-tab').on('click', function() {
                 $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
@@ -2928,6 +3223,14 @@
                 $('#pending-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
                 loadReviewData('approved');
             });
+            
+            // NEW: Refresh button listener
+            $('#review-modal').on('click', '#review-refresh-btn', async function() {
+                showNotification('正在更新列表...', 'info');
+                await loadData();
+                const activeTab = $('#pending-tab').hasClass('border-indigo-500') ? 'pending' : 'approved';
+                loadReviewData(activeTab);
+            });
 
             function loadReviewData(status = 'pending') {
                 const $listPanel = $('#review-list-panel');
@@ -2936,21 +3239,25 @@
                 $detailPanel.html('<p class="text-gray-500">請從左側列表選擇一個地點以查看詳細資訊。</p>');
 
                 const reportsToReview = rawReports.filter(report => {
-                    const isApproved = String(report['審核']).toUpperCase() === 'TRUE';
-                    return status === 'pending' ? !isApproved : isApproved;
+                    const currentStatus = String(report['審核']).toUpperCase();
+                    if (status === 'pending') {
+                        return currentStatus !== 'TRUE' && currentStatus !== 'REJECT';
+                    } else { // approved
+                        return currentStatus === 'TRUE' || currentStatus === 'REJECT';
+                    }
                 });
 
                 if (reportsToReview.length === 0) {
-                    $listPanel.html(`<p class="p-4 text-sm text-gray-500">沒有${status === 'pending' ? '待審核' : '已審核'}的地點。</p>`);
+                    $listPanel.html(`<p class="p-4 text-sm text-gray-500">沒有${status === 'pending' ? '待審核' : '已審核或已駁回'}的項目。</p>`);
                     return;
                 }
 
                 reportsToReview.forEach(report => {
                     const listItem = $(`
-                        <div class="p-4 border-b cursor-pointer hover:bg-gray-100 review-item" data-row-index="${report.rowIndex}">
+                        <div class="p-4 border-b cursor-pointer hover:bg-gray-100 review-item" data-row-index="${report.rowIndex}" data-is-community="${!!report.isCommunity}">
                             <p class="font-semibold text-gray-800">${report.areaName || report['地址']}</p>
-                            <p class="text-sm text-gray-600 truncate">${report['黑名原因'] || '無原因'}</p>
-                            <p class="text-xs text-gray-400 mt-1">提交者: ${report.submitterEmail || report.submitterLineId || 'N/A'}</p>
+                            <p class="text-sm text-gray-600 truncate">${report['黑名原因'] || '無原因 (社區項目)'}</p>
+                            <p class="text-xs text-gray-400 mt-1">提交者: ${report.submitterEmail || report.submitterLineId || report['製作者'] ||'N/A'}</p>
                         </div>
                     `);
                     $listPanel.append(listItem);
@@ -2961,83 +3268,152 @@
                 $('.review-item').removeClass('bg-indigo-50');
                 $(this).addClass('bg-indigo-50');
                 const rowIndex = $(this).data('row-index');
-                const report = rawReports.find(r => r.rowIndex == rowIndex);
+                const isCommunity = $(this).data('is-community');
+                
+                const report = rawReports.find(r => r.rowIndex == rowIndex && !!r.isCommunity === isCommunity);
+
                 if (report) {
                     displayReviewDetails(report);
                 }
             });
 
+            // MODIFIED: This function now handles both points and areas, and creates a map for areas.
             function displayReviewDetails(report) {
                 const $detailPanel = $('#review-detail-panel');
-                
-                let actionButtons = '';
-                const isApproved = String(report['審核']).toUpperCase() === 'TRUE';
-
-                if (!isApproved) { // 待審核
-                    actionButtons = `
-                        <button class="admin-action-btn flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700" data-action="approve" data-row-index="${report.rowIndex}">審核通過</button>
-                        <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${report.rowIndex}">不通過</button>
-                    `;
-                } else { // 已審核
-                    actionButtons = `
-                        <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${report.rowIndex}">刪除</button>
-                    `;
-                }
-                
                 const submissionDate = report.timestamp ? 
                     new Date(report.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) : 
                     '日期不明';
 
-                const detailHtml = `
-                    <div class="space-y-3 text-sm">
-                        <h3 class="text-xl font-bold text-gray-900">${report.areaName || report['地址']}</h3>
-                        <p class="font-semibold" style="color: ${categoryColors[report['分類']] || categoryColors['其他']}">${report['分類']}</p>
-                        <hr>
-                        <p><strong>黑名類別:</strong> ${report['黑名類別']}</p>
-                        <p><strong>黑名原因:</strong></p>
-                        <p class="whitespace-pre-wrap bg-gray-50 p-2 rounded">${report['黑名原因']}</p>
-                        <hr>
-                        <p><strong>座標:</strong> ${parseFloat(report['經度']).toFixed(5)}, ${parseFloat(report['緯度']).toFixed(5)}</p>
-                        ${report.areaBounds ? '<p><strong>網格資料:</strong> 是</p>' : ''}
-                        <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || report.submitterLineId || 'N/A'})</p>
-                        <p><strong>提交時間:</strong> ${submissionDate}</p>
-                        <p><strong>試算表列數:</strong> ${report.rowIndex}</p>
-                    </div>
-                    <div class="mt-6 flex space-x-4">
-                        ${actionButtons}
-                    </div>
-                `;
-                $detailPanel.html(detailHtml);
+                if (report.isCommunity) {
+                    // --- Area/Building Review UI ---
+                    const detailHtml = `
+                        <div id="review-map-container" class="relative w-full h-64 bg-gray-200 mb-4 rounded-lg overflow-hidden">
+                            <div id="review-map" class="w-full h-full"></div>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <h3 class="text-xl font-bold text-gray-900">${report.areaName || '未命名社區'}</h3>
+                            <hr class="my-2">
+                            <p><strong>座標:</strong> ${parseFloat(report['經度']).toFixed(5)}, ${parseFloat(report['緯度']).toFixed(5)}</p>
+                            <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || report.submitterLineId || report['製作者'] || 'N/A'})</p>
+                            <p><strong>提交時間:</strong> ${submissionDate}</p>
+                            <p><strong>試算表分頁名稱:</strong> 社區列表</p>
+                            <p><strong>試算表列數:</strong> ${report.rowIndex}</p>
+                        </div>
+                        <div class="mt-6 flex space-x-4">
+                            <button class="admin-action-btn flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700" data-action="approve" data-row-index="${report.rowIndex}" data-is-community="true">通過</button>
+                            <button class="admin-action-btn flex-1 bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700" data-action="reject" data-row-index="${report.rowIndex}" data-is-community="true">駁回</button>
+                        </div>
+                    `;
+                    $detailPanel.html(detailHtml);
+
+                    // Initialize review map
+                    if (reviewMapInstance) {
+                        reviewMapInstance.setTarget(null);
+                        reviewMapInstance = null;
+                    }
+                    
+                    const reviewAreaSource = new ol.source.Vector();
+                    reviewMapInstance = new ol.Map({
+                        target: 'review-map',
+                        layers: [
+                            new ol.layer.Tile({ source: nlscLayer.getSource() }),
+                            new ol.layer.Vector({ source: reviewAreaSource })
+                        ],
+                        view: new ol.View({
+                            center: ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]),
+                            zoom: 18
+                        }),
+                        controls: []
+                    });
+                    
+                    // Draw area bounds on the review map
+                    try {
+                        const areaBoundsData = JSON.parse(report.areaBounds);
+                        // Using a simplified version of drawCommunityAreas logic here
+                        if (areaBoundsData.v === 1) {
+                            const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
+                            const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
+                            compressedCells.forEach(cellString => {
+                                const parts = cellString.split(':');
+                                const [x, y] = parts[0].split(',').map(Number);
+                                const [fillIndex] = parts.slice(1);
+                                if (fillIndex !== '') {
+                                    const lon = origin.lon + x * GRID_INTERVAL;
+                                    const lat = origin.lat + y * GRID_INTERVAL;
+                                    const extent = ol.proj.transformExtent([lon, lat, lon + GRID_INTERVAL, lat + GRID_INTERVAL], 'EPSG:4326', 'EPSG:3857');
+                                    const cellFeature = new ol.Feature({ geometry: ol.geom.Polygon.fromExtent(extent) });
+                                    cellFeature.setStyle(new ol.style.Style({ fill: new ol.style.Fill({ color: palette.f[parseInt(fillIndex, 10)] || 'rgba(255,0,0,0.5)' }) }));
+                                    reviewAreaSource.addFeature(cellFeature);
+                                }
+                            });
+                        }
+                    } catch(e) { console.error("Could not draw area on review map", e); }
+
+
+                } else {
+                    // --- Point Location Review UI ---
+                     const detailHtml = `
+                        <div class="space-y-3 text-sm">
+                            <h3 class="text-xl font-bold text-gray-900">${report.areaName || report['地址']}</h3>
+                            <p class="font-semibold" style="color: ${categoryColors[report['分類']] || categoryColors['其他']}">${report['分類']}</p>
+                            <hr>
+                            <p><strong>黑名類別:</strong> ${report['黑名類別']}</p>
+                            <p><strong>黑名原因:</strong></p>
+                            <p class="whitespace-pre-wrap bg-gray-50 p-2 rounded">${report['黑名原因']}</p>
+                            <hr>
+                            <p><strong>座標:</strong> ${parseFloat(report['經度']).toFixed(5)}, ${parseFloat(report['緯度']).toFixed(5)}</p>
+                            <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || report.submitterLineId || 'N/A'})</p>
+                            <p><strong>提交時間:</strong> ${submissionDate}</p>
+                             <p><strong>試算表分頁名稱:</strong> 資料回報</p>
+                            <p><strong>試算表列數:</strong> ${report.rowIndex}</p>
+                        </div>
+                        <div class="mt-6 flex space-x-4">
+                            <button class="admin-action-btn flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700" data-action="approve" data-row-index="${report.rowIndex}" data-is-community="false">通過</button>
+                            <button class="admin-action-btn flex-1 bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700" data-action="reject" data-row-index="${report.rowIndex}" data-is-community="false">駁回</button>
+                            <button class="admin-action-btn flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700" data-action="delete" data-row-index="${report.rowIndex}" data-is-community="false">刪除</button>
+                        </div>
+                    `;
+                    $detailPanel.html(detailHtml);
+                }
             }
             
             $('#review-detail-panel').on('click', '.admin-action-btn', function() {
                 const action = $(this).data('action');
                 const rowIndex = $(this).data('row-index');
+                const isCommunity = $(this).data('is-community');
                 
                 if (action === 'delete') {
                     if (!confirm('確定要刪除這筆資料嗎？此操作將無法復原。')) {
                         return;
                     }
                 }
-                sendAdminAction(action, rowIndex);
+                sendAdminAction(action, rowIndex, isCommunity);
             });
             
-            function sendAdminAction(action, rowIndex) {
+            function sendAdminAction(action, rowIndex, isCommunity) {
                 showNotification(`正在執行操作...`);
 
                 const payload = {
                     action: action,
                     rowIndex: rowIndex,
+                    isCommunity: isCommunity, // NEW: Tell the backend which sheet to modify
                     adminEmail: userProfile.email
                 };
 
-                fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
-                .then(() => {
-                    showNotification("操作成功！資料將在幾分鐘後更新。", 'success');
-                    $('#review-modal').addClass('hidden');
-                    setTimeout(loadData, 2000);
+                fetch(APPS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) })
+                .then(res => res.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                         showNotification("操作成功！資料將在幾分鐘後更新。", 'success');
+                         // Refresh the list after action
+                         const activeTab = $('#pending-tab').hasClass('border-indigo-500') ? 'pending' : 'approved';
+                         loadReviewData(activeTab);
+                         $detailPanel.html('<p class="text-gray-500">操作完成，請從左側選擇下一個項目。</p>')
+                    } else {
+                        throw new Error(result.message || 'Unknown error');
+                    }
                 }).catch(error => {
-                    showNotification('操作失敗，請稍後再試。', 'error');
+                    showNotification(`操作失敗: ${error.message}`, 'error');
                 });
             }
 
@@ -3069,10 +3445,21 @@
                         $categoryDiv.hide();
                         $blacklistCatDiv.hide();
                         $blacklistReasonDiv.hide();
+                         // Make blacklist fields not required for area edits
+                        $blacklistCatDiv.find('select').prop('required', false);
+                        $categoryDiv.find('select').prop('required', false);
+                        $blacklistReasonDiv.find('textarea').prop('required', false);
+                        $blacklistCatDiv.find('label').find('span').hide();
+                        $blacklistReasonDiv.find('label').find('span').hide();
                     } else {
                         $categoryDiv.show();
                         $blacklistCatDiv.show();
                         $blacklistReasonDiv.show();
+                         // Restore required fields for non-area edits
+                        $blacklistCatDiv.find('select').prop('required', true);
+                        $blacklistReasonDiv.find('textarea').prop('required', true);
+                        $blacklistCatDiv.find('label').find('span').show();
+                        $blacklistReasonDiv.find('label').find('span').show();
                     }
                 });
 
@@ -3154,12 +3541,7 @@
                     }
 
                     // Chat event listeners
-                    $('#open-chat-btn').on('click', () => {
-                        $('#chat-modal').removeClass('hidden');
-                        // NEW: Reset badge on open
-                        unreadMessageCount = 0;
-                        updateChatBadge();
-                    });
+                   $('#open-chat-btn').on('click', () => $('#chat-modal').removeClass('hidden'));
                     $('#close-chat-modal').on('click', () => $('#chat-modal').addClass('hidden'));
                     $('#send-chat-btn').on('click', sendChatMessage);
                     $('#chat-input').on('keydown', function(e) {
@@ -3187,4 +3569,3 @@
     </script>
 </body>
 </html>
-
