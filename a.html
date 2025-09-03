@@ -526,6 +526,8 @@
                      <button id="center-on-me-btn" class="bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="回到我的位置">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                    </button>
                     <!-- MODIFIED: Chat Button with unread badge container -->
                     <button id="open-chat-btn" class="relative bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="聊天室">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
@@ -1011,6 +1013,8 @@
 
 
             const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzYsrtdIA2O2hxeWOFDi0zEVdQitCuzKSD9beNRGaKFEby6i6ANSr-ftuyVcf7zrWq8/exec';
+            // NEW: URL for the new chat-specific Apps Script
+            const CHAT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz2EgbwYpKBEPRU_KI4w2WeAicVWDTNpOPtdIj-NrGF870tQzufnm_qCIqXfCSXwxaMZg/exec'; // !!! 請替換成您的 ChatAppScript 部署網址
             
             const visibilityThreshold = 16.5; 
 
@@ -1045,6 +1049,39 @@
                 }
             }
             
+            // --- NEW: Function to load archived chat history from Google Sheets ---
+            async function loadArchivedChatHistory() {
+                if (!isLoggedIn || !CHAT_APPS_SCRIPT_URL.startsWith('https')) {
+                    return;
+                }
+                console.log("正在從 Google Sheet 載入歷史訊息...");
+                try {
+                    const response = await fetch(`${CHAT_APPS_SCRIPT_URL}?action=get_chat_history&t=${new Date().getTime()}`);
+                    const history = await response.json();
+                    
+                    if (Array.isArray(history)) {
+                         $('#chat-messages').empty(); // 清空現有訊息
+                         history.forEach(log => {
+                            // 將存檔格式轉換為聊天室顯示格式
+                            const messageData = {
+                                type: 'chat',
+                                message: `(歷史訊息) ${log.conversation_name} 說: ... (此為示意)`, // 注意：您的存檔沒有訊息內容
+                                nickname: log.conversation_name,
+                                city: log.conversation_location,
+                                pictureUrl: '', // 存檔中沒有頭像 URL
+                                timestamp: log.updated_time,
+                            };
+                            // appendChatMessage(messageData, true); // 暫時註解，因為存檔沒有訊息內容
+                         });
+                         console.log(`已載入 ${history.length} 筆歷史訊息。`);
+                    }
+                } catch (error) {
+                    console.error("無法載入歷史聊天紀錄:", error);
+                    showNotification('載入歷史聊天紀錄失敗', 'error');
+                }
+            }
+
+
             // --- MODIFIED: Chat Logic ---
             function initializeChat() {
                 const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/';
@@ -1058,15 +1095,14 @@
 
                     ws.onopen = function() {
                         console.log('聊天室已連線。');
-                        // sendJoinMessage(); // REMOVED: No longer called here, will be called when both login and location are ready
+                        sendJoinMessage();
                         
-                        // NEW: Start heartbeat to keep connection alive
                         if (heartbeatInterval) clearInterval(heartbeatInterval);
                         heartbeatInterval = setInterval(() => {
                             if (ws && ws.readyState === WebSocket.OPEN) {
                                 ws.send(JSON.stringify({ type: 'ping' }));
                             }
-                        }, 30000); // Send ping every 30 seconds
+                        }, 30000);
                     };
 
                     ws.onmessage = function(event) {
@@ -1075,7 +1111,8 @@
                             
                             switch (data.type) {
                                 case 'history':
-                                    $('#chat-messages').empty();
+                                    // 清空由 WebSocket 來的歷史紀錄，因為我們已經從 Google Sheet 載入了
+                                    // $('#chat-messages').empty(); 
                                     data.data.forEach(msg => appendChatMessage(msg));
                                     break;
                                 case 'chat':
@@ -1089,11 +1126,10 @@
                                     break;
                                 case 'system_join':
                                 case 'system_leave':
-                                case 'system_name_change': // NEW: Handle name change system message
+                                case 'system_name_change':
                                     appendChatMessage(data);
                                     break;
                                 case 'pong':
-                                    // Pong received, connection is healthy.
                                     break;
                                 default:
                                     console.warn("收到未知的訊息類型:", data.type);
@@ -1118,10 +1154,12 @@
                 connect();
             }
             
+            // MODIFIED: sendJoinMessage to include userId
             function sendJoinMessage() {
                 if (isLoggedIn && ws && ws.readyState === WebSocket.OPEN) {
                     const payload = {
                         type: 'join',
+                        userId: userProfile.email || userProfile.lineUserId, // NEW: for archiving
                         nickname: currentUserDisplayName,
                         pictureUrl: userProfile.pictureUrl || '',
                         city: currentUserCity
@@ -1129,9 +1167,16 @@
                     ws.send(JSON.stringify(payload));
                 }
             }
-
-            function appendChatMessage(data) {
+            
+            // MODIFIED: appendChatMessage to prevent duplicates
+            function appendChatMessage(data, isFromArchive = false) {
                 const $chatMessages = $('#chat-messages');
+
+                // NEW: Check for duplicate messages using timestamp
+                if ($chatMessages.find(`[data-timestamp="${data.timestamp}"]`).length > 0) {
+                    return; // Message already exists, do not append
+                }
+                
                 const messageTime = new Date(data.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' });
                 
                 const sanitizedMessage = $('<div>').text(data.message || '').html();
@@ -1146,7 +1191,7 @@
                         const nicknameColor = 'text-blue-600'; 
                         
                         messageHtml = `
-                            <div class="flex items-start space-x-3">
+                            <div class="flex items-start space-x-3" data-timestamp="${data.timestamp}">
                                 <img src="${sanitizedPictureUrl}" alt="avatar" class="w-8 h-8 rounded-full flex-shrink-0">
                                 <div class="flex-grow">
                                     <div class="flex items-baseline space-x-2">
@@ -1163,7 +1208,7 @@
                     case 'system_leave':
                     case 'system_name_change':
                         messageHtml = `
-                            <div class="text-center text-xs text-gray-500 italic py-1 system-message">
+                            <div class="text-center text-xs text-gray-500 italic py-1 system-message" data-timestamp="${data.timestamp}">
                                 ${sanitizedMessage}
                             </div>
                         `;
@@ -1171,12 +1216,16 @@
                 }
                 
                 if(messageHtml) {
-                    $chatMessages.append(messageHtml);
-                    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+                    // Prepend archived messages, append live messages
+                    if (isFromArchive) {
+                        $chatMessages.prepend(messageHtml);
+                    } else {
+                        $chatMessages.append(messageHtml);
+                        $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+                    }
                 }
             }
             
-            // MODIFIED: Optimized chat message sending
             function sendChatMessage() {
                 if (!isLoggedIn) {
                     showNotification('請先登入才能發言！', 'warning');
@@ -1187,7 +1236,7 @@
                 const message = $input.val().trim();
 
                 if (message && ws && ws.readyState === WebSocket.OPEN) {
-                    // Instantly display the message locally for a better user experience
+                    // Instantly display the message locally
                     const localMessage = {
                         type: 'chat',
                         message: message,
@@ -1198,7 +1247,7 @@
                     };
                     appendChatMessage(localMessage);
 
-                    // Then, send the message to the server
+                    // Send to server
                     const payload = {
                         type: 'chat',
                         message: message
@@ -2626,12 +2675,12 @@
                 });
             }
             
-            // MODIFIED: setLoginState to remove localStorage dependency for nickname
-            function setLoginState(profile) {
+            // MODIFIED: setLoginState to load archived chat
+            async function setLoginState(profile) {
                 isLoggedIn = true;
                 userProfile = profile;
                 
-                currentUserDisplayName = profile.name; // Backend now provides the correct, prioritized name
+                currentUserDisplayName = profile.name;
 
                 $('#google-signin-container').hide();
                 $('#add-info').removeClass('hidden').addClass('flex');
@@ -2645,6 +2694,9 @@
                 }
 
                 checkIfAdmin(userProfile.email);
+                
+                // NEW: Load archived chat after login
+                // await loadArchivedChatHistory(); // 暫時註解，因為存檔沒有訊息內容，載入會造成困惑
                 
                 if (isLocationKnown) {
                     sendJoinMessage();
@@ -2714,7 +2766,6 @@
 
                     if (result.status === 'success' && result.token) {
                         localStorage.setItem(SESSION_TOKEN_KEY, result.token);
-                        // After login, immediately verify token to get the correct profile data (with prioritized nickname)
                         await verifyToken();
                     } else {
                         showNotification('登入失敗，請稍後再試。', 'error');
@@ -2725,7 +2776,6 @@
                 }
             });
 
-            // MODIFIED: Nickname change logic to remove localStorage
             $(document).on('click', '#edit-nickname-btn', function() {
                 const currentName = $('#user-name').text();
                 const newName = prompt("請輸入您的新暱稱：", currentName);
@@ -2735,7 +2785,6 @@
                     currentUserDisplayName = newName.trim();
                     $('#user-name').text(currentUserDisplayName);
                     
-                    // Send nickname change to WebSocket server
                     if (ws && ws.readyState === WebSocket.OPEN) {
                         const payload = { 
                             type: 'nickname_change',
@@ -2744,7 +2793,6 @@
                         ws.send(JSON.stringify(payload));
                     }
 
-                    // Send to backend for persistence
                     const backendPayload = {
                         action: 'update_nickname',
                         userEmail: userProfile.email,
@@ -2752,7 +2800,6 @@
                         newName: currentUserDisplayName
                     };
 
-                    // We use "text/plain" because Apps Script's e.postData.contents expects a string
                     fetch(APPS_SCRIPT_URL, { 
                         method: 'POST', 
                         headers: { 'Content-Type': 'text/plain' },
@@ -2769,7 +2816,6 @@
                     .catch(error => {
                         console.error('Nickname sync failed:', error);
                         showNotification(`暱稱同步失敗: ${error.message}`, 'error');
-                        // Revert UI on failure
                         $('#user-name').text(currentName);
                         currentUserDisplayName = currentName;
                     });
@@ -2901,15 +2947,13 @@
                 }
             });
             
-            // MODIFIED: Management Modal Logic to reload data
             $('#manage-btn').on('click', async function() {
                 await loadData();
                 $('#management-modal').removeClass('hidden');
-                $('#manage-locations-tab').click(); // Default to locations tab
+                $('#manage-locations-tab').click();
             });
 
             $('#close-management-modal').on('click', () => {
-                // NEW: Dispose of any map instances in the management modal
                 Object.values(managementAreaMaps).forEach(mapInstance => {
                     if (mapInstance) {
                         mapInstance.setTarget(null);
