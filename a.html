@@ -1030,6 +1030,7 @@
             let heartbeatInterval = null; // NEW: For WebSocket heartbeat
             let isLocationKnown = false; // NEW: Flag to track if location has been determined
             let unreadChatCount = 0; // NEW: For unread message counter
+            let isChatHistoryLoaded = false; // NEW: Flag to prevent reloading chat history
 
             function loadUserVotes() {
                 try {
@@ -1062,19 +1063,18 @@
                     if (Array.isArray(history) && history.length > 0) {
                          $('#chat-messages').empty(); // 清空現有訊息
                          history.forEach(log => {
-                            // MODIFIED: 將存檔格式轉換為聊天室顯示格式，並使用真實的聊天內容
                             const messageData = {
                                 type: 'chat',
-                                message: log.message, // 使用從 'chat_log' 欄位讀取的內容
+                                message: log.message, 
                                 nickname: log.conversation_name,
                                 city: log.conversation_location,
-                                pictureUrl: '', // 存檔中沒有頭像 URL，appendChatMessage 會處理預設圖
+                                pictureUrl: '', 
                                 timestamp: log.updated_time,
                             };
-                            appendChatMessage(messageData, true); // 呼叫函式將歷史訊息顯示在畫面上
+                            appendChatMessage(messageData);
                          });
                          console.log(`已載入 ${history.length} 筆歷史訊息。`);
-                         // NEW: 載入完成後，自動滾動到聊天室底部
+                         // 載入完成後，自動滾動到聊天室底部
                          const $chatMessages = $('#chat-messages');
                          $chatMessages.scrollTop($chatMessages[0].scrollHeight);
                     }
@@ -1114,18 +1114,19 @@
                             
                             switch (data.type) {
                                 case 'history':
-                                    // 清空由 WebSocket 來的歷史紀錄，因為我們已經從 Google Sheet 載入了
-                                    // $('#chat-messages').empty(); 
-                                    data.data.forEach(msg => appendChatMessage(msg));
+                                    // MODIFIED: Ignore WebSocket history to prevent conflicts with Google Sheet archive
+                                    console.log("正在忽略來自 WebSocket 的記憶體歷史訊息。");
                                     break;
                                 case 'chat':
-                                    // NEW: Handle unread counter
                                     if ($('#chat-modal').hasClass('hidden')) {
                                         unreadChatCount++;
                                         const $badge = $('#chat-unread-badge');
                                         $badge.text(unreadChatCount).removeClass('hidden');
                                     }
                                     appendChatMessage(data);
+                                    // MODIFIED: Scroll on new live messages
+                                    const $chatWindow = $('#chat-messages');
+                                    $chatWindow.scrollTop($chatWindow[0].scrollHeight);
                                     break;
                                 case 'system_join':
                                 case 'system_leave':
@@ -1171,13 +1172,12 @@
                 }
             }
             
-            // MODIFIED: appendChatMessage to prevent duplicates
-            function appendChatMessage(data, isFromArchive = false) {
+            // MODIFIED: appendChatMessage to always append
+            function appendChatMessage(data) {
                 const $chatMessages = $('#chat-messages');
-
-                // NEW: Check for duplicate messages using timestamp
+                
                 if ($chatMessages.find(`[data-timestamp="${data.timestamp}"]`).length > 0) {
-                    return; // Message already exists, do not append
+                    return;
                 }
                 
                 const messageTime = new Date(data.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Taipei' });
@@ -1219,13 +1219,7 @@
                 }
                 
                 if(messageHtml) {
-                    // Prepend archived messages, append live messages
-                    if (isFromArchive) {
-                        $chatMessages.prepend(messageHtml);
-                    } else {
-                        $chatMessages.append(messageHtml);
-                        $chatMessages.scrollTop($chatMessages[0].scrollHeight);
-                    }
+                    $chatMessages.append(messageHtml);
                 }
             }
             
@@ -1239,7 +1233,6 @@
                 const message = $input.val().trim();
 
                 if (message && ws && ws.readyState === WebSocket.OPEN) {
-                    // Instantly display the message locally
                     const localMessage = {
                         type: 'chat',
                         message: message,
@@ -1249,8 +1242,9 @@
                         timestamp: new Date().toISOString()
                     };
                     appendChatMessage(localMessage);
+                    const $chatMessages = $('#chat-messages');
+                    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
 
-                    // Send to server
                     const payload = {
                         type: 'chat',
                         message: message
@@ -2678,7 +2672,7 @@
                 });
             }
             
-            // MODIFIED: setLoginState to load archived chat
+            // MODIFIED: setLoginState to remove history loading
             async function setLoginState(profile) {
                 isLoggedIn = true;
                 userProfile = profile;
@@ -2697,9 +2691,6 @@
                 }
 
                 checkIfAdmin(userProfile.email);
-                
-                // MODIFIED: 登入後啟用載入歷史訊息功能
-                await loadArchivedChatHistory();
                 
                 if (isLocationKnown) {
                     sendJoinMessage();
