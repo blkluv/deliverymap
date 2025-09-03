@@ -2,7 +2,7 @@
 //
 // !!! *** 極度重要 *** !!!
 // !!! 請將下方的 'YOUR_APPS_SCRIPT_URL_HERE' 替換為您自己部署的 Google Apps Script 網路應用程式網址 !!!
-const APPS_SCRIPT_ARCHIVE_URL = 'https://script.google.com/macros/s/AKfycbxnISJdohfBKEdkHkSRO43ENW8nHr5CCvXKCkjeDllkOS1kKOvhqHEIrVR-YjYjPj4MEA/exec'; 
+const APPS_SCRIPT_ARCHIVE_URL = 'https://script.google.com/macros/s/AKfycbzr_Xmv4WeUCDOjpZmXdHLwtWg4kAOhcMB0brJQWkzquFqOLjupnFcB7AvdQM022dqWrQ/exec'; 
 const ARCHIVE_INTERVAL = 1 * 60 * 1000; // 存檔間隔：5 分鐘
 
 
@@ -15,7 +15,7 @@ const fetch = require('node-fetch'); // NEW: 用於發送 HTTP 請求到 Google 
 
 
 
-// 在 8080 連接埠上建立一個新的 WebSocket 伺服器。
+// 在 8080 連接埠上建立一個新的 WebSocket 伺erver。
 const wss = new WebSocket.Server({ port: 8080 });
 
 // --- 變數定義 ---
@@ -140,7 +140,7 @@ wss.on('connection', function connection(ws, req) {
           messageHistory.push(chatMessage);
           if (messageHistory.length > MAX_HISTORY) messageHistory.shift();
 
-          // MODIFIED: 修正準備存檔的物件，將 chat_log 欄位名稱改為 message，以符合 Apps Script 預期
+          // MODIFIED: 修正準備存檔的物件，加入 pictureUrl
           const archiveEntry = {
               conversation_id: ws.userId,
               conversation_name: ws.nickname,
@@ -148,7 +148,8 @@ wss.on('connection', function connection(ws, req) {
               updated_time: chatMessage.timestamp,
               conversation_location: ws.city,
               ip: ws.ip,
-              message: chatMessage.message // <-- ***重要修改***：將 chat_log 改為 message
+              message: chatMessage.message,
+              pictureUrl: ws.pictureUrl || '' // <-- ***新增***：加入使用者頭像 URL
           };
           messagesToArchive.push(archiveEntry);
 
