@@ -1059,21 +1059,24 @@
                     const response = await fetch(`${CHAT_APPS_SCRIPT_URL}?action=get_chat_history&t=${new Date().getTime()}`);
                     const history = await response.json();
                     
-                    if (Array.isArray(history)) {
+                    if (Array.isArray(history) && history.length > 0) {
                          $('#chat-messages').empty(); // 清空現有訊息
                          history.forEach(log => {
-                            // 將存檔格式轉換為聊天室顯示格式
+                            // MODIFIED: 將存檔格式轉換為聊天室顯示格式，並使用真實的聊天內容
                             const messageData = {
                                 type: 'chat',
-                                message: `(歷史訊息) ${log.conversation_name} 說: ... (此為示意)`, // 注意：您的存檔沒有訊息內容
+                                message: log.message, // 使用從 'chat_log' 欄位讀取的內容
                                 nickname: log.conversation_name,
                                 city: log.conversation_location,
-                                pictureUrl: '', // 存檔中沒有頭像 URL
+                                pictureUrl: '', // 存檔中沒有頭像 URL，appendChatMessage 會處理預設圖
                                 timestamp: log.updated_time,
                             };
-                            // appendChatMessage(messageData, true); // 暫時註解，因為存檔沒有訊息內容
+                            appendChatMessage(messageData, true); // 呼叫函式將歷史訊息顯示在畫面上
                          });
                          console.log(`已載入 ${history.length} 筆歷史訊息。`);
+                         // NEW: 載入完成後，自動滾動到聊天室底部
+                         const $chatMessages = $('#chat-messages');
+                         $chatMessages.scrollTop($chatMessages[0].scrollHeight);
                     }
                 } catch (error) {
                     console.error("無法載入歷史聊天紀錄:", error);
@@ -2695,8 +2698,8 @@
 
                 checkIfAdmin(userProfile.email);
                 
-                // NEW: Load archived chat after login
-                // await loadArchivedChatHistory(); // 暫時註解，因為存檔沒有訊息內容，載入會造成困惑
+                // MODIFIED: 登入後啟用載入歷史訊息功能
+                await loadArchivedChatHistory();
                 
                 if (isLocationKnown) {
                     sendJoinMessage();
