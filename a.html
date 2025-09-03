@@ -2672,16 +2672,25 @@
                 });
             }
             
-// MODIFIED: setLoginState to load archived chat
-async function setLoginState(profile) {
-    isLoggedIn = true;
-    userProfile = profile;
+            // MODIFIED: setLoginState to remove history loading
+            async function setLoginState(profile) {
+                isLoggedIn = true;
+                userProfile = profile;
+                
+                currentUserDisplayName = profile.name;
 
-    currentUserDisplayName = profile.name;
+                $('#google-signin-container').hide();
+                $('#add-info').removeClass('hidden').addClass('flex');
+                $('#user-name').text(currentUserDisplayName);
+                
+                const $userPicture = $('#user-picture');
+                if (profile.pictureUrl) {
+                    $userPicture.attr('src', profile.pictureUrl).removeClass('hidden');
+                } else {
+                    $userPicture.addClass('hidden').attr('src', '');
+                }
 
-    // ... (其他設定 UI 的程式碼) ...
-
-    checkIfAdmin(userProfile.email);
+checkIfAdmin(userProfile.email);
 
     // MODIFIED: 登入後啟用載入歷史訊息功能
     if (!isChatHistoryLoaded) {
@@ -2693,7 +2702,6 @@ async function setLoginState(profile) {
         sendJoinMessage();
     }
 }
-    * 我新增了一個 `isChatHistoryLoaded` 旗標，確保歷史紀錄只會在使用者第一次登入時載入一次，避免重複呼叫。
 
             function initializeGoogleButton() {
                 const $container = $('#google-signin-container');
