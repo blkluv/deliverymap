@@ -527,10 +527,9 @@
         const styleCache = {};
         let middleMouseButtonPan = null;
 
-        // MODIFIED: 將底圖從國土測繪中心更換為 OpenStreetMap
         const osmLayer = new ol.layer.Tile({
             source: new ol.source.OSM({
-                 attributions: '內容為外送員分享經驗，不代表平台立場 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap',
+                 attributions: '內容為外送員分享經驗 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者',
             })
         });
         
@@ -632,11 +631,19 @@
         }
 
         const clusterLayer = new ol.layer.Vector({ source: clusterSource, style: clusterStyleFunction });
+        
+        // MODIFIED: 新增台灣地區的地圖範圍限制
+        const taiwanExtent = ol.proj.transformExtent([118.0, 21.5, 122.5, 25.5], 'EPSG:4326', 'EPSG:3857');
 
         const map = new ol.Map({
             target: 'map', 
-            layers: [osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer], // MODIFIED: 使用 osmLayer 作為底圖
-            view: new ol.View({ center: ol.proj.fromLonLat([120.9, 23.9]), zoom: 8 }),
+            layers: [osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer],
+            view: new ol.View({ 
+                center: ol.proj.fromLonLat([120.9, 23.9]), 
+                zoom: 8,
+                extent: taiwanExtent, // 限制地圖拖曳範圍
+                minZoom: 8, // 可選：設定最小縮放等級
+            }),
             controls: [
                 new ol.control.Zoom(),
                 new ol.control.Rotate(),
@@ -935,6 +942,21 @@
                 const message = $input.val().trim();
 
                 if (message && ws && ws.readyState === WebSocket.OPEN) {
+
+        const localMessage = {
+            type: 'chat',
+            message: message,
+            nickname: currentUserDisplayName,
+            city: currentUserCity,
+            pictureUrl: userProfile.pictureUrl || '',
+            timestamp: new Date().toISOString(),
+            userId: userProfile.email || userProfile.lineUserId
+        };
+        appendChatMessage(localMessage);
+        const $chatMessages = $('#chat-messages');
+        $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+
+
                     const payload = {
                         type: 'chat',
                         message: message
@@ -2732,7 +2754,7 @@
                 const areaMap = new ol.Map({
                     target: targetId,
                     layers: [
-                        new ol.layer.Tile({ source: nlscLayer.getSource() }),
+                        new ol.layer.Tile({ source: osmLayer.getSource() }),
                         new ol.layer.Vector({ source: areaSource })
                     ],
                     controls: [],
@@ -3008,41 +3030,9 @@
                         reviewMapInstance = null;
                     }
                     
-                    const reviewAreaSource = new ol.source.Vector();
-                    reviewMapInstance = new ol.Map({
-                        target: 'review-map',
-                        layers: [
-                            new ol.layer.Tile({ source: nlscLayer.getSource() }),
-                            new ol.layer.Vector({ source: reviewAreaSource })
-                        ],
-                        view: new ol.View({
-                            center: ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]),
-                            zoom: 18
-                        }),
-                        controls: []
-                    });
-                    
-                    try {
-                        const areaBoundsData = JSON.parse(report.areaBounds);
-                        if (areaBoundsData.v === 1) {
-                            const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
-                            const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
-                            compressedCells.forEach(cellString => {
-                                const parts = cellString.split(':');
-                                const [x, y] = parts[0].split(',').map(Number);
-                                const [fillIndex] = parts.slice(1);
-                                if (fillIndex !== '') {
-                                    const lon = origin.lon + x * GRID_INTERVAL;
-                                    const lat = origin.lat + y * GRID_INTERVAL;
-                                    const extent = ol.proj.transformExtent([lon, lat, lon + GRID_INTERVAL, lat + GRID_INTERVAL], 'EPSG:4326', 'EPSG:3857');
-                                    const cellFeature = new ol.Feature({ geometry: ol.geom.Polygon.fromExtent(extent) });
-                                    cellFeature.setStyle(new ol.style.Style({ fill: new ol.style.Fill({ color: palette.f[parseInt(fillIndex, 10)] || 'rgba(255,0,0,0.5)' }) }));
-                                    reviewAreaSource.addFeature(cellFeature);
-                                }
-                            });
-                        }
-                    } catch(e) { console.error("Could not draw area on review map", e); }
-
+                    setTimeout(() => {
+                        reviewMapInstance = renderAreaOnMap('review-map', report.areaBounds);
+                    }, 0);
 
                 } else {
                      const detailHtml = `
@@ -3188,7 +3178,7 @@
                         $('#add-location-modal-mobile').removeClass('hidden');
                         $('#complete-placement-btn').addClass('hidden');
                     } else {
-                        enterDesktopAddMode(coordinate);
+                         enterDesktopAddMode(coordinate);
                     }
                 }
             }
@@ -3359,3 +3349,6 @@
 </body>
 </html>
 
+
+                    }
+                }
