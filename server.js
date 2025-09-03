@@ -7,7 +7,7 @@ const fetch = require('node-fetch'); // NEW: 用於發送 HTTP 請求到 Google 
 
 // --- 設定 ---
 // !!! 重要：請將此處的網址替換為您自己部署的 Google Apps Script 網路應用程式網址 !!!
-const APPS_SCRIPT_ARCHIVE_URL = 'https://script.google.com/macros/s/AKfycbz2EgbwYpKBEPRU_KI4w2WeAicVWDTNpOPtdIj-NrGF870tQzufnm_qCIqXfCSXwxaMZg/exec'; 
+const APPS_SCRIPT_ARCHIVE_URL = 'YOUR_APPS_SCRIPT_URL_HERE'; 
 const ARCHIVE_INTERVAL = 5 * 60 * 1000; // 存檔間隔：5 分鐘
 
 // 在 8080 連接埠上建立一個新的 WebSocket 伺服器。
