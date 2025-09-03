@@ -59,295 +59,23 @@
     <!-- MODIFIED: pinyin-pro for Chinese to Pinyin conversion -->
     <script src="https://unpkg.com/pinyin-pro@3.18.2/dist/index.js"></script>
 
-
+    <!-- NEW: External Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- NEW: Additional styles for context menu -->
     <style>
-        /* 自定義樣式 */
-        :root {
-            /* 手機版底部安全距離 (預設值 6rem，LINE瀏覽器中會以JS調整) */
-            --mobile-bottom-offset: 6rem; 
-            /* 手機版店家列表寬度 (可調整此數值) */
-            --mobile-panel-width: 90vw;
-            /* NEW: Map filter variable */
-            --map-filter-style: none;
-        }
-        html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', 'Noto Sans TC', sans-serif;
-            overflow: hidden; /* 防止滾動 */
-        }
-        #map {
-            width: 100%;
-            height: 100%;
-            background: #f0f0f0;
-        }
-        /* 網格模式下的游標 */
-        #map.grid-mode-active.paint-mode {
-            cursor: crosshair;
-        }
-         #map.grid-mode-active.pan-mode {
-            cursor: grab;
-        }
-        #map.grid-mode-active.pan-mode:active {
-            cursor: grabbing;
-        }
-        /* NEW: Map Enhancement Style */
-        #map .ol-layer canvas {
-            transition: filter 0.5s ease-in-out;
-        }
-        #map.map-enhanced .ol-layer canvas {
-            filter: var(--map-filter-style);
-        }
-        /* OpenLayers 彈出視窗樣式 */
-        .ol-popup {
-            position: absolute;
-            background-color: white;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px solid #cccccc;
-            bottom: 12px;
-            left: -50px;
-            min-width: 300px;
-            max-width: 350px;
-            transform: translateX(-50%);
-        }
-        .ol-popup:after, .ol-popup:before {
-            top: 100%;
-            border: solid transparent;
-            content: " ";
-            height: 0;
-            width: 0;
-            position: absolute;
-            pointer-events: none;
-        }
-        .ol-popup:after {
-            border-top-color: white;
-            border-width: 10px;
-            left: 50%;
-            margin-left: -10px;
-        }
-        .ol-popup:before {
-            border-top-color: #cccccc;
-            border-width: 11px;
-            left: 50%;
-            margin-left: -11px;
-        }
-        .ol-popup-closer {
-            text-decoration: none;
-            position: absolute;
-            top: 2px;
-            right: 8px;
-            font-size: 20px;
-        }
-        .ol-popup-closer:after {
-            content: "✖";
-        }
-        /* 避免 Tailwind CSS 影響 OpenLayers 控制項 */
-        .ol-control button {
-            background-color: rgba(255,255,255,0.8) !important;
-            color: #333 !important;
-            border: 1px solid #ccc !important;
-        }
-        .ol-control button:hover {
-            background-color: rgba(255,255,255,1) !important;
-        }
-        /* 滾動條樣式 */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-        #store-list-filters::-webkit-scrollbar {
-            height: 9px; /* For horizontal scrollbar */
-        }
-        #store-list-filters::-webkit-scrollbar-thumb {
-            background: #bbb;
-            border-radius: 4px;
-        }
-        #store-list-filters::-webkit-scrollbar-track {
-            background: #eee;
-            border-radius: 4px;
-        }
-        /* 當前位置標記動畫 */
-        @keyframes pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-        }
-        .pulse-dot {
-            animation: pulse 2s infinite;
-        }
-        /* 新增地點的標記樣式 */
-        .new-location-marker {
-             width: 32px;
-             height: 32px;
-             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ef4444" width="32px" height="32px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>');
-             background-size: contain;
-             cursor: grab;
-             transform: translate(-50%, -100%);
-             z-index: 10;
-        }
-        .new-location-marker:active {
-            cursor: grabbing;
-        }
-        /* NEW: Desktop Add Mode Layout */
-        #app-container {
-            display: flex;
-            width: 100%;
-            height: 100%;
-        }
-        #map-container {
-            flex-grow: 1;
-            height: 100%;
-            position: relative;
-        }
-        #add-location-modal.desktop-mode {
-            position: relative;
-            display: flex;
-            width: 0px; /* Start with 0 width */
-            max-width: 450px;
-            height: 100%;
-            transform: translateX(-100%);
-            transition: width 0.3s ease-in-out, transform 0.3s ease-in-out;
-            box-shadow: 2px 0 15px rgba(0,0,0,0.1);
-            z-index: 50;
-            overflow: hidden;
-        }
-        #app-container.desktop-add-mode #add-location-modal.desktop-mode {
-            width: 450px;
-            transform: translateX(0);
-        }
-        
-        #desktop-center-marker {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -100%); /* Adjust to pin bottom point to center */
-            z-index: 10;
-            pointer-events: none; /* Make it non-interactive */
-        }
-
-        /* Responsive positioning for bottom elements */
-        #store-list-panel, #legend {
-            bottom: 1rem; /* 桌面版的預設值 (Tailwind class: bottom-4) */
-        }
-        /* 在小於 768px 的螢幕上（手機版）套用較高的底部距離 */
-        @media (max-width: 767px) {
-            #legend {
-                display: none; /* 在手機版上隱藏中間的分類圖例 */
-            }
-            #store-list-panel {
-                bottom: var(--mobile-bottom-offset);
-                width: var(--mobile-panel-width);
-                max-width: 400px; /* 避免在較寬的手機螢幕上過寬 */
-                left: 50%;
-                transform: translateX(-50%);
-            }
-            #add-location-modal.desktop-mode {
-                display: none; /* Hide desktop version on mobile */
-            }
-        }
-        @media (min-width: 768px) {
-            #add-location-modal:not(.desktop-mode) {
-                display: none; /* Hide mobile modal on desktop */
-            }
-        }
-        /* NEW: Vote button styles */
-        .vote-btn.voted-like svg {
-            fill: #10B981; /* A brighter green */
-        }
-        .vote-btn.voted-dislike svg {
-            fill: #EF4444; /* A brighter red */
-        }
-        
-        /* NEW: Grid canvas style */
-        #grid-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 10; /* Above map tiles, below UI controls */
-            pointer-events: none; /* MODIFIED: Let map handle events so zoom/pan works */
-        }
-        
-        /* NEW: Grid toolbar styles */
-        #grid-toolbar {
-            position: absolute;
-            top: 1rem;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 20;
-            background-color: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(5px);
-            padding: 0.5rem;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .grid-tool-btn {
-            padding: 0.5rem;
-            border-radius: 0.5rem;
-            transition: background-color 0.2s;
-            border: 2px solid transparent;
-        }
-        .grid-tool-btn:hover {
-            background-color: #e5e7eb; /* gray-200 */
-        }
-        .grid-tool-btn.active {
-            background-color: #dbeafe; /* blue-100 */
-            border-color: #3b82f6; /* blue-500 */
-        }
-        #marker-tools {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding-left: 0.5rem;
-            border-left: 1px solid #d1d5db; /* gray-300 */
-        }
-
-        /* NEW: Grid Color Palette Styles */
-        #grid-color-palette input[type="color"] {
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-            width: 100%;
-            height: 2rem; /* 32px */
-            background-color: transparent;
-            border: 1px solid #d1d5db; /* gray-300 */
-            border-radius: 0.375rem; /* rounded-md */
-            cursor: pointer;
-        }
-        #grid-color-palette input[type="color"]::-webkit-color-swatch-wrapper {
-            padding: 0;
-        }
-        #grid-color-palette input[type="color"]::-webkit-color-swatch {
-            border: none;
-            border-radius: 0.25rem; /* rounded */
-        }
-
-        /* NEW: Styles for hiding system messages in chat */
-        #chat-messages.hide-system-messages .system-message {
-            display: none;
+        .chat-message-item {
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10+ */
+            user-select: none; /* Standard syntax */
         }
     </style>
+
 </head>
 <body class="bg-gray-100">
 
     <div id="app" class="relative h-screen w-screen overflow-hidden">
-        <!-- NEW: App Container for Desktop Layout -->
+        <!-- App Container -->
         <div id="app-container">
             <!-- 新增/編輯店家 Modal (Desktop Sidebar) -->
             <div id="add-location-modal" class="desktop-mode">
@@ -365,10 +93,9 @@
                         </div>
                         <div class="px-6 pt-2 pb-16 space-y-4 overflow-y-auto custom-scrollbar flex-grow">
                             <input type="hidden" id="edit-row-index" name="rowIndex">
-                            <input type="hidden" id="edit-area-row-index" name="areaRowIndex"> <!-- NEW: for editing areas -->
+                            <input type="hidden" id="edit-area-row-index" name="areaRowIndex">
                             <input type="hidden" id="edit-original-name" name="originalName">
                             <p id="location-instruction" class="text-sm text-gray-600">請移動地圖中心點來選擇位置。</p>
-                            <!-- MODIFIED: Hidden on mobile -->
                             <div class="hidden md:block">
                                 <label class="block text-sm font-medium text-gray-700">社區/區域名稱</label>
                                 <input type="text" id="add-area-name" name="areaName" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm">
@@ -383,7 +110,6 @@
                                 <label class="block text-sm font-medium text-gray-700">類別 <span class="text-red-500">*</span></label>
                                 <select id="add-category" name="category" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm" required></select>
                             </div>
-                             <!-- MODIFIED: Hidden on mobile -->
                             <div class="hidden md:block">
                                 <label class="flex items-center mt-2">
                                     <input type="checkbox" id="add-is-area" name="isArea" class="h-4 w-4 text-indigo-600 border-gray-300 rounded">
@@ -416,10 +142,8 @@
             <!-- Map Container -->
             <main id="map-container" class="w-full h-full relative">
                 <div id="map"></div>
-                <!-- NEW: Canvas for Area Selection Grid -->
                 <canvas id="grid-canvas"></canvas>
 
-                <!-- MODIFIED: Grid drawing toolbar (Color Pickers Removed) -->
                 <div id="grid-toolbar" class="hidden">
                     <button id="tool-pan" class="grid-tool-btn" title="移動畫面">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
@@ -445,7 +169,6 @@
                     </div>
                 </div>
 
-                <!-- NEW: Color Palette -->
                 <div id="grid-color-palette" class="hidden absolute top-4 right-24 z-20 bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-lg flex flex-col space-y-2 w-28">
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">格子顏色</label>
@@ -457,28 +180,23 @@
                     </div>
                 </div>
                 
-                <!-- 錯誤/提示訊息 -->
                 <div id="notification" class="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-yellow-500 text-white text-sm py-2 px-4 rounded-lg shadow-lg hidden transition-all duration-300">
                     訊息
                 </div>
 
-                <!-- 彈出視窗容器 -->
                 <div id="popup" class="ol-popup">
                     <a href="#" id="popup-closer" class="ol-popup-closer"></a>
                     <div id="popup-content"></div>
                 </div>
                 
-                <!-- 當前位置標記 (HTML Overlay) -->
                 <div id="user-location" class="absolute w-4 h-4 -translate-x-1/2 -translate-y-1/2 hidden">
                     <div class="w-full h-full rounded-full bg-blue-600 border-2 border-white shadow-md pulse-dot"></div>
                 </div>
                 
-                <!-- NEW: Desktop center marker -->
                 <div id="desktop-center-marker" class="hidden">
                      <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ef4444' width='40px' height='40px'><path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z'/></svg>" alt="Center Marker">
                 </div>
                 
-                <!-- NEW: Search Panel -->
                 <div id="search-panel" class="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg w-[90%] max-w-md hidden">
                     <div class="relative">
                         <input type="text" id="search-address-input" placeholder="輸入地址或關鍵字搜尋..." class="w-full p-2 pl-10 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
@@ -495,15 +213,11 @@
                     </div>
                 </div>
 
-                <!-- UI 按鈕群組 -->
                 <div class="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2">
-                    <!-- 登入/新增說明按鈕 -->
                     <div id="login-status">
-                        <!-- MODIFIED: Replaced declarative button with a container for programmatic rendering -->
                         <div id="google-signin-container" style="display: none;"></div>
                         
                          <div id="add-info" class="bg-white text-gray-700 py-2 px-4 rounded-lg shadow-lg items-center space-x-2 hidden">
-                            <!-- NEW: Image tag for user avatar -->
                             <img id="user-picture" src="" alt="使用者頭像" class="w-6 h-6 rounded-full mr-2 hidden">
                             <span id="user-name" class="font-bold"></span>
                             <button id="edit-nickname-btn" class="text-xs text-blue-500 hover:underline">[修改]</button>
@@ -512,7 +226,6 @@
                             <a href="#" id="sign-out-btn" class="text-xs text-gray-500 hover:underline ml-2">登出</a>
                         </div>
                     </div>
-                    <!-- NEW: Search Button -->
                     <button id="search-address-btn" class="bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="搜尋地址">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
@@ -528,12 +241,10 @@
                           <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
                         </svg>
                     </button>
-                    <!-- MODIFIED: Chat Button with unread badge container -->
                     <button id="open-chat-btn" class="relative bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="聊天室">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
                         </svg>
-                        <!-- NEW: Unread message badge -->
                         <span id="chat-unread-badge" class="hidden absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center"></span>
                     </button>
                     <button id="add-location-btn" class="bg-white text-gray-700 p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-300 flex items-center justify-center" title="新增地點">
@@ -544,26 +255,20 @@
                 </div>
 
 
-                <!-- 圖例 -->
                 <div id="legend" class="absolute left-1/2 -translate-x-1/2 z-10 bg-white/80 backdrop-blur-sm p-3 rounded-lg shadow-md">
                     <div id="legend-content" class="flex items-center justify-center flex-wrap gap-x-4 gap-y-1 text-xs md:text-sm">
-                        <!-- 圖例內容將由 JS 動態生成 -->
                     </div>
                 </div>
                 
-                <!-- 修正: 移除展開按鈕 -->
                 <div id="store-list-panel" class="absolute left-4 w-64 z-10 bg-white/80 backdrop-blur-sm p-3 rounded-lg shadow-md flex flex-col transition-all duration-300 ease-in-out" style="max-height: 14rem;">
                     <div class="flex justify-between items-start flex-shrink-0 mb-2">
                         <div id="store-list-filters" class="flex-grow flex overflow-x-auto pb-1 custom-scrollbar">
-                            <!-- 分類按鈕將由 JS 動態生成 -->
                         </div>
                     </div>
                     <div id="store-list-content" class="flex-grow overflow-y-auto custom-scrollbar pr-2 transition-all duration-300">
-                        <!-- 店家列表將由 JS 動態生成 -->
                     </div>
                 </div>
 
-                <!-- MODIFIED: Mobile placement confirmation button position -->
                 <button id="complete-placement-btn" class="hidden absolute top-4 left-4 z-20 bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-green-700 transition-colors">
                     完成位置設定
                 </button>
@@ -572,7 +277,6 @@
 
         <!-- 新增/編輯店家 Modal (Mobile Popup) -->
         <div id="add-location-modal-mobile" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4">
-             <!-- Content is the same, just duplicated for simplicity. A framework would reuse the component. -->
              <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col" style="max-height: calc(100vh - 5rem);">
                 <form id="add-location-form-mobile" class="flex-grow flex flex-col overflow-hidden">
                     <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
@@ -586,7 +290,6 @@
                         </div>
                     </div>
                     <div class="px-6 pt-2 pb-16 space-y-4 overflow-y-auto custom-scrollbar flex-grow">
-                        <!-- Form content will be dynamically cloned from the desktop version -->
                     </div>
                 </form>
             </div>
@@ -600,14 +303,12 @@
                     <button id="close-filter-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
                 </div>
                 <div class="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    <!-- 分類篩選 -->
                     <div class="mb-4">
                         <label for="category-select" class="block text-sm font-medium text-gray-700 mb-1">分類</label>
                         <select id="category-select" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                             <option value="">所有分類</option>
                         </select>
                     </div>
-                    <!-- 關鍵字搜尋 -->
                     <div class="mb-4">
                         <label for="keyword-search" class="block text-sm font-medium text-gray-700 mb-1">關鍵字搜尋</label>
                         <input type="text" id="keyword-search" placeholder="地址、關鍵字" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
@@ -635,27 +336,23 @@
             </div>
         </div>
 
-        <!-- MODIFIED: Management Modal with Tabs -->
+        <!-- Management Modal -->
         <div id="management-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col" style="height: 80vh;">
                 <div class="p-4 border-b flex justify-between items-center">
                     <h2 class="text-xl font-bold text-gray-800">我的貢獻管理</h2>
                     <button id="close-management-modal" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
                 </div>
-                <!-- NEW: Tabs -->
                 <div class="border-b border-gray-200">
                     <nav class="-mb-px flex space-x-6 px-6" aria-label="Tabs">
                         <button id="manage-locations-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-indigo-500 text-indigo-600">我的地點</button>
                         <button id="manage-areas-tab" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">我的建築</button>
                     </nav>
                 </div>
-                <!-- MODIFIED: Content container -->
                 <div class="flex-grow overflow-y-auto custom-scrollbar">
                     <div id="management-list-content" class="p-6">
-                        <!-- User's point locations will be listed here -->
                     </div>
                     <div id="management-area-content" class="p-6 hidden">
-                        <!-- User's community areas will be listed here -->
                     </div>
                 </div>
             </div>
@@ -666,7 +363,6 @@
             <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col" style="height: 90vh;">
                 <div class="p-4 border-b flex justify-between items-center">
                     <h2 class="text-xl font-bold text-gray-800">審核地點</h2>
-                    <!-- NEW: Refresh button container -->
                     <div class="flex items-center space-x-2">
                         <button id="review-refresh-btn" class="p-2 rounded-full hover:bg-gray-100 transition-colors" title="重新整理">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -683,11 +379,8 @@
                     </nav>
                 </div>
                 <div class="flex-grow overflow-y-hidden flex">
-                    <!-- List Panel -->
                     <div id="review-list-panel" class="w-1/3 border-r overflow-y-auto custom-scrollbar bg-gray-50">
-                        <!-- List items will be injected here -->
                     </div>
-                    <!-- Detail Panel -->
                     <div id="review-detail-panel" class="w-2/3 p-6 overflow-y-auto custom-scrollbar">
                         <p class="text-gray-500">請從左側列表選擇一個地點以查看詳細資訊。</p>
                     </div>
@@ -695,11 +388,11 @@
             </div>
         </div>
 
-        <!-- MODIFIED: Chat Modal with system message toggle -->
+        <!-- Chat Modal -->
         <div id="chat-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col" style="height: 70vh;">
                 <div class="p-4 border-b flex justify-between items-center">
-                    <h2 class="text-xl font-bold text-gray-800">公開聊天室</h2>
+                    <h2 class="text-xl font-bold text-gray-800">外送員聊天室</h2>
                     <div class="flex items-center space-x-4">
                          <label class="flex items-center text-sm text-gray-600 cursor-pointer">
                             <input type="checkbox" id="hide-system-msgs-checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
@@ -709,7 +402,6 @@
                     </div>
                 </div>
                 <div id="chat-messages" class="flex-grow p-4 overflow-y-auto custom-scrollbar flex flex-col space-y-2 bg-gray-50">
-                    <!-- Messages will be appended here -->
                 </div>
                 <div class="p-4 bg-white border-t">
                     <div class="flex items-center space-x-2">
@@ -724,7 +416,7 @@
             </div>
         </div>
 
-        <!-- NEW: In-App Browser Blocker for Facebook -->
+        <!-- In-App Browser Blocker for Facebook -->
         <div id="facebook-blocker-modal" class="fixed inset-0 bg-black/80 z-[200] flex-col items-center justify-center p-8 text-white text-center hidden">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -736,8 +428,40 @@
                 為了獲得最佳體驗，建議您點擊畫面右上角的「<span class="font-bold">•••</span>」選單，然後選擇「<span class="font-bold">在瀏覽器中開啟</span>」。
             </p>
         </div>
-        <!-- REMOVED: In-App Browser Blocker for LINE Login as it's replaced by a redirect -->
     </div>
+
+    <!-- NEW: Chat Context Menu -->
+    <div id="chat-context-menu" class="hidden absolute z-[100] bg-white rounded-md shadow-lg py-1 w-32">
+        <a href="#" id="context-private-msg" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">私訊</a>
+        <a href="#" id="context-mute-user" class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50 admin-only">禁言</a>
+    </div>
+
+    <!-- NEW: Mute User Modal -->
+    <div id="mute-user-modal" class="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm">
+            <form id="mute-user-form">
+                <div class="p-6 border-b">
+                    <h2 class="text-xl font-bold text-gray-800">禁言使用者</h2>
+                    <p class="text-sm text-gray-500 mt-1">您正準備禁言 <span id="mute-user-name" class="font-semibold"></span></p>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">天數</label>
+                        <input type="number" id="mute-days" min="0" value="0" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">分鐘</label>
+                        <input type="number" id="mute-minutes" min="0" value="10" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                    </div>
+                </div>
+                <div class="p-4 bg-gray-50 border-t rounded-b-lg flex justify-end space-x-2">
+                    <button type="button" id="cancel-mute-btn" class="bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300">取消</button>
+                    <button type="submit" class="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700">確認禁言</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 
     <script>
         // This function needs to be in the global scope for the Google API to call it.
@@ -759,32 +483,26 @@
     </script>
     
 <script type="module">
-  // --- NEW: Grid Mode Map Filter Settings ---
-  // *** 可修改參數：網格模式下的地圖濾鏡效果 ***
-  const MAP_FILTER_CONTRAST = 1;   // 對比度 (1 = 正常)
-  const MAP_FILTER_SATURATE = 1;   // 飽和度 (1 = 正常)
-  const MAP_FILTER_BRIGHTNESS = 1; // 亮度 (1 = 正常)
-  // *** 可修改數字：社區名稱與標記（入、出、桌）開始顯示的縮放等級 ***
+  // --- Grid Mode Map Filter Settings ---
+  const MAP_FILTER_CONTRAST = 1;
+  const MAP_FILTER_SATURATE = 1;
+  const MAP_FILTER_BRIGHTNESS = 1;
   const LABEL_VISIBILITY_ZOOM = 17; 
 
-  // 將參數組合成 CSS 字串
   document.documentElement.style.setProperty('--map-filter-style', 
     `contrast(${MAP_FILTER_CONTRAST}) saturate(${MAP_FILTER_SATURATE}) brightness(${MAP_FILTER_BRIGHTNESS})`
   );
         
         // --- OpenLayers 地圖設定 ---
-        
-        // MODIFIED: New categories and colors
         const categoryColors = {
-            '透天厝': 'rgba(1, 196, 106, 1)',   // Blue
-            '公寓大廈': 'rgba(247, 41, 128, 1)',  // Green
-            '辦公室': 'rgba(59, 130, 246, 1)',   // Orange
-            '飯店': 'rgba(139, 92, 246, 1)',    // Purple
-            '其他': 'rgba(107, 114, 128, 1)',   // Gray
+            '透天厝': 'rgba(1, 196, 106, 1)',
+            '公寓大廈': 'rgba(247, 41, 128, 1)',
+            '辦公室': 'rgba(59, 130, 246, 1)',
+            '飯店': 'rgba(139, 92, 246, 1)',
+            '其他': 'rgba(107, 114, 128, 1)',
         };
         const allCategories = ['透天厝', '公寓大廈', '辦公室', '飯店', '其他'];
 
-        // MODIFIED: SVG Icons for categories with encodeURIComponent and new style
         const mapIcons = {
             '透天厝': `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28px" height="28px"><circle cx="12" cy="12" r="11" fill="${categoryColors['透天厝']}" stroke="white" stroke-width="1.5"/><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill="white"/></svg>`)}`,
             '公寓大廈': `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28px" height="28px"><circle cx="12" cy="12" r="11" fill="${categoryColors['公寓大廈']}" stroke="white" stroke-width="1.5"/><g transform="scale(0.7) translate(5.5, 3.5)"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" fill="none" stroke-width="1.8" stroke="white"/></g></svg>`)}`,
@@ -807,7 +525,7 @@
         ];
 
         const styleCache = {};
-        let middleMouseButtonPan = null; // To hold the custom interaction
+        let middleMouseButtonPan = null;
 
         const nlscLayer = new ol.layer.Tile({
             source: new ol.source.XYZ({
@@ -816,7 +534,6 @@
             })
         });
         
-        // NEW: Layer for community areas (renamed from areaLayer to areaGridLayer)
         const areaGridSource = new ol.source.Vector();
         const areaGridLayer = new ol.layer.Vector({
             source: areaGridSource,
@@ -854,15 +571,12 @@
             }),
         });
 
-        // MODIFIED: Updated address formatting function
         function formatAddress(address) {
             if (!address) return '';
-            // Match from the first occurrence of "路", "街", "大道", "巷", "村", or "里"
             const match = address.match(/([^縣市區鄉鎮鎮]+(?:路|街|大道|巷|村|里).*)/);
             return match ? match[1] : address;
         }
 
-        // MODIFIED: clusterStyleFunction to use icons and formatted address
         function clusterStyleFunction(feature) {
             const features = feature.get('features');
             const size = features.length;
@@ -890,9 +604,9 @@
                 if (!styleCache[singleStyleKey]) {
                      styleCache[singleStyleKey] = new ol.style.Style({
                         image: new ol.style.Icon({
-                            src: mapIcons[category] || mapIcons['其他'], // Use mapIcons here
-                            scale: 1, // Adjusted scale for new icons
-                            anchor: [0.5, 1], // Anchor at the bottom center
+                            src: mapIcons[category] || mapIcons['其他'],
+                            scale: 1,
+                            anchor: [0.5, 1],
                         })
                     });
                 }
@@ -909,7 +623,7 @@
                         backgroundFill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.85)' }),
                         backgroundStroke: new ol.style.Stroke({ color: categoryColors[category] || categoryColors['其他'], width: 1 }),
                         padding: [5, 7, 5, 7], 
-                        offsetY: 8, // Adjust offset for icon
+                        offsetY: 8,
                         overflow: true,
                     }));
                 }
@@ -942,7 +656,6 @@
         });
         map.addOverlay(infoOverlay);
         
-        // 修正：使用更可靠的事件委派來處理彈出視窗的關閉按鈕
         $('#app').on('click', '#popup-closer', function(e) {
             e.preventDefault();
             infoOverlay.setPosition(undefined);
@@ -958,14 +671,12 @@
             const { pinyin } = pinyinPro; 
             const isLineApp = navigator.userAgent.toLowerCase().indexOf("line") > -1;
             
-            // --- 修正：動態調整 LINE 瀏覽器中的底部距離 ---
             if (isLineApp) {
-                // 您可以在這裡調整 '4rem' 這個數值
                 document.documentElement.style.setProperty('--mobile-bottom-offset', '4rem');
             }
 
             let allFeatures = [];
-            let rawReports = []; // NEW: Store for individual reports for admin panel
+            let rawReports = [];
             let fuse = null; 
             let isLoggedIn = false;
             let userProfile = {};
@@ -973,27 +684,23 @@
             const isMobile = window.innerWidth < 768;
             
             let initialAddLocationCoords = null;
-            let tempMarker = null; // Draggable marker for mobile
+            let tempMarker = null;
             let isDraggingMarker = false;
-            let latestGeocodeBounds = null; // NEW: Store latest geocode bounds
-            let areaBoundsForEditing = null; // NEW: Store area bounds when editing
-            let lockedCenterForEditing = null; // NEW: To store the locked center point for area edits
+            let latestGeocodeBounds = null;
+            let areaBoundsForEditing = null;
+            let lockedCenterForEditing = null;
             
-            // --- NEW: Area Selection Variables ---
             const gridCanvas = document.getElementById('grid-canvas');
             const gridCtx = gridCanvas.getContext('2d');
             let isAreaSelectionMode = false;
             
-            // MODIFIED: GPS-based grid settings
-            const GRID_INTERVAL = 0.000033; // 網格間隔 (經緯度)，約 3.7 公尺
-            const GRID_PRECISION = 6; // 網格座標的小數位數精度
-            // *** 可修改數字：網格顯示的最大半徑 (單位：公尺) ***
+            const GRID_INTERVAL = 0.000033;
+            const GRID_PRECISION = 6;
             const GRID_DRAW_RADIUS = 5000; 
-            // *** 可修改數字：勾選「標示為整個社區/區域」時自動縮放到的等級 ***
             const GRID_ZOOM_LEVEL_WEB = 20; 
             const GRID_ZOOM_LEVEL_MOBILE = 19;
             
-            let selectedGridCells = new Map(); // Key: 'lon-lat', Value: { marker: string|null, markerColor: string, fillColor: string|null }
+            let selectedGridCells = new Map();
             let currentAreaColor = 'rgba(239, 68, 68, 0.7)';
             let currentMarkerColor = '#000000';
             let currentAreaTool = 'fill';
@@ -1001,9 +708,9 @@
             let isDrawingOnGrid = false;
             let lastPaintedCellKey = null;
 
-            let dragPanInteraction; // NEW: To hold the default drag pan interaction
-            let reviewMapInstance = null; // NEW: To hold the map instance for the review panel
-            let managementAreaMaps = {}; // NEW: To hold map instances for the management panel
+            let dragPanInteraction;
+            let reviewMapInstance = null;
+            let managementAreaMaps = {};
 
             map.getInteractions().forEach(interaction => {
                 if (interaction instanceof ol.interaction.DragPan) {
@@ -1011,26 +718,25 @@
                 }
             });
 
-
             const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzYsrtdIA2O2hxeWOFDi0zEVdQitCuzKSD9beNRGaKFEby6i6ANSr-ftuyVcf7zrWq8/exec';
-            // NEW: URL for the new chat-specific Apps Script
-            const CHAT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxnISJdohfBKEdkHkSRO43ENW8nHr5CCvXKCkjeDllkOS1kKOvhqHEIrVR-YjYjPj4MEA/exec'; // !!! 請替換成您的 ChatAppScript 部署網址
+            const CHAT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_Xmv4WeUCDOjpZmXdHLwtWg4kAOhcMB0brJQWkzquFqOLjupnFcB7AvdQM022dqWrQ/exec';
             
             const visibilityThreshold = 16.5; 
 
-            // --- Global variable for popup state and votes ---
-            let currentFeatureData = null; // Store data of the main feature
+            let currentFeatureData = null;
             let userVotes = {};
             let currentUserDisplayName = '';
-            let currentUserCity = '未知區域'; // NEW: Store user's city
+            let currentUserCity = '未知區域';
             const VOTES_STORAGE_KEY = 'userBlacklistVotes';
-            const SESSION_TOKEN_KEY = 'userSessionToken'; // NEW
-            let loginCheckInterval = null; // 修正: 用於存放定時器的變數
-            let ws = null; // NEW: WebSocket variable
-            let heartbeatInterval = null; // NEW: For WebSocket heartbeat
-            let isLocationKnown = false; // NEW: Flag to track if location has been determined
-            let unreadChatCount = 0; // NEW: For unread message counter
-            let isChatHistoryLoaded = false; // NEW: Flag to prevent reloading chat history
+            const SESSION_TOKEN_KEY = 'userSessionToken';
+            let loginCheckInterval = null;
+            let ws = null;
+            let heartbeatInterval = null;
+            let isLocationKnown = false;
+            let unreadChatCount = 0;
+            let isChatHistoryLoaded = false;
+            // NEW: Variable to hold info for context menu actions
+            let contextMenuTarget = { userId: null, userName: null };
 
             function loadUserVotes() {
                 try {
@@ -1050,7 +756,6 @@
                 }
             }
             
-            // --- NEW: Function to load archived chat history from Google Sheets ---
             async function loadArchivedChatHistory() {
                 if (!isLoggedIn || !CHAT_APPS_SCRIPT_URL.startsWith('https')) {
                     return;
@@ -1061,20 +766,20 @@
                     const history = await response.json();
                     
                     if (Array.isArray(history) && history.length > 0) {
-                         $('#chat-messages').empty(); // 清空現有訊息
+                         $('#chat-messages').empty(); 
                          history.forEach(log => {
                             const messageData = {
                                 type: 'chat',
                                 message: log.message, 
                                 nickname: log.conversation_name,
                                 city: log.conversation_location,
-                                pictureUrl: '', 
+                                pictureUrl: log.pictureUrl || '',
                                 timestamp: log.updated_time,
+                                userId: log.conversation_id // Add userId for context menu on historical messages
                             };
                             appendChatMessage(messageData);
                          });
                          console.log(`已載入 ${history.length} 筆歷史訊息。`);
-                         // 載入完成後，自動滾動到聊天室底部
                          const $chatMessages = $('#chat-messages');
                          $chatMessages.scrollTop($chatMessages[0].scrollHeight);
                     }
@@ -1084,14 +789,12 @@
                 }
             }
 
-
-            // --- MODIFIED: Chat Logic ---
             function initializeChat() {
                 const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/';
                 
                 function connect() {
                     if (ws && ws.readyState === WebSocket.OPEN) {
-                        return; // Already connected
+                        return;
                     }
 
                     ws = new WebSocket(WEBSOCKET_URL);
@@ -1114,7 +817,6 @@
                             
                             switch (data.type) {
                                 case 'history':
-                                    // MODIFIED: Ignore WebSocket history to prevent conflicts with Google Sheet archive
                                     console.log("正在忽略來自 WebSocket 的記憶體歷史訊息。");
                                     break;
                                 case 'chat':
@@ -1124,7 +826,6 @@
                                         $badge.text(unreadChatCount).removeClass('hidden');
                                     }
                                     appendChatMessage(data);
-                                    // MODIFIED: Scroll on new live messages
                                     const $chatWindow = $('#chat-messages');
                                     $chatWindow.scrollTop($chatWindow[0].scrollHeight);
                                     break;
@@ -1158,12 +859,11 @@
                 connect();
             }
             
-            // MODIFIED: sendJoinMessage to include userId
             function sendJoinMessage() {
                 if (isLoggedIn && ws && ws.readyState === WebSocket.OPEN) {
                     const payload = {
                         type: 'join',
-                        userId: userProfile.email || userProfile.lineUserId, // NEW: for archiving
+                        userId: userProfile.email || userProfile.lineUserId, 
                         nickname: currentUserDisplayName,
                         pictureUrl: userProfile.pictureUrl || '',
                         city: currentUserCity
@@ -1172,7 +872,6 @@
                 }
             }
             
-            // MODIFIED: appendChatMessage to always append
             function appendChatMessage(data) {
                 const $chatMessages = $('#chat-messages');
                 
@@ -1191,10 +890,12 @@
 
                 switch (data.type) {
                     case 'chat':
-                        const nicknameColor = 'text-blue-600'; 
-                        
+                        const nicknameColor = 'text-blue-600';
                         messageHtml = `
-                            <div class="flex items-start space-x-3" data-timestamp="${data.timestamp}">
+                            <div class="chat-message-item flex items-start space-x-3 p-1 rounded-md hover:bg-gray-100" 
+                                 data-timestamp="${data.timestamp}" 
+                                 data-user-id="${data.userId || ''}" 
+                                 data-user-name="${sanitizedNickname}">
                                 <img src="${sanitizedPictureUrl}" alt="avatar" class="w-8 h-8 rounded-full flex-shrink-0">
                                 <div class="flex-grow">
                                     <div class="flex items-baseline space-x-2">
@@ -1239,7 +940,8 @@
                         nickname: currentUserDisplayName,
                         city: currentUserCity,
                         pictureUrl: userProfile.pictureUrl || '',
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        userId: userProfile.email || userProfile.lineUserId
                     };
                     appendChatMessage(localMessage);
                     const $chatMessages = $('#chat-messages');
@@ -1557,7 +1259,6 @@
                     }
                 });
 
-                // NEW: Draw locked center point
                 if (lockedCenterForEditing) {
                     const pixel = map.getPixelFromCoordinate(lockedCenterForEditing);
                     if (pixel) {
@@ -1644,7 +1345,6 @@
                 map.un('pointermove', mapPointerMove);
             };
             
-            // MODIFIED: Added areaBoundsToLoad parameter for editing
             function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
                 isAreaSelectionMode = enable;
                 
@@ -1656,11 +1356,10 @@
                     map.getView().animate({ zoom: zoomThreshold, duration: 800 });
                     $('#map').addClass('map-enhanced grid-mode-active paint-mode');
                     
-                    if (dragPanInteraction) dragPanInteraction.setActive(false); // Lock map panning
+                    if (dragPanInteraction) dragPanInteraction.setActive(false);
                     
                     $('#location-instruction').text('請在地圖上的網格標示範圍。');
                     
-                    // Unconditionally hide the center marker when entering grid mode
                     $('#desktop-center-marker').addClass('hidden');
                     if (tempMarker) {
                         tempMarker.getElement().style.display = 'none';
@@ -1672,7 +1371,7 @@
                             const areaBoundsData = JSON.parse(areaBoundsToLoad);
                             let cellsToLoad;
                             
-                            if (areaBoundsData.v === 1) { // New compressed format
+                            if (areaBoundsData.v === 1) {
                                 const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
                                 const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
                                 const markerReverseMap = { 'e': 'entrance', 'x': 'exit', 't': 'table', 'p': 'parking' };
@@ -1692,7 +1391,7 @@
                                     
                                     return { key: `${lon.toFixed(GRID_PRECISION)}-${lat.toFixed(GRID_PRECISION)}`, data };
                                 });
-                            } else { // Old uncompressed format for compatibility
+                            } else {
                                 cellsToLoad = areaBoundsData.map(cell => {
                                     const { lon, lat, ...data } = cell;
                                     return { key: `${lon.toFixed(GRID_PRECISION)}-${lat.toFixed(GRID_PRECISION)}`, data };
@@ -1713,7 +1412,7 @@
                     map.on('pointerdown', mapPointerDown);
                 } else {
                     $('#map').removeClass('map-enhanced grid-mode-active paint-mode pan-mode');
-                    if (dragPanInteraction) dragPanInteraction.setActive(true); // Unlock map panning
+                    if (dragPanInteraction) dragPanInteraction.setActive(true);
                     if (isMobile && tempMarker) {
                          tempMarker.getElement().style.pointerEvents = 'auto';
                          tempMarker.getElement().style.display = 'block';
@@ -1782,13 +1481,12 @@
                 const isAreaEdit = !!($('#edit-area-row-index').val());
 
                 if (isChecked) {
-                    // When checking the box during an area edit, lock the center point
                     if (isAreaEdit) {
                         lockedCenterForEditing = isMobile ? tempMarker.getPosition() : map.getView().getCenter();
                     }
                     toggleAreaSelectionMode(true, isAreaEdit ? areaBoundsForEditing : null);
                 } else {
-                    lockedCenterForEditing = null; // Clear the lock when unchecking
+                    lockedCenterForEditing = null;
                     toggleAreaSelectionMode(false);
                 }
             });
@@ -1834,7 +1532,6 @@
                 }
             }
             
-            // MODIFIED: Added areaBoundsToLoad parameter for editing areas
             function enterMobilePlacementMode(coordinate, areaBoundsToLoad = null) {
                 initialAddLocationCoords = coordinate;
                 if(tempMarker) map.removeOverlay(tempMarker);
@@ -1848,7 +1545,7 @@
                 map.addOverlay(tempMarker);
 
                 if (areaBoundsToLoad) {
-                    $('#add-is-area').prop('checked', false); // Start unchecked
+                    $('#add-is-area').prop('checked', false);
                     toggleAreaSelectionMode(false); 
                     $('#add-location-modal-mobile').removeClass('hidden'); 
                 } else {
@@ -1860,7 +1557,7 @@
                 markerEl.addEventListener('pointerdown', (e) => {
                     const isAreaEdit = !!($('#edit-area-row-index').val());
                     if (isAreaEdit && $('#add-is-area').is(':checked')) {
-                        return; // Prevent moving marker if area editing is active
+                        return;
                     }
                     isDraggingMarker = true;
                     map.getInteractions().forEach(i => { if(i instanceof ol.interaction.DragPan) i.setActive(false); });
@@ -1870,15 +1567,14 @@
                 });
             }
 
-            // MODIFIED: Added areaBoundsToLoad parameter for editing areas
             function enterDesktopAddMode(coordinate, areaBoundsToLoad = null) {
                 initialAddLocationCoords = coordinate;
                 $('#app-container').addClass('desktop-add-mode');
                 
-                $('#desktop-center-marker').removeClass('hidden'); // Always show the marker initially
+                $('#desktop-center-marker').removeClass('hidden');
 
                 if (areaBoundsToLoad) {
-                     $('#add-is-area').prop('checked', false); // Start unchecked
+                     $('#add-is-area').prop('checked', false);
                     toggleAreaSelectionMode(false);
                 }
                 
@@ -1901,7 +1597,6 @@
                 const isAreaEdit = !!($('#edit-area-row-index').val());
                 if ($('#app-container').hasClass('desktop-add-mode')) {
                      if (isAreaEdit && $('#add-is-area').is(':checked')) {
-                        // Don't reverse geocode if editing grid, keep the address stable
                         return; 
                      }
                     const centerCoords = map.getView().getCenter();
@@ -1917,7 +1612,7 @@
                 
                 radiusSource.clear();
                 initialAddLocationCoords = null;
-                lockedCenterForEditing = null; // NEW: Reset locked center
+                lockedCenterForEditing = null;
                 
                 if (isMobile) {
                     if(tempMarker) map.removeOverlay(tempMarker);
@@ -1931,7 +1626,6 @@
                     setTimeout(() => map.updateSize(), 350);
                 }
                 $('#add-is-area').prop('checked', false);
-                // Clear editing state and reload data to show the edited area back on map
                 $('#edit-row-index, #edit-area-row-index, #edit-original-name').val('');
                 loadData();
             }
@@ -1942,7 +1636,6 @@
                     return;
                 }
                 
-                // NEW: Restore required fields and labels for new additions
                 const forms = [$('#add-location-form'), $('#add-location-form-mobile')];
                 forms.forEach($f => {
                     const $blCat = $f.find('#add-blacklist-category');
@@ -2286,7 +1979,6 @@
                 }
             }
             
-            // NEW: Function to get address from coordinates without updating a form
             async function getAddressFromCoords(lon, lat) {
                 const apiKey = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
                 try {
@@ -2326,7 +2018,6 @@
                 }
             });
 
-            // MODIFIED: handleFormSubmit to include areaBounds compression and correct coordinate handling for area edits
             function handleFormSubmit(e) {
                 e.preventDefault();
                 const $form = $(e.target);
@@ -2337,12 +2028,9 @@
                 const isAreaUpdate = !!areaRowIndex;
                 const isPointUpdate = !!$form.find('#edit-row-index').val();
 
-                // Validation only for new points, not for any kind of update
                 if (!isAreaUpdate && !isPointUpdate) {
                      const reasonText = formData.get('blacklistReason').trim();
                      if (!formData.get('blacklistCategory') || !reasonText) {
-                        // showNotification('新增地點時，黑名類別與原因為必填。', 'error');
-                        // return;
                      }
                 }
 
@@ -2545,12 +2233,10 @@
                 }
             }
             
-            // MODIFIED: drawCommunityAreas to decompress areaBounds and check for approval status
             function drawCommunityAreas(areas) {
                 areas.forEach(areaData => {
-                    // NEW: Check if the area is approved before drawing
                     if (String(areaData['審核']).toUpperCase() !== 'TRUE') {
-                        return; // Skip this area if not approved
+                        return;
                     }
 
                     try {
@@ -2559,7 +2245,7 @@
                         let cellsToDraw;
                         const areaBoundsData = JSON.parse(areaData.areaBounds);
 
-                        if (areaBoundsData.v === 1) { // Decompress new format
+                        if (areaBoundsData.v === 1) {
                             const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
                             const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
                             const markerReverseMap = { 'e': 'entrance', 'x': 'exit', 't': 'table', 'p': 'parking' };
@@ -2580,7 +2266,7 @@
                                 return cell;
                             });
 
-                        } else { // Handle old, uncompressed format for backward compatibility
+                        } else {
                             cellsToDraw = areaBoundsData;
                         }
 
@@ -2672,7 +2358,6 @@
                 });
             }
             
-            // MODIFIED: setLoginState to remove history loading
             async function setLoginState(profile) {
                 isLoggedIn = true;
                 userProfile = profile;
@@ -2690,18 +2375,17 @@
                     $userPicture.addClass('hidden').attr('src', '');
                 }
 
-checkIfAdmin(userProfile.email);
-
-    // MODIFIED: 登入後啟用載入歷史訊息功能
-    if (!isChatHistoryLoaded) {
-        await loadArchivedChatHistory();
-        isChatHistoryLoaded = true; // 設定旗標，避免重複載入
-    }
-
-    if (isLocationKnown) {
-        sendJoinMessage();
-    }
-}
+                checkIfAdmin(userProfile.email);
+                
+                if (!isChatHistoryLoaded) {
+                    await loadArchivedChatHistory();
+                    isChatHistoryLoaded = true;
+                }
+                
+                if (isLocationKnown) {
+                    sendJoinMessage();
+                }
+            }
 
             function initializeGoogleButton() {
                 const $container = $('#google-signin-container');
@@ -3020,7 +2704,6 @@ checkIfAdmin(userProfile.email);
                 });
             }
             
-            // NEW: Function to render a mini-map for area previews
             function renderAreaOnMap(targetId, areaBoundsStr) {
                 if (!document.getElementById(targetId) || !areaBoundsStr) return null;
                 
@@ -3032,12 +2715,12 @@ checkIfAdmin(userProfile.email);
                         new ol.layer.Vector({ source: areaSource })
                     ],
                     controls: [],
-                    interactions: [] // Make it non-interactive
+                    interactions: []
                 });
 
                 try {
                     const areaBoundsData = JSON.parse(areaBoundsStr);
-                    if (areaBoundsData.v === 1) { // New compressed format
+                    if (areaBoundsData.v === 1) {
                         const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
                         const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
                         
@@ -3076,12 +2759,10 @@ checkIfAdmin(userProfile.email);
                 return areaMap;
             }
 
-            // MODIFIED: This function now correctly checks the '製作者' field and renders mini-maps.
             async function loadUserAreas() {
                 const $content = $('#management-area-content');
                 $content.html('');
 
-                // Clear previous map instances
                  Object.values(managementAreaMaps).forEach(mapInstance => {
                     if (mapInstance) mapInstance.setTarget(null);
                 });
@@ -3194,7 +2875,6 @@ checkIfAdmin(userProfile.email);
                 }
             });
 
-            // MODIFIED: Review Modal Logic to reload data
             $('#review-btn').on('click', async function() {
                 await loadData();
                 $('#review-modal').removeClass('hidden');
@@ -3204,7 +2884,6 @@ checkIfAdmin(userProfile.email);
             });
 
             $('#close-review-modal').on('click', () => {
-                // NEW: Dispose of the map instance when closing the modal
                 if (reviewMapInstance) {
                     reviewMapInstance.setTarget(null);
                     reviewMapInstance = null;
@@ -3224,7 +2903,6 @@ checkIfAdmin(userProfile.email);
                 loadReviewData('approved');
             });
             
-            // NEW: Refresh button listener
             $('#review-modal').on('click', '#review-refresh-btn', async function() {
                 showNotification('正在更新列表...', 'info');
                 await loadData();
@@ -3242,7 +2920,7 @@ checkIfAdmin(userProfile.email);
                     const currentStatus = String(report['審核']).toUpperCase();
                     if (status === 'pending') {
                         return currentStatus !== 'TRUE' && currentStatus !== 'REJECT';
-                    } else { // approved
+                    } else {
                         return currentStatus === 'TRUE' || currentStatus === 'REJECT';
                     }
                 });
@@ -3277,7 +2955,6 @@ checkIfAdmin(userProfile.email);
                 }
             });
 
-            // MODIFIED: This function now handles both points and areas, and creates a map for areas.
             function displayReviewDetails(report) {
                 const $detailPanel = $('#review-detail-panel');
                 const submissionDate = report.timestamp ? 
@@ -3285,7 +2962,6 @@ checkIfAdmin(userProfile.email);
                     '日期不明';
 
                 if (report.isCommunity) {
-                    // --- Area/Building Review UI ---
                     const detailHtml = `
                         <div id="review-map-container" class="relative w-full h-64 bg-gray-200 mb-4 rounded-lg overflow-hidden">
                             <div id="review-map" class="w-full h-full"></div>
@@ -3306,7 +2982,6 @@ checkIfAdmin(userProfile.email);
                     `;
                     $detailPanel.html(detailHtml);
 
-                    // Initialize review map
                     if (reviewMapInstance) {
                         reviewMapInstance.setTarget(null);
                         reviewMapInstance = null;
@@ -3326,10 +3001,8 @@ checkIfAdmin(userProfile.email);
                         controls: []
                     });
                     
-                    // Draw area bounds on the review map
                     try {
                         const areaBoundsData = JSON.parse(report.areaBounds);
-                        // Using a simplified version of drawCommunityAreas logic here
                         if (areaBoundsData.v === 1) {
                             const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
                             const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
@@ -3351,7 +3024,6 @@ checkIfAdmin(userProfile.email);
 
 
                 } else {
-                    // --- Point Location Review UI ---
                      const detailHtml = `
                         <div class="space-y-3 text-sm">
                             <h3 class="text-xl font-bold text-gray-900">${report.areaName || report['地址']}</h3>
@@ -3396,7 +3068,7 @@ checkIfAdmin(userProfile.email);
                 const payload = {
                     action: action,
                     rowIndex: rowIndex,
-                    isCommunity: isCommunity, // NEW: Tell the backend which sheet to modify
+                    isCommunity: isCommunity,
                     adminEmail: userProfile.email
                 };
 
@@ -3405,7 +3077,6 @@ checkIfAdmin(userProfile.email);
                 .then(result => {
                     if (result.status === 'success') {
                          showNotification("操作成功！資料將在幾分鐘後更新。", 'success');
-                         // Refresh the list after action
                          const activeTab = $('#pending-tab').hasClass('border-indigo-500') ? 'pending' : 'approved';
                          loadReviewData(activeTab);
                          $detailPanel.html('<p class="text-gray-500">操作完成，請從左側選擇下一個項目。</p>')
@@ -3417,20 +3088,19 @@ checkIfAdmin(userProfile.email);
                 });
             }
 
-            // MODIFIED: Handle both point and area editing
             async function openEditModalForUser(report) {
                 const forms = [$('#add-location-form'), $('#add-location-form-mobile')];
                 const isAreaEdit = !!report.isCommunity;
                 
-                areaBoundsForEditing = null; // Reset before use
+                areaBoundsForEditing = null;
 
                 forms.forEach($f => {
                     $f[0].reset();
-                    $f.find('#add-is-area').prop('checked', false); // Start with checkbox unchecked
+                    $f.find('#add-is-area').prop('checked', false);
                     $f.find('#edit-row-index').val(isAreaEdit ? '' : report.rowIndex);
                     $f.find('#edit-area-row-index').val(isAreaEdit ? report.rowIndex : '');
                     $f.find('#edit-original-name').val(report['地址']);
-                    $f.find('#add-address').val(report['地址']); // Keep this as a fallback
+                    $f.find('#add-address').val(report['地址']);
                     $f.find('#add-area-name').val(report['areaName'] || '');
                     $f.find('#add-category').val(report['分類']);
                     $f.find('#add-blacklist-category').val(report['黑名類別']);
@@ -3445,7 +3115,6 @@ checkIfAdmin(userProfile.email);
                         $categoryDiv.hide();
                         $blacklistCatDiv.hide();
                         $blacklistReasonDiv.hide();
-                         // Make blacklist fields not required for area edits
                         $blacklistCatDiv.find('select').prop('required', false);
                         $categoryDiv.find('select').prop('required', false);
                         $blacklistReasonDiv.find('textarea').prop('required', false);
@@ -3455,7 +3124,6 @@ checkIfAdmin(userProfile.email);
                         $categoryDiv.show();
                         $blacklistCatDiv.show();
                         $blacklistReasonDiv.show();
-                         // Restore required fields for non-area edits
                         $blacklistCatDiv.find('select').prop('required', true);
                         $blacklistReasonDiv.find('textarea').prop('required', true);
                         $blacklistCatDiv.find('label').find('span').show();
@@ -3468,7 +3136,7 @@ checkIfAdmin(userProfile.email);
                 const coordinate = ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]);
                 
                 if (isAreaEdit) {
-                    areaBoundsForEditing = report.areaBounds; // Store bounds for when checkbox is clicked
+                    areaBoundsForEditing = report.areaBounds;
 
                     if (!report['地址'] && report.areaBounds) {
                         try {
@@ -3481,15 +3149,12 @@ checkIfAdmin(userProfile.email);
                         } catch(e) { console.error("Could not parse areaBounds for address", e); }
                     }
 
-                    // NEW: Clear ALL buildings from the map before entering edit mode
                     areaGridSource.clear();
                     
                     if (isMobile) {
                         enterMobilePlacementMode(coordinate, report.areaBounds);
-                        // We also need to clone form content for mobile modal
                         const formContent = $('#add-location-form > .px-6').clone(true, true);
                         $('#add-location-form-mobile > .px-6').replaceWith(formContent);
-                         // And manually hide irrelevant fields again after cloning
                         $('#add-location-form-mobile').find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').hide();
                         $('#add-location-modal-mobile').removeClass('hidden');
                         $('#complete-placement-btn').addClass('hidden');
@@ -3507,7 +3172,6 @@ checkIfAdmin(userProfile.email);
                 }
             }
             
-            // --- Initial Load ---
             async function main() {
                 const initializeApp = async () => {
                     setupGridToolbar();
@@ -3540,12 +3204,12 @@ checkIfAdmin(userProfile.email);
                         }, 1000);
                     }
 
-                    // Chat event listeners
                    $('#open-chat-btn').on('click', () => {
                         $('#chat-modal').removeClass('hidden');
-                        // NEW: Reset and hide unread counter when opening chat
                         unreadChatCount = 0;
                         $('#chat-unread-badge').addClass('hidden').text('');
+                        const $chatWindow = $('#chat-messages');
+                        setTimeout(() => $chatWindow.scrollTop($chatWindow[0].scrollHeight), 0);
                    });
                     $('#close-chat-modal').on('click', () => $('#chat-modal').addClass('hidden'));
                     $('#send-chat-btn').on('click', sendChatMessage);
@@ -3556,11 +3220,110 @@ checkIfAdmin(userProfile.email);
                         }
                     });
 
-                    // NEW: System message toggle listener
                     $('#hide-system-msgs-checkbox').on('change', function() {
                         $('#chat-messages').toggleClass('hide-system-messages', $(this).is(':checked'));
                     });
+
+                    let longPressTimer;
+
+                    $('#chat-messages').on('contextmenu', '.chat-message-item', function(e) {
+                        e.preventDefault();
+                        handleContextMenu(this, e.pageX, e.pageY);
+                    }).on('touchstart', '.chat-message-item', function(e) {
+                        const targetElement = this;
+                        longPressTimer = setTimeout(() => {
+                            const touch = e.touches[0];
+                            handleContextMenu(targetElement, touch.pageX, touch.pageY);
+                        }, 500);
+                    }).on('touchend', '.chat-message-item', function() {
+                        clearTimeout(longPressTimer);
+                    }).on('touchmove', '.chat-message-item', function() {
+                        clearTimeout(longPressTimer);
+                    });
+
+                    $(document).on('click', function() {
+                        $('#chat-context-menu').addClass('hidden');
+                    });
+                    
+                    $('#mute-user-form').on('submit', function(e) {
+                        e.preventDefault();
+                        const days = parseInt($('#mute-days').val(), 10) || 0;
+                        const minutes = parseInt($('#mute-minutes').val(), 10) || 0;
+                        
+                        if (days === 0 && minutes === 0) {
+                            showNotification('請設定有效的禁言時間。', 'warning');
+                            return;
+                        }
+                        
+                        const duration = `${days}d${minutes}m`;
+                        
+                        const payload = {
+                            action: 'muteUser',
+                            adminEmail: userProfile.email,
+                            targetUserId: contextMenuTarget.userId,
+                            targetUserName: contextMenuTarget.userName,
+                            duration: duration
+                        };
+                        
+                        showNotification(`正在禁言 ${contextMenuTarget.userName}...`, 'info');
+
+                        fetch(APPS_SCRIPT_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/plain' },
+                            body: JSON.stringify(payload)
+                        })
+                        .then(res => res.json())
+                        .then(result => {
+                            if (result.status === 'success') {
+                                showNotification(`${contextMenuTarget.userName} 已被禁言。`, 'success');
+                                $('#mute-user-modal').addClass('hidden');
+                            } else {
+                                throw new Error(result.message || 'Unknown error');
+                            }
+                        })
+                        .catch(error => {
+                            showNotification(`禁言失敗: ${error.message}`, 'error');
+                        });
+                    });
+
+                    $('#cancel-mute-btn').on('click', () => {
+                        $('#mute-user-modal').addClass('hidden');
+                    });
+                    
+                    $('#context-mute-user').on('click', function(e) {
+                        e.preventDefault();
+                        $('#chat-context-menu').addClass('hidden');
+                        if (contextMenuTarget.userId) {
+                            $('#mute-user-name').text(contextMenuTarget.userName);
+                            $('#mute-user-modal').removeClass('hidden');
+                        }
+                    });
                 };
+
+                function handleContextMenu(element, x, y) {
+                    const $el = $(element);
+                    const userId = $el.data('user-id');
+                    const userName = $el.data('user-name');
+
+                    if (!userId || userId === (userProfile.email || userProfile.lineUserId)) {
+                        return;
+                    }
+                    
+                    contextMenuTarget = { userId, userName };
+                    
+                    const $menu = $('#chat-context-menu');
+                    
+                    if (isAdmin) {
+                        $('#context-mute-user').show();
+                    } else {
+                        $('#context-mute-user').hide();
+                    }
+                    
+                    $menu.css({
+                        top: `${y}px`,
+                        left: `${x}px`,
+                    }).removeClass('hidden');
+                }
                 
                 if (document.readyState === 'loading') {
                     document.addEventListener('DOMContentLoaded', initializeApp);
@@ -3574,3 +3337,4 @@ checkIfAdmin(userProfile.email);
     </script>
 </body>
 </html>
+
