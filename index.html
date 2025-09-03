@@ -123,9 +123,11 @@
                                     <option value="" disabled selected>請選擇...</option>
                                     <option value="黑客">黑客</option>
                                     <option value="送上樓">送上樓</option>
+                                    <option value="需爬梯">需爬梯</option>
                                     <option value="拖吊">拖吊</option>
                                     <option value="騙餐">騙餐</option>
                                     <option value="奇怪">奇怪</option>
+                                    <option value="性騷擾">性騷擾</option>
                                     <option value="店家">店家</option>
                                     <option value="其他">其他</option>
                                 </select>
@@ -942,19 +944,18 @@
                 const message = $input.val().trim();
 
                 if (message && ws && ws.readyState === WebSocket.OPEN) {
-
-        const localMessage = {
-            type: 'chat',
-            message: message,
-            nickname: currentUserDisplayName,
-            city: currentUserCity,
-            pictureUrl: userProfile.pictureUrl || '',
-            timestamp: new Date().toISOString(),
-            userId: userProfile.email || userProfile.lineUserId
-        };
-        appendChatMessage(localMessage);
-        const $chatMessages = $('#chat-messages');
-        $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+                    const localMessage = {
+                        type: 'chat',
+                        message: message,
+                        nickname: currentUserDisplayName,
+                        city: currentUserCity,
+                        pictureUrl: userProfile.pictureUrl || '',
+                        timestamp: new Date().toISOString(),
+                        userId: userProfile.email || userProfile.lineUserId
+                    };
+                    appendChatMessage(localMessage);
+                    const $chatMessages = $('#chat-messages');
+                    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
 
 
                     const payload = {
@@ -3025,6 +3026,7 @@
                     `;
                     $detailPanel.html(detailHtml);
 
+                    // Initialize review map
                     if (reviewMapInstance) {
                         reviewMapInstance.setTarget(null);
                         reviewMapInstance = null;
@@ -3349,6 +3351,3 @@
 </body>
 </html>
 
-
-                    }
-                }
