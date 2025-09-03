@@ -234,7 +234,7 @@ wss.on('connection', function connection(ws, req) {
           };
           messagesToArchive.push(archiveEntry);
 
-          wss.broadcast(JSON.stringify(chatMessage), null); // MODIFIED: 廣播給所有人 (包含自己，以便更新 data-user-id)
+          wss.broadcast(JSON.stringify(chatMessage), ws); // MODIFIED: 將廣播排除發送者本人，解決重複訊息問題
           console.log(`來自 ${ws.nickname} 的訊息: ${data.message}`);
           break;
         
@@ -279,4 +279,3 @@ const interval = setInterval(function ping() {
 wss.on('close', function close() {
   clearInterval(interval);
 });
-
