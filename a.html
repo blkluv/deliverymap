@@ -534,6 +534,24 @@
             })
         });
         
+        // NEW: Layer for OSM building names
+        const osmBuildingSource = new ol.source.Vector();
+        const osmBuildingLayer = new ol.layer.Vector({
+            source: osmBuildingSource,
+            style: function(feature) {
+                return new ol.style.Style({
+                    text: new ol.style.Text({
+                        text: feature.get('name'),
+                        font: 'bold 13px sans-serif',
+                        fill: new ol.style.Fill({ color: '#6d28d9' }), // Purple color
+                        stroke: new ol.style.Stroke({ color: 'white', width: 3 }),
+                        overflow: true,
+                    })
+                });
+            },
+            minZoom: 17 // Only show at high zoom levels
+        });
+
         const areaGridSource = new ol.source.Vector();
         const areaGridLayer = new ol.layer.Vector({
             source: areaGridSource,
@@ -635,7 +653,7 @@
 
         const map = new ol.Map({
             target: 'map', 
-            layers: [nlscLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer],
+            layers: [nlscLayer, areaGridLayer, osmBuildingLayer, lineLayer, radiusLayer, clusterLayer], // MODIFIED: Added osmBuildingLayer
             view: new ol.View({ center: ol.proj.fromLonLat([120.9, 23.9]), zoom: 8 }),
             controls: [
                 new ol.control.Zoom(),
@@ -720,7 +738,7 @@
 
             const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw93ckEaMhqOmcrsGiMFY3gkxQVLDlKItY_O-xmEaswKibQ8YlscrVjHuB2viTV0XZg/exec';
             const CHAT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_Xmv4WeUCDOjpZmXdHLwtWg4kAOhcMB0brJQWkzquFqOLjupnFcB7AvdQM022dqWrQ/exec';
-            const MAIN_APPS_SCRIPT_URL = '';
+            const MAIN_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzYsrtdIA2O2hxeWOFDi0zEVdQitCuzKSD9beNRGaKFEby6i6ANSr-ftuyVcf7zrWq8/exec';
 
             const visibilityThreshold = 16.5; 
 
@@ -736,8 +754,84 @@
             let isLocationKnown = false;
             let unreadChatCount = 0;
             let isChatHistoryLoaded = false;
-            // NEW: Variable to hold info for context menu actions
             let contextMenuTarget = { userId: null, userName: null };
+
+            // --- NEW: OSM Data Fetching Logic ---
+            let osmRequestController = null; // To abort previous requests
+            let osmDataCache = new Map(); // Cache for OSM data
+
+            async function fetchOSMBuildingData() {
+                const zoom = map.getView().getZoom();
+                if (zoom < 17) { // Only fetch data at high zoom levels
+                    osmBuildingSource.clear();
+                    return;
+                }
+
+                if (osmRequestController) {
+                    osmRequestController.abort(); // Cancel the previous ongoing request
+                }
+                osmRequestController = new AbortController();
+
+                const extent = map.getView().calculateExtent(map.getSize());
+                const bbox = ol.proj.transformExtent(extent, 'EPSG:3857', 'EPSG:4326').join(',');
+                
+                const cacheKey = bbox;
+                if(osmDataCache.has(cacheKey)) {
+                    // Temporarily skip using cache to ensure fresh data for now
+                    // return;
+                }
+                
+                const overpassUrl = 'https://overpass-api.de/api/interpreter';
+                const query = `
+                    [out:json][timeout:25];
+                    (
+                      way["building"]["name"](${bbox});
+                    );
+                    out center;
+                `;
+                
+                try {
+                    const response = await fetch(overpassUrl, {
+                        method: 'POST',
+                        body: `data=${encodeURIComponent(query)}`,
+                        signal: osmRequestController.signal
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Overpass API request failed: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    osmBuildingSource.clear();
+                    const features = [];
+                    const addedNames = new Set();
+
+                    data.elements.forEach(element => {
+                        if (element.type === 'way' && element.center && element.tags && element.tags.name) {
+                            if(addedNames.has(element.tags.name)) return; // Avoid duplicate names in view
+                            
+                            const feature = new ol.Feature({
+                                geometry: new ol.geom.Point(ol.proj.fromLonLat([element.center.lon, element.center.lat])),
+                                name: element.tags.name,
+                            });
+                            features.push(feature);
+                            addedNames.add(element.tags.name);
+                        }
+                    });
+                    
+                    osmBuildingSource.addFeatures(features);
+                    osmDataCache.set(cacheKey, true); // Mark as fetched
+
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        console.error('Error fetching OSM data:', error);
+                    }
+                } finally {
+                    osmRequestController = null;
+                }
+            }
+            // --- END NEW OSM Logic ---
 
             function loadUserVotes() {
                 try {
@@ -776,7 +870,7 @@
                                 city: log.conversation_location,
                                 pictureUrl: log.pictureUrl || '',
                                 timestamp: log.updated_time,
-                                userId: log.conversation_id // Add userId for context menu on historical messages
+                                userId: log.conversation_id
                             };
                             appendChatMessage(messageData);
                          });
@@ -935,19 +1029,6 @@
                 const message = $input.val().trim();
 
                 if (message && ws && ws.readyState === WebSocket.OPEN) {
-                    const localMessage = {
-                        type: 'chat',
-                        message: message,
-                        nickname: currentUserDisplayName,
-                        city: currentUserCity,
-                        pictureUrl: userProfile.pictureUrl || '',
-                        timestamp: new Date().toISOString(),
-                        userId: userProfile.email || userProfile.lineUserId
-                    };
-                    appendChatMessage(localMessage);
-                    const $chatMessages = $('#chat-messages');
-                    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
-
                     const payload = {
                         type: 'chat',
                         message: message
@@ -1962,19 +2043,52 @@
             async function reverseGeocode(lon, lat, $form = $('#add-location-form')) {
                 const apiKey = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
                 const $addressInput = $form.find('#add-address');
+                const $areaNameInput = $form.find('#add-area-name');
                 try {
                     const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${apiKey}&language=zh-TW`);
                     if (!response.ok) throw new Error('Geocoding API response not OK');
                     const data = await response.json();
+                    
                     if (data.results && data.results.length > 0) {
-                        $addressInput.val(data.results[0].formatted_address);
-                        latestGeocodeBounds = data.results[0].geometry.viewport;
+                        const results = data.results;
+                        $addressInput.val(results[0].formatted_address);
+                        latestGeocodeBounds = results[0].geometry.viewport;
+
+                        const poi = results.find(r => 
+                            r.types.includes('establishment') || 
+                            r.types.includes('point_of_interest') || 
+                            r.types.includes('premise')
+                        );
+                        
+                        let foundName = '';
+                        if (poi) {
+                             const nameComponent = poi.address_components.find(c => c.types.includes('point_of_interest') || c.types.includes('premise'));
+                             if(nameComponent) {
+                                foundName = nameComponent.long_name;
+                             }
+                        }
+                        
+                        if (!foundName) {
+                            const sublocality = results[0].address_components.find(c => c.types.includes('administrative_area_level_4') || c.types.includes('sublocality_level_1'));
+                            if (sublocality) {
+                                foundName = sublocality.long_name;
+                            }
+                        }
+                        
+                        if (foundName) {
+                            $areaNameInput.val(foundName);
+                        } else {
+                            $areaNameInput.val('');
+                        }
+
                     } else {
                         $addressInput.val('無法自動定位地址');
+                        $areaNameInput.val('');
                         latestGeocodeBounds = null;
                     }
                 } catch (error) {
                     $addressInput.val('無法自動定位地址');
+                    $areaNameInput.val('');
                     latestGeocodeBounds = null;
                     showNotification('無法解析地址，請手動輸入。', 'warning');
                 }
@@ -2608,6 +2722,7 @@
             }
 
             map.on('moveend', updateStoreList);
+            map.on('moveend', fetchOSMBuildingData); // MODIFIED: Fetch OSM data on map move
 
             $('#store-list-filters').on('click', '.store-filter-btn', function() {
                 const $clickedBtn = $(this);
@@ -3268,7 +3383,7 @@
                         
                         showNotification(`正在禁言 ${contextMenuTarget.userName}...`, 'info');
 
-                        fetch(APPS_SCRIPT_URL, {
+                        fetch(MAIN_APPS_SCRIPT_URL, {
                             method: 'POST',
                             headers: { 'Content-Type': 'text/plain' },
                             body: JSON.stringify(payload)
@@ -3338,3 +3453,4 @@
     </script>
 </body>
 </html>
+
