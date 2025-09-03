@@ -53,7 +53,7 @@ function parseDuration(durationStr) {
 async function fetchModerationData() {
     console.log('正在從 Google Sheet 更新聊天室管理資料...');
     try {
-        const response = await fetch(`${MAIN_APPS_SCRIPT_URL}?action=getChatModerationData&t=${new Date().getTime()}`);
+        const response = await fetch(`${APPS_SCRIPT_ARCHIVE_URL}?action=getChatModerationData&t=${new Date().getTime()}`);
         const data = await response.json();
 
         // 更新屏蔽詞列表
