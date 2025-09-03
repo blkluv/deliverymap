@@ -527,10 +527,10 @@
         const styleCache = {};
         let middleMouseButtonPan = null;
 
-        const nlscLayer = new ol.layer.Tile({
-            source: new ol.source.XYZ({
-                url: 'https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}.png',
-                attributions: '內容為外送員分享經驗，不代表平台立場', crossOrigin: 'anonymous'
+        // MODIFIED: 將底圖從國土測繪中心更換為 OpenStreetMap
+        const osmLayer = new ol.layer.Tile({
+            source: new ol.source.OSM({
+                 attributions: '內容為外送員分享經驗，不代表平台立場 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
             })
         });
         
@@ -635,7 +635,7 @@
 
         const map = new ol.Map({
             target: 'map', 
-            layers: [nlscLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer],
+            layers: [osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer], // MODIFIED: 使用 osmLayer 作為底圖
             view: new ol.View({ center: ol.proj.fromLonLat([120.9, 23.9]), zoom: 8 }),
             controls: [
                 new ol.control.Zoom(),
@@ -935,19 +935,6 @@
                 const message = $input.val().trim();
 
                 if (message && ws && ws.readyState === WebSocket.OPEN) {
-                    const localMessage = {
-                        type: 'chat',
-                        message: message,
-                        nickname: currentUserDisplayName,
-                        city: currentUserCity,
-                        pictureUrl: userProfile.pictureUrl || '',
-                        timestamp: new Date().toISOString(),
-                        userId: userProfile.email || userProfile.lineUserId
-                    };
-                    appendChatMessage(localMessage);
-                    const $chatMessages = $('#chat-messages');
-                    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
-
                     const payload = {
                         type: 'chat',
                         message: message
@@ -1962,19 +1949,52 @@
             async function reverseGeocode(lon, lat, $form = $('#add-location-form')) {
                 const apiKey = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
                 const $addressInput = $form.find('#add-address');
+                const $areaNameInput = $form.find('#add-area-name');
                 try {
                     const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${apiKey}&language=zh-TW`);
                     if (!response.ok) throw new Error('Geocoding API response not OK');
                     const data = await response.json();
+                    
                     if (data.results && data.results.length > 0) {
-                        $addressInput.val(data.results[0].formatted_address);
-                        latestGeocodeBounds = data.results[0].geometry.viewport;
+                        const results = data.results;
+                        $addressInput.val(results[0].formatted_address);
+                        latestGeocodeBounds = results[0].geometry.viewport;
+
+                        const poi = results.find(r => 
+                            r.types.includes('establishment') || 
+                            r.types.includes('point_of_interest') || 
+                            r.types.includes('premise')
+                        );
+                        
+                        let foundName = '';
+                        if (poi) {
+                             const nameComponent = poi.address_components.find(c => c.types.includes('point_of_interest') || c.types.includes('premise'));
+                             if(nameComponent) {
+                                foundName = nameComponent.long_name;
+                             }
+                        }
+                        
+                        if (!foundName) {
+                            const sublocality = results[0].address_components.find(c => c.types.includes('administrative_area_level_4') || c.types.includes('sublocality_level_1'));
+                            if (sublocality) {
+                                foundName = sublocality.long_name;
+                            }
+                        }
+                        
+                        if (foundName) {
+                            $areaNameInput.val(foundName);
+                        } else {
+                            $areaNameInput.val('');
+                        }
+
                     } else {
                         $addressInput.val('無法自動定位地址');
+                        $areaNameInput.val('');
                         latestGeocodeBounds = null;
                     }
                 } catch (error) {
                     $addressInput.val('無法自動定位地址');
+                    $areaNameInput.val('');
                     latestGeocodeBounds = null;
                     showNotification('無法解析地址，請手動輸入。', 'warning');
                 }
@@ -3338,3 +3358,4 @@
     </script>
 </body>
 </html>
+
