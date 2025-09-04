@@ -261,12 +261,30 @@ html, body {
     border-left: 1px solid #d1d5db; /* gray-300 */
 }
 
-/* NEW: Grid Color Palette Styles */
+/* MODIFIED: Grid Color Palette Styles */
+#grid-color-palette {
+    /* Repositioned from top-right to below the center toolbar */
+    top: 4.5rem; 
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    
+    /* Changed layout from vertical to horizontal */
+    flex-direction: row;
+    width: auto;
+    gap: 1rem;
+}
+
+#grid-color-palette > div {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
 #grid-color-palette input[type="color"] {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
-    width: 100%;
+    width: 2.5rem; /* Adjusted width for horizontal layout */
     height: 2rem; /* 32px */
     background-color: transparent;
     border: 1px solid #d1d5db; /* gray-300 */
