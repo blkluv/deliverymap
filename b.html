@@ -123,9 +123,11 @@
                                     <option value="" disabled selected>請選擇...</option>
                                     <option value="黑客">黑客</option>
                                     <option value="送上樓">送上樓</option>
+                                    <option value="需爬梯">需爬梯</option>
                                     <option value="拖吊">拖吊</option>
                                     <option value="騙餐">騙餐</option>
                                     <option value="奇怪">奇怪</option>
+                                    <option value="性騷擾">性騷擾</option>
                                     <option value="店家">店家</option>
                                     <option value="其他">其他</option>
                                 </select>
@@ -268,20 +270,33 @@
                     <div id="store-list-content" class="flex-grow overflow-y-auto custom-scrollbar pr-2 transition-all duration-300">
                     </div>
                 </div>
-
-                <button id="complete-placement-btn" class="hidden absolute top-4 left-4 z-20 bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-green-700 transition-colors">
+                
+                <!-- MODIFIED: Button style and position -->
+                <button id="complete-placement-btn" class="hidden absolute top-20 right-20 z-20 bg-red-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-red-700 transition-colors">
                     完成位置設定
                 </button>
+                
+                <button id="restore-modal-btn" class="hidden absolute top-1/2 -translate-y-1/2 -left-1 z-20 bg-white p-2 rounded-r-full shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+
             </main>
         </div>
 
         <!-- 新增/編輯店家 Modal (Mobile Popup) -->
         <div id="add-location-modal-mobile" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4">
-             <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col" style="max-height: calc(100vh - 5rem);">
+             <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col transition-transform duration-300 ease-in-out" style="max-height: calc(100vh - 5rem);">
                 <form id="add-location-form-mobile" class="flex-grow flex flex-col overflow-hidden">
                     <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
-                        <h2 id="modal-title-mobile" class="text-xl font-bold text-gray-800">新增地點</h2>
-                        <div class="flex items-center space-x-2">
+                        <div id="mobile-modal-title-container" class="flex-grow">
+                             <div class="flex border-b border-gray-200">
+                                <button type="button" id="mobile-add-point-tab" class="mobile-add-tab active py-2 px-4 text-sm font-medium text-center text-indigo-600 bg-indigo-50 rounded-t-lg">新增地點</button>
+                                <button type="button" id="mobile-add-area-tab" class="mobile-add-tab py-2 px-4 text-sm font-medium text-center text-gray-500 hover:text-gray-700">新增建築</button>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2 pl-2">
                              <button id="submit-location-btn-mobile" type="submit" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center w-28">
                                 <span class="submit-text">送出審核</span>
                                 <span class="spinner hidden animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
@@ -290,6 +305,10 @@
                         </div>
                     </div>
                     <div class="px-6 pt-2 pb-16 space-y-4 overflow-y-auto custom-scrollbar flex-grow">
+                       <div id="mobile-point-fields">
+                       </div>
+                       <div id="mobile-area-fields" class="hidden">
+                       </div>
                     </div>
                 </form>
             </div>
@@ -527,7 +546,6 @@
         const styleCache = {};
         let middleMouseButtonPan = null;
 
-        // MODIFIED: 將底圖從國土測繪中心更換為 OpenStreetMap
         const osmLayer = new ol.layer.Tile({
             source: new ol.source.OSM({
                  attributions: '內容為外送員分享經驗 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者',
@@ -632,11 +650,18 @@
         }
 
         const clusterLayer = new ol.layer.Vector({ source: clusterSource, style: clusterStyleFunction });
+        
+        const taiwanExtent = ol.proj.transformExtent([118.0, 21.5, 122.5, 25.5], 'EPSG:4326', 'EPSG:3857');
 
         const map = new ol.Map({
             target: 'map', 
-            layers: [osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer], // MODIFIED: 使用 osmLayer 作為底圖
-            view: new ol.View({ center: ol.proj.fromLonLat([120.9, 23.9]), zoom: 8 }),
+            layers: [osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer],
+            view: new ol.View({ 
+                center: ol.proj.fromLonLat([120.9, 23.9]), 
+                zoom: 8,
+                extent: taiwanExtent,
+                minZoom: 8,
+            }),
             controls: [
                 new ol.control.Zoom(),
                 new ol.control.Rotate(),
@@ -656,7 +681,7 @@
         });
         map.addOverlay(infoOverlay);
         
-        $('#app').on('click', '#popup-closer', function(e) {
+        $('#app').on('touchend click', '#popup-closer', function(e) {
             e.preventDefault();
             infoOverlay.setPosition(undefined);
             this.blur();
@@ -1479,6 +1504,33 @@
                 }
             });
 
+            // --- BEGIN MODIFICATION ---
+            // 新增行動版「新增地點/建築」頁籤切換邏輯
+            $('#add-location-modal-mobile').on('click', '.mobile-add-tab', function() {
+                const $clickedTab = $(this);
+                const isAreaTab = $clickedTab.attr('id') === 'mobile-add-area-tab';
+                const $form = $('#add-location-form-mobile');
+
+                // 更新頁籤樣式
+                $('.mobile-add-tab').removeClass('active text-indigo-600 bg-indigo-50 rounded-t-lg').addClass('text-gray-500 hover:text-gray-700');
+                $clickedTab.addClass('active text-indigo-600 bg-indigo-50 rounded-t-lg').removeClass('text-gray-500 hover:text-gray-700');
+
+                // 切換顯示的表單區塊
+                $('#mobile-point-fields').toggleClass('hidden', isAreaTab);
+                $('#mobile-area-fields').toggleClass('hidden', !isAreaTab);
+
+                // 連動「標示為整個社區/區域」checkbox
+                // 確保 #add-is-area 是存在於 DOM 中（不論在哪個 fields 容器裡）
+                const $isAreaCheckbox = $form.find('#add-is-area');
+                if ($isAreaCheckbox.length) {
+                    // 如果 checkbox 的狀態與當前頁籤不符，則更新它並觸發 change 事件
+                    if ($isAreaCheckbox.is(':checked') !== isAreaTab) {
+                        $isAreaCheckbox.prop('checked', isAreaTab).trigger('change');
+                    }
+                }
+            });
+            // --- END MODIFICATION ---
+
             function drawRadiusCircle(centerCoords) {
                 radiusSource.clear();
                 const view = map.getView();
@@ -1664,12 +1716,21 @@
                 const finalCoords = tempMarker.getPosition();
                 const finalLonLat = ol.proj.toLonLat(finalCoords);
                 
-                const formContent = $('#add-location-form > .px-6').clone(true, true);
-                $('#add-location-form-mobile > .px-6').replaceWith(formContent);
+                const formContent = $('#add-location-form > .px-6').children().clone(true, true);
+                const $pointFields = $('#mobile-point-fields');
+                const $areaFields = $('#mobile-area-fields');
+                
+                $pointFields.empty().append(formContent);
+                $areaFields.empty().append($pointFields.children().clone(true, true));
+                
+                $areaFields.find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').hide();
+                $pointFields.find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').show();
 
                 $('#add-location-form-mobile')[0].reset();
                 reverseGeocode(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
                 
+                $('#mobile-add-point-tab').trigger('click');
+
                 $('#add-location-modal-mobile').removeClass('hidden');
                 $('#complete-placement-btn').addClass('hidden');
             });
@@ -2725,61 +2786,6 @@
                 });
             }
             
-            function renderAreaOnMap(targetId, areaBoundsStr) {
-                if (!document.getElementById(targetId) || !areaBoundsStr) return null;
-                
-                const areaSource = new ol.source.Vector();
-                const areaMap = new ol.Map({
-                    target: targetId,
-                    layers: [
-                        new ol.layer.Tile({ source: nlscLayer.getSource() }),
-                        new ol.layer.Vector({ source: areaSource })
-                    ],
-                    controls: [],
-                    interactions: []
-                });
-
-                try {
-                    const areaBoundsData = JSON.parse(areaBoundsStr);
-                    if (areaBoundsData.v === 1) {
-                        const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
-                        const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
-                        
-                        compressedCells.forEach(cellString => {
-                            const parts = cellString.split(':');
-                            const [x, y] = parts[0].split(',').map(Number);
-                            const [fillIndex] = parts.slice(1);
-                            
-                            if (fillIndex !== '') {
-                                const lon = origin.lon + x * GRID_INTERVAL;
-                                const lat = origin.lat + y * GRID_INTERVAL;
-                                const extent = ol.proj.transformExtent(
-                                    [lon, lat, lon + GRID_INTERVAL, lat + GRID_INTERVAL],
-                                    'EPSG:4326', 'EPSG:3857'
-                                );
-                                const cellFeature = new ol.Feature({ geometry: ol.geom.Polygon.fromExtent(extent) });
-                                const fillColor = palette.f[parseInt(fillIndex, 10)] || 'rgba(239, 68, 68, 0.7)';
-                                cellFeature.setStyle(new ol.style.Style({
-                                    fill: new ol.style.Fill({ color: fillColor })
-                                }));
-                                areaSource.addFeature(cellFeature);
-                            }
-                        });
-                    }
-                    
-                    setTimeout(() => {
-                        const extent = areaSource.getExtent();
-                        if (extent && !ol.extent.isEmpty(extent)) {
-                            areaMap.getView().fit(extent, { padding: [10, 10, 10, 10], duration: 50 });
-                        }
-                    }, 100);
-
-                } catch (e) {
-                    console.error(`Error rendering map preview for ${targetId}:`, e);
-                }
-                return areaMap;
-            }
-
             async function loadUserAreas() {
                 const $content = $('#management-area-content');
                 $content.html('');
@@ -3003,46 +3009,15 @@
                     `;
                     $detailPanel.html(detailHtml);
 
+                    // Initialize review map
                     if (reviewMapInstance) {
                         reviewMapInstance.setTarget(null);
                         reviewMapInstance = null;
                     }
                     
-                    const reviewAreaSource = new ol.source.Vector();
-                    reviewMapInstance = new ol.Map({
-                        target: 'review-map',
-                        layers: [
-                            new ol.layer.Tile({ source: nlscLayer.getSource() }),
-                            new ol.layer.Vector({ source: reviewAreaSource })
-                        ],
-                        view: new ol.View({
-                            center: ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]),
-                            zoom: 18
-                        }),
-                        controls: []
-                    });
-                    
-                    try {
-                        const areaBoundsData = JSON.parse(report.areaBounds);
-                        if (areaBoundsData.v === 1) {
-                            const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
-                            const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
-                            compressedCells.forEach(cellString => {
-                                const parts = cellString.split(':');
-                                const [x, y] = parts[0].split(',').map(Number);
-                                const [fillIndex] = parts.slice(1);
-                                if (fillIndex !== '') {
-                                    const lon = origin.lon + x * GRID_INTERVAL;
-                                    const lat = origin.lat + y * GRID_INTERVAL;
-                                    const extent = ol.proj.transformExtent([lon, lat, lon + GRID_INTERVAL, lat + GRID_INTERVAL], 'EPSG:4326', 'EPSG:3857');
-                                    const cellFeature = new ol.Feature({ geometry: ol.geom.Polygon.fromExtent(extent) });
-                                    cellFeature.setStyle(new ol.style.Style({ fill: new ol.style.Fill({ color: palette.f[parseInt(fillIndex, 10)] || 'rgba(255,0,0,0.5)' }) }));
-                                    reviewAreaSource.addFeature(cellFeature);
-                                }
-                            });
-                        }
-                    } catch(e) { console.error("Could not draw area on review map", e); }
-
+                    setTimeout(() => {
+                        reviewMapInstance = renderAreaOnMap('review-map', report.areaBounds);
+                    }, 0);
 
                 } else {
                      const detailHtml = `
@@ -3188,7 +3163,7 @@
                         $('#add-location-modal-mobile').removeClass('hidden');
                         $('#complete-placement-btn').addClass('hidden');
                     } else {
-                        enterDesktopAddMode(coordinate);
+                         enterDesktopAddMode(coordinate);
                     }
                 }
             }
@@ -3358,4 +3333,3 @@
     </script>
 </body>
 </html>
-
