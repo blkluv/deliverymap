@@ -282,11 +282,18 @@
                     </svg>
                 </button>
 
+                <!-- NEW: Button to restore the minimized mobile modal -->
+                <button id="restore-mobile-modal-btn" class="hidden absolute top-1/2 -translate-y-1/2 -left-1 z-30 bg-white p-2 rounded-r-full shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+
             </main>
         </div>
 
         <!-- 新增/編輯店家 Modal (Mobile Popup) -->
-        <div id="add-location-modal-mobile" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4">
+        <div id="add-location-modal-mobile" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4 overflow-hidden">
              <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col transition-transform duration-300 ease-in-out" style="max-height: calc(100vh - 5rem);">
                 <form id="add-location-form-mobile" class="flex-grow flex flex-col overflow-hidden">
                     <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
@@ -1383,12 +1390,10 @@
                         tempMarker.getElement().style.display = 'none';
                     }
                     
-                    // --- BEGIN MODIFICATION ---
                     if (isMobile) {
                         $('#add-location-modal-mobile').addClass('minimized');
                         $('#restore-mobile-modal-btn').removeClass('hidden');
                     }
-                    // --- END MODIFICATION ---
                     
                     selectedGridCells.clear();
                     if (areaBoundsToLoad) {
@@ -1442,12 +1447,10 @@
                          tempMarker.getElement().style.pointerEvents = 'auto';
                          tempMarker.getElement().style.display = 'block';
                     }
-                    // --- BEGIN MODIFICATION ---
                     if (isMobile) {
                         $('#add-location-modal-mobile').removeClass('minimized');
                         $('#restore-mobile-modal-btn').addClass('hidden');
                     }
-                    // --- END MODIFICATION ---
                     if (!isMobile) {
                         $('#desktop-center-marker').removeClass('hidden');
                     }
@@ -1459,13 +1462,17 @@
                 }
             }
 
-            // --- BEGIN MODIFICATION ---
-            // Event handler to restore the minimized mobile modal
+            // Manually minimize the mobile modal
+            $('#minimize-mobile-modal-btn').on('click', function() {
+                $('#add-location-modal-mobile').addClass('minimized');
+                $('#restore-mobile-modal-btn').removeClass('hidden');
+            });
+
+            // Restore the minimized mobile modal
             $('#restore-mobile-modal-btn').on('click', function() {
                 $('#add-location-modal-mobile').removeClass('minimized');
                 $(this).addClass('hidden');
             });
-            // --- END MODIFICATION ---
 
             function setupGridToolbar() {
                 const $fillToolSvg = $('#tool-fill svg');
@@ -1529,8 +1536,7 @@
                     toggleAreaSelectionMode(false);
                 }
             });
-
-            // --- BEGIN MODIFICATION ---
+            
             // 新增行動版「新增地點/建築」頁籤切換邏輯
             $('#add-location-modal-mobile').on('click', '.mobile-add-tab', function() {
                 const $clickedTab = $(this);
@@ -1558,7 +1564,6 @@
                     }
                 }
             });
-            // --- END MODIFICATION ---
 
             function drawRadiusCircle(centerCoords) {
                 radiusSource.clear();
@@ -1687,7 +1692,8 @@
                     if(tempMarker) map.removeOverlay(tempMarker);
                     tempMarker = null;
                     $('#complete-placement-btn').addClass('hidden');
-                    $('#add-location-modal-mobile').addClass('hidden');
+                    $('#add-location-modal-mobile').addClass('hidden').removeClass('minimized');
+                    $('#restore-mobile-modal-btn').addClass('hidden');
                 } else {
                     $('#app-container').removeClass('desktop-add-mode');
                     $('#desktop-center-marker').addClass('hidden');
