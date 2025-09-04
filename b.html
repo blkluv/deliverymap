@@ -171,14 +171,14 @@
                     </div>
                 </div>
 
-                <div id="grid-color-palette" class="hidden absolute top-4 right-24 z-20 bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-lg flex flex-col space-y-2 w-28">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">格子顏色</label>
-                        <input type="color" id="palette-fill-color" value="#ef4444">
+                <div id="grid-color-palette" class="hidden absolute top-20 z-20 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg flex flex-row items-center space-x-6">
+                    <div class="flex items-center space-x-2">
+                        <label class="block text-sm font-medium text-gray-700">格子</label>
+                        <input type="color" id="palette-fill-color" value="#ef4444" class="w-8 h-8 p-0 border-none rounded cursor-pointer" style="appearance: none; -webkit-appearance: none; background-color: transparent;">
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">標記顏色</label>
-                        <input type="color" id="palette-marker-color" value="#000000">
+                    <div class="flex items-center space-x-2">
+                        <label class="block text-sm font-medium text-gray-700">標記</label>
+                        <input type="color" id="palette-marker-color" value="#000000" class="w-8 h-8 p-0 border-none rounded cursor-pointer" style="appearance: none; -webkit-appearance: none; background-color: transparent;">
                     </div>
                 </div>
                 
@@ -285,18 +285,16 @@
             </main>
         </div>
 
-        <!-- NEW: Button to restore mobile modal when minimized -->
-        <button id="restore-mobile-modal-btn" class="hidden fixed top-1/2 -translate-y-1/2 left-0 z-[70] bg-white p-2 rounded-r-full shadow-lg transition-transform hover:scale-110">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-        </button>
-
         <!-- 新增/編輯店家 Modal (Mobile Popup) -->
-        <div id="add-location-modal-mobile" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4 overflow-hidden">
+        <div id="add-location-modal-mobile" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4">
              <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col transition-transform duration-300 ease-in-out" style="max-height: calc(100vh - 5rem);">
                 <form id="add-location-form-mobile" class="flex-grow flex flex-col overflow-hidden">
                     <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
+                        <button type="button" id="minimize-mobile-modal-btn" class="hidden text-gray-400 hover:text-gray-600 p-2 -ml-2 mr-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
                         <div id="mobile-modal-title-container" class="flex-grow">
                              <div class="flex border-b border-gray-200">
                                 <button type="button" id="mobile-add-point-tab" class="mobile-add-tab active py-2 px-4 text-sm font-medium text-center text-indigo-600 bg-indigo-50 rounded-t-lg">新增地點</button>
@@ -1547,6 +1545,9 @@
                 $('#mobile-point-fields').toggleClass('hidden', isAreaTab);
                 $('#mobile-area-fields').toggleClass('hidden', !isAreaTab);
 
+                // 根據當前分頁顯示/隱藏手動縮小按鈕
+                $('#minimize-mobile-modal-btn').toggleClass('hidden', !isAreaTab);
+
                 // 連動「標示為整個社區/區域」checkbox
                 // 確保 #add-is-area 是存在於 DOM 中（不論在哪個 fields 容器裡）
                 const $isAreaCheckbox = $form.find('#add-is-area');
@@ -1756,6 +1757,9 @@
 
                 $('#add-location-form-mobile')[0].reset();
                 reverseGeocode(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
+                
+                // 確保手動縮小按鈕在初次打開時是隱藏的
+                $('#minimize-mobile-modal-btn').addClass('hidden');
                 
                 $('#mobile-add-point-tab').trigger('click');
 
@@ -3361,4 +3365,3 @@
     </script>
 </body>
 </html>
-
