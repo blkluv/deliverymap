@@ -171,14 +171,14 @@
                     </div>
                 </div>
 
-                <div id="grid-color-palette" class="hidden absolute top-4 right-24 z-20 bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-lg flex flex-col space-y-2 w-28">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">格子顏色</label>
-                        <input type="color" id="palette-fill-color" value="#ef4444">
+                <div id="grid-color-palette" class="hidden absolute top-20 z-20 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg flex flex-row items-center space-x-6">
+                    <div class="flex items-center space-x-2">
+                        <label class="block text-sm font-medium text-gray-700">格子</label>
+                        <input type="color" id="palette-fill-color" value="#ef4444" class="w-8 h-8 p-0 border-none rounded cursor-pointer" style="appearance: none; -webkit-appearance: none; background-color: transparent;">
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">標記顏色</label>
-                        <input type="color" id="palette-marker-color" value="#000000">
+                    <div class="flex items-center space-x-2">
+                        <label class="block text-sm font-medium text-gray-700">標記</label>
+                        <input type="color" id="palette-marker-color" value="#000000" class="w-8 h-8 p-0 border-none rounded cursor-pointer" style="appearance: none; -webkit-appearance: none; background-color: transparent;">
                     </div>
                 </div>
                 
@@ -215,7 +215,8 @@
                     </div>
                 </div>
 
-                <div class="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2">
+                <!-- MODIFICATION: Added id="main-action-buttons" -->
+                <div id="main-action-buttons" class="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2">
                     <div id="login-status">
                         <div id="google-signin-container" style="display: none;"></div>
                         
@@ -282,14 +283,26 @@
                     </svg>
                 </button>
 
+                <!-- NEW: Button to restore the minimized mobile modal -->
+                <button id="restore-mobile-modal-btn" class="hidden absolute top-1/2 -translate-y-1/2 -left-1 z-30 bg-white p-2 rounded-r-full shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+
             </main>
         </div>
 
         <!-- 新增/編輯店家 Modal (Mobile Popup) -->
-        <div id="add-location-modal-mobile" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4">
+        <div id="add-location-modal-mobile" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4 overflow-hidden">
              <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col transition-transform duration-300 ease-in-out" style="max-height: calc(100vh - 5rem);">
                 <form id="add-location-form-mobile" class="flex-grow flex flex-col overflow-hidden">
                     <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
+                        <button type="button" id="minimize-mobile-modal-btn" class="hidden text-gray-400 hover:text-gray-600 p-2 -ml-2 mr-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
                         <div id="mobile-modal-title-container" class="flex-grow">
                              <div class="flex border-b border-gray-200">
                                 <button type="button" id="mobile-add-point-tab" class="mobile-add-tab active py-2 px-4 text-sm font-medium text-center text-indigo-600 bg-indigo-50 rounded-t-lg">新增地點</button>
@@ -549,7 +562,8 @@
         const osmLayer = new ol.layer.Tile({
             source: new ol.source.OSM({
                  attributions: '內容為外送員分享經驗 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者',
-            })
+            }),
+            zIndex: 0 // --- MODIFICATION: Set zIndex ---
         });
         
         const areaGridSource = new ol.source.Vector();
@@ -557,7 +571,8 @@
             source: areaGridSource,
             style: function(feature) {
                 return feature.getStyle();
-            }
+            },
+            zIndex: 1 // --- MODIFICATION: Set zIndex ---
         });
 
         const vectorSource = new ol.source.Vector();
@@ -572,7 +587,8 @@
                     width: 1.5,
                     lineDash: [4, 4]
                 })
-            })
+            }),
+            zIndex: 2 // --- MODIFICATION: Set zIndex ---
         });
         
         const radiusSource = new ol.source.Vector();
@@ -587,6 +603,7 @@
                     width: 2,
                 }),
             }),
+            zIndex: 2 // --- MODIFICATION: Set zIndex ---
         });
 
         function formatAddress(address) {
@@ -649,7 +666,11 @@
             }
         }
 
-        const clusterLayer = new ol.layer.Vector({ source: clusterSource, style: clusterStyleFunction });
+        const clusterLayer = new ol.layer.Vector({ 
+            source: clusterSource, 
+            style: clusterStyleFunction,
+            zIndex: 3 // --- MODIFICATION: Set zIndex ---
+        });
         
         const taiwanExtent = ol.proj.transformExtent([118.0, 21.5, 122.5, 25.5], 'EPSG:4326', 'EPSG:3857');
 
@@ -736,6 +757,9 @@
             let dragPanInteraction;
             let reviewMapInstance = null;
             let managementAreaMaps = {};
+
+            // --- MODIFICATION: Added variable to cache detached buttons ---
+            let cachedActionButtons = null;
 
             map.getInteractions().forEach(interaction => {
                 if (interaction instanceof ol.interaction.DragPan) {
@@ -1378,6 +1402,16 @@
                         tempMarker.getElement().style.display = 'none';
                     }
                     
+                    if (isMobile) {
+                        // --- MODIFICATION: Detach buttons ---
+                        const $buttons = $('#main-action-buttons');
+                        if ($buttons.length) {
+                            cachedActionButtons = $buttons.detach();
+                        }
+                        $('#add-location-modal-mobile').addClass('minimized');
+                        $('#restore-mobile-modal-btn').removeClass('hidden');
+                    }
+                    
                     selectedGridCells.clear();
                     if (areaBoundsToLoad) {
                         try {
@@ -1430,6 +1464,15 @@
                          tempMarker.getElement().style.pointerEvents = 'auto';
                          tempMarker.getElement().style.display = 'block';
                     }
+                    if (isMobile) {
+                        // --- MODIFICATION: Re-attach buttons ---
+                        if (cachedActionButtons) {
+                            $('#map-container').append(cachedActionButtons);
+                            cachedActionButtons = null;
+                        }
+                        $('#add-location-modal-mobile').removeClass('minimized');
+                        $('#restore-mobile-modal-btn').addClass('hidden');
+                    }
                     if (!isMobile) {
                         $('#desktop-center-marker').removeClass('hidden');
                     }
@@ -1440,6 +1483,18 @@
                     map.un('pointerdown', mapPointerDown);
                 }
             }
+
+            // Manually minimize the mobile modal
+            $('#minimize-mobile-modal-btn').on('click', function() {
+                $('#add-location-modal-mobile').addClass('minimized');
+                $('#restore-mobile-modal-btn').removeClass('hidden');
+            });
+
+            // Restore the minimized mobile modal
+            $('#restore-mobile-modal-btn').on('click', function() {
+                $('#add-location-modal-mobile').removeClass('minimized');
+                $(this).addClass('hidden');
+            });
 
             function setupGridToolbar() {
                 const $fillToolSvg = $('#tool-fill svg');
@@ -1501,6 +1556,34 @@
                 } else {
                     lockedCenterForEditing = null;
                     toggleAreaSelectionMode(false);
+                }
+            });
+            
+            // 新增行動版「新增地點/建築」頁籤切換邏輯
+            $('#add-location-modal-mobile').on('click', '.mobile-add-tab', function() {
+                const $clickedTab = $(this);
+                const isAreaTab = $clickedTab.attr('id') === 'mobile-add-area-tab';
+                const $form = $('#add-location-form-mobile');
+
+                // 更新頁籤樣式
+                $('.mobile-add-tab').removeClass('active text-indigo-600 bg-indigo-50 rounded-t-lg').addClass('text-gray-500 hover:text-gray-700');
+                $clickedTab.addClass('active text-indigo-600 bg-indigo-50 rounded-t-lg').removeClass('text-gray-500 hover:text-gray-700');
+
+                // 切換顯示的表單區塊
+                $('#mobile-point-fields').toggleClass('hidden', isAreaTab);
+                $('#mobile-area-fields').toggleClass('hidden', !isAreaTab);
+
+                // 根據當前分頁顯示/隱藏手動縮小按鈕
+                $('#minimize-mobile-modal-btn').toggleClass('hidden', !isAreaTab);
+
+                // 連動「標示為整個社區/區域」checkbox
+                // 確保 #add-is-area 是存在於 DOM 中（不論在哪個 fields 容器裡）
+                const $isAreaCheckbox = $form.find('#add-is-area');
+                if ($isAreaCheckbox.length) {
+                    // 如果 checkbox 的狀態與當前頁籤不符，則更新它並觸發 change 事件
+                    if ($isAreaCheckbox.is(':checked') !== isAreaTab) {
+                        $isAreaCheckbox.prop('checked', isAreaTab).trigger('change');
+                    }
                 }
             });
 
@@ -1631,7 +1714,8 @@
                     if(tempMarker) map.removeOverlay(tempMarker);
                     tempMarker = null;
                     $('#complete-placement-btn').addClass('hidden');
-                    $('#add-location-modal-mobile').addClass('hidden');
+                    $('#add-location-modal-mobile').addClass('hidden').removeClass('minimized');
+                    $('#restore-mobile-modal-btn').addClass('hidden');
                 } else {
                     $('#app-container').removeClass('desktop-add-mode');
                     $('#desktop-center-marker').addClass('hidden');
@@ -1689,7 +1773,6 @@
                 const finalCoords = tempMarker.getPosition();
                 const finalLonLat = ol.proj.toLonLat(finalCoords);
                 
-                // --- MODIFIED: Fix for cloning form content to new mobile modal structure ---
                 const formContent = $('#add-location-form > .px-6').children().clone(true, true);
                 const $pointFields = $('#mobile-point-fields');
                 const $areaFields = $('#mobile-area-fields');
@@ -1697,16 +1780,16 @@
                 $pointFields.empty().append(formContent);
                 $areaFields.empty().append($pointFields.children().clone(true, true));
                 
-                // Hide fields not relevant to areas in the area tab
                 $areaFields.find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').hide();
-                // Show fields not relevant to areas in the point tab
                 $pointFields.find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').show();
 
                 $('#add-location-form-mobile')[0].reset();
                 reverseGeocode(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
                 
-                // Ensure the correct tab is showing initially
-                $('#mobile-add-point-tab').click();
+                // 確保手動縮小按鈕在初次打開時是隱藏的
+                $('#minimize-mobile-modal-btn').addClass('hidden');
+                
+                $('#mobile-add-point-tab').trigger('click');
 
                 $('#add-location-modal-mobile').removeClass('hidden');
                 $('#complete-placement-btn').addClass('hidden');
@@ -2914,7 +2997,7 @@
                 loadReviewData(activeTab);
             });
 
-            function loadReviewData(status = 'pending') {
+        function loadReviewData(status = 'pending') {
                 const $listPanel = $('#review-list-panel');
                 const $detailPanel = $('#review-detail-panel');
                 $listPanel.html('');
@@ -3310,4 +3393,3 @@
     </script>
 </body>
 </html>
-
