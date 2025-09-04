@@ -202,14 +202,22 @@ html, body {
 }
 
 /* --- BEGIN MODIFICATION: Mobile modal minimization styles with pointer-events fix --- */
+/*
+  此規則為關鍵修復。當行動版視窗具備 .minimized class 時，
+  我們使用 pointer-events: none; 讓其整個容器變得不可互動。
+  這能讓點擊「穿透」它，去觸發下方的元素，
+  例如網格工具列和右上角的按鈕。
+*/
 #add-location-modal-mobile.minimized {
-    /* Make the entire modal container click-through */
     pointer-events: none;
 }
+
+/*
+  此規則處理視覺上的滑出動畫效果，
+  並在視窗滑回時，重新啟用其內部的互動。
+*/
 #add-location-modal-mobile.minimized > .bg-white {
-    /* Re-enable pointer events for the form panel itself, so it can be used when it slides back */
-    pointer-events: auto;
-    /* The transform that moves it off-screen */
+    pointer-events: auto; /* 重新為滑出的面板啟用點擊，以便滑回來後能正常使用 */
     transform: translateX(calc(-100% - 2rem));
 }
 /* --- END MODIFICATION --- */
