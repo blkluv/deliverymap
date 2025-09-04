@@ -123,9 +123,11 @@
                                     <option value="" disabled selected>請選擇...</option>
                                     <option value="黑客">黑客</option>
                                     <option value="送上樓">送上樓</option>
+                                    <option value="需爬梯">需爬梯</option>
                                     <option value="拖吊">拖吊</option>
                                     <option value="騙餐">騙餐</option>
                                     <option value="奇怪">奇怪</option>
+                                    <option value="性騷擾">性騷擾</option>
                                     <option value="店家">店家</option>
                                     <option value="其他">其他</option>
                                 </select>
@@ -269,19 +271,31 @@
                     </div>
                 </div>
 
-                <button id="complete-placement-btn" class="hidden absolute top-4 left-4 z-20 bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-green-700 transition-colors">
+                <button id="complete-placement-btn" class="hidden absolute top-20 left-4 z-20 bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-green-700 transition-colors">
                     完成位置設定
                 </button>
+                
+                <button id="restore-modal-btn" class="hidden absolute top-1/2 -translate-y-1/2 -left-1 z-20 bg-white p-2 rounded-r-full shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+
             </main>
         </div>
 
         <!-- 新增/編輯店家 Modal (Mobile Popup) -->
         <div id="add-location-modal-mobile" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4">
-             <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col" style="max-height: calc(100vh - 5rem);">
+             <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col transition-transform duration-300 ease-in-out" style="max-height: calc(100vh - 5rem);">
                 <form id="add-location-form-mobile" class="flex-grow flex flex-col overflow-hidden">
                     <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
-                        <h2 id="modal-title-mobile" class="text-xl font-bold text-gray-800">新增地點</h2>
-                        <div class="flex items-center space-x-2">
+                        <div id="mobile-modal-title-container" class="flex-grow">
+                             <div class="flex border-b border-gray-200">
+                                <button type="button" id="mobile-add-point-tab" class="mobile-add-tab active py-2 px-4 text-sm font-medium text-center text-indigo-600 bg-indigo-50 rounded-t-lg">新增地點</button>
+                                <button type="button" id="mobile-add-area-tab" class="mobile-add-tab py-2 px-4 text-sm font-medium text-center text-gray-500 hover:text-gray-700">新增建築</button>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2 pl-2">
                              <button id="submit-location-btn-mobile" type="submit" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center w-28">
                                 <span class="submit-text">送出審核</span>
                                 <span class="spinner hidden animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
@@ -290,6 +304,10 @@
                         </div>
                     </div>
                     <div class="px-6 pt-2 pb-16 space-y-4 overflow-y-auto custom-scrollbar flex-grow">
+                       <div id="mobile-point-fields">
+                       </div>
+                       <div id="mobile-area-fields" class="hidden">
+                       </div>
                     </div>
                 </form>
             </div>
@@ -632,7 +650,6 @@
 
         const clusterLayer = new ol.layer.Vector({ source: clusterSource, style: clusterStyleFunction });
         
-        // MODIFIED: 新增台灣地區的地圖範圍限制
         const taiwanExtent = ol.proj.transformExtent([118.0, 21.5, 122.5, 25.5], 'EPSG:4326', 'EPSG:3857');
 
         const map = new ol.Map({
@@ -641,8 +658,8 @@
             view: new ol.View({ 
                 center: ol.proj.fromLonLat([120.9, 23.9]), 
                 zoom: 8,
-                extent: taiwanExtent, // 限制地圖拖曳範圍
-                minZoom: 8, // 可選：設定最小縮放等級
+                extent: taiwanExtent,
+                minZoom: 8,
             }),
             controls: [
                 new ol.control.Zoom(),
@@ -663,7 +680,7 @@
         });
         map.addOverlay(infoOverlay);
         
-        $('#app').on('click', '#popup-closer', function(e) {
+        $('#app').on('touchend, click', '#popup-closer', function(e) {
             e.preventDefault();
             infoOverlay.setPosition(undefined);
             this.blur();
@@ -942,14 +959,6 @@
                 const message = $input.val().trim();
 
                 if (message && ws && ws.readyState === WebSocket.OPEN) {
-                    /* * MODIFIED: 移除本地訊息的建立與顯示，
-                     * 現在訊息的顯示完全依賴伺服器的廣播。
-                     */
-                    // const localMessage = { ... }; // 移除
-                    // appendChatMessage(localMessage); // 移除
-                    // const $chatMessages = $('#chat-messages'); // 移除
-                    // $chatMessages.scrollTop($chatMessages[0].scrollHeight); // 移除
-
                     const payload = {
                         type: 'chat',
                         message: message
@@ -2740,61 +2749,6 @@
                 });
             }
             
-            function renderAreaOnMap(targetId, areaBoundsStr) {
-                if (!document.getElementById(targetId) || !areaBoundsStr) return null;
-                
-                const areaSource = new ol.source.Vector();
-                const areaMap = new ol.Map({
-                    target: targetId,
-                    layers: [
-                        new ol.layer.Tile({ source: osmLayer.getSource() }),
-                        new ol.layer.Vector({ source: areaSource })
-                    ],
-                    controls: [],
-                    interactions: []
-                });
-
-                try {
-                    const areaBoundsData = JSON.parse(areaBoundsStr);
-                    if (areaBoundsData.v === 1) {
-                        const { o: originCoords, p: palette, c: compressedCells } = areaBoundsData;
-                        const origin = { lon: parseFloat(originCoords[0]), lat: parseFloat(originCoords[1]) };
-                        
-                        compressedCells.forEach(cellString => {
-                            const parts = cellString.split(':');
-                            const [x, y] = parts[0].split(',').map(Number);
-                            const [fillIndex] = parts.slice(1);
-                            
-                            if (fillIndex !== '') {
-                                const lon = origin.lon + x * GRID_INTERVAL;
-                                const lat = origin.lat + y * GRID_INTERVAL;
-                                const extent = ol.proj.transformExtent(
-                                    [lon, lat, lon + GRID_INTERVAL, lat + GRID_INTERVAL],
-                                    'EPSG:4326', 'EPSG:3857'
-                                );
-                                const cellFeature = new ol.Feature({ geometry: ol.geom.Polygon.fromExtent(extent) });
-                                const fillColor = palette.f[parseInt(fillIndex, 10)] || 'rgba(239, 68, 68, 0.7)';
-                                cellFeature.setStyle(new ol.style.Style({
-                                    fill: new ol.style.Fill({ color: fillColor })
-                                }));
-                                areaSource.addFeature(cellFeature);
-                            }
-                        });
-                    }
-                    
-                    setTimeout(() => {
-                        const extent = areaSource.getExtent();
-                        if (extent && !ol.extent.isEmpty(extent)) {
-                            areaMap.getView().fit(extent, { padding: [10, 10, 10, 10], duration: 50 });
-                        }
-                    }, 100);
-
-                } catch (e) {
-                    console.error(`Error rendering map preview for ${targetId}:`, e);
-                }
-                return areaMap;
-            }
-
             async function loadUserAreas() {
                 const $content = $('#management-area-content');
                 $content.html('');
@@ -3018,6 +2972,7 @@
                     `;
                     $detailPanel.html(detailHtml);
 
+                    // Initialize review map
                     if (reviewMapInstance) {
                         reviewMapInstance.setTarget(null);
                         reviewMapInstance = null;
@@ -3341,8 +3296,4 @@
     </script>
 </body>
 </html>
-
-
-                    }
-                }
 
