@@ -270,8 +270,9 @@
                     <div id="store-list-content" class="flex-grow overflow-y-auto custom-scrollbar pr-2 transition-all duration-300">
                     </div>
                 </div>
-
-                <button id="complete-placement-btn" class="hidden absolute top-20 left-4 z-20 bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-green-700 transition-colors">
+                
+                <!-- MODIFIED: Button style and position -->
+                <button id="complete-placement-btn" class="hidden absolute bottom-8 right-4 z-20 bg-red-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-red-700 transition-colors">
                     完成位置設定
                 </button>
                 
@@ -680,7 +681,7 @@
         });
         map.addOverlay(infoOverlay);
         
-        $('#app').on('touchend, click', '#popup-closer', function(e) {
+        $('#app').on('touchend click', '#popup-closer', function(e) {
             e.preventDefault();
             infoOverlay.setPosition(undefined);
             this.blur();
@@ -1688,12 +1689,25 @@
                 const finalCoords = tempMarker.getPosition();
                 const finalLonLat = ol.proj.toLonLat(finalCoords);
                 
-                const formContent = $('#add-location-form > .px-6').clone(true, true);
-                $('#add-location-form-mobile > .px-6').replaceWith(formContent);
+                // --- MODIFIED: Fix for cloning form content to new mobile modal structure ---
+                const formContent = $('#add-location-form > .px-6').children().clone(true, true);
+                const $pointFields = $('#mobile-point-fields');
+                const $areaFields = $('#mobile-area-fields');
+                
+                $pointFields.empty().append(formContent);
+                $areaFields.empty().append($pointFields.children().clone(true, true));
+                
+                // Hide fields not relevant to areas in the area tab
+                $areaFields.find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').hide();
+                // Show fields not relevant to areas in the point tab
+                $pointFields.find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').show();
 
                 $('#add-location-form-mobile')[0].reset();
                 reverseGeocode(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
                 
+                // Ensure the correct tab is showing initially
+                $('#mobile-add-point-tab').click();
+
                 $('#add-location-modal-mobile').removeClass('hidden');
                 $('#complete-placement-btn').addClass('hidden');
             });
@@ -3296,4 +3310,3 @@
     </script>
 </body>
 </html>
-
