@@ -201,18 +201,17 @@ html, body {
     }
 }
 
-/* Mobile modal minimization styles */
+/* BEGIN MODIFICATION: Mobile modal minimization styles with z-index fix */
+#add-location-modal-mobile.minimized {
+    /* Lower z-index to be BEHIND the toolbar (z-20) but above the map (z-15) */
+    /* !important is used to override Tailwind's z-[60] utility class */
+    z-index: 19 !important; 
+}
 #add-location-modal-mobile.minimized > .bg-white {
     transform: translateX(calc(-100% - 2rem)); /* Move it off screen to the left, considering padding */
 }
+/* END MODIFICATION */
 
-/* Fix for minimized modal blocking underlying elements */
-#add-location-modal-mobile.pointer-events-passthrough {
-    pointer-events: none;
-}
-#add-location-modal-mobile.pointer-events-passthrough > .bg-white {
-    pointer-events: auto; /* Re-enable pointer events ONLY for the visible panel part (when it slides back in) */
-}
 /* NEW: Vote button styles */
 .vote-btn.voted-like svg {
     fill: #10B981; /* A brighter green */
