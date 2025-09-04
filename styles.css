@@ -200,6 +200,12 @@ html, body {
         display: none; /* Hide mobile modal on desktop */
     }
 }
+
+/* Mobile modal minimization styles */
+#add-location-modal-mobile.minimized > .bg-white {
+    transform: translateX(calc(-100% - 2rem)); /* Move it off screen to the left, considering padding */
+}
+
 /* NEW: Vote button styles */
 .vote-btn.voted-like svg {
     fill: #10B981; /* A brighter green */
@@ -279,3 +285,4 @@ html, body {
 #chat-messages.hide-system-messages .system-message {
     display: none;
 }
+
