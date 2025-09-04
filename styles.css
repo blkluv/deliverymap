@@ -201,16 +201,19 @@ html, body {
     }
 }
 
-/* BEGIN MODIFICATION: Mobile modal minimization styles with z-index fix */
+/* --- BEGIN MODIFICATION: Mobile modal minimization styles with pointer-events fix --- */
 #add-location-modal-mobile.minimized {
-    /* Lower z-index to be BEHIND the toolbar (z-20) but above the map (z-15) */
-    /* !important is used to override Tailwind's z-[60] utility class */
-    z-index: 19 !important; 
+    /* Make the entire modal container click-through */
+    pointer-events: none;
 }
 #add-location-modal-mobile.minimized > .bg-white {
-    transform: translateX(calc(-100% - 2rem)); /* Move it off screen to the left, considering padding */
+    /* Re-enable pointer events for the form panel itself, so it can be used when it slides back */
+    pointer-events: auto;
+    /* The transform that moves it off-screen */
+    transform: translateX(calc(-100% - 2rem));
 }
-/* END MODIFICATION */
+/* --- END MODIFICATION --- */
+
 
 /* NEW: Vote button styles */
 .vote-btn.voted-like svg {
