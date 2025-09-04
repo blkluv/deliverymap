@@ -129,7 +129,7 @@ html, body {
 .new-location-marker {
      width: 32px;
      height: 32px;
-     background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ef4444" width="32px" height="32px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>');
+     background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ef4444" width="32px" height="32px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7-75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>');
      background-size: contain;
      cursor: grab;
      transform: translate(-50%, -100%);
@@ -204,12 +204,12 @@ html, body {
 /* --- BEGIN MODIFICATION: Mobile modal minimization styles with pointer-events fix --- */
 /*
   此規則為關鍵修復。當行動版視窗具備 .minimized class 時，
-  我們使用 pointer-events: none; 讓其整個容器變得不可互動。
+  我們使用 pointer-events: none !important; 強制讓其整個容器變得不可互動。
   這能讓點擊「穿透」它，去觸發下方的元素，
   例如網格工具列和右上角的按鈕。
 */
 #add-location-modal-mobile.minimized {
-    pointer-events: none;
+    pointer-events: none !important;
 }
 
 /*
@@ -217,7 +217,7 @@ html, body {
   並在視窗滑回時，重新啟用其內部的互動。
 */
 #add-location-modal-mobile.minimized > .bg-white {
-    pointer-events: auto; /* 重新為滑出的面板啟用點擊，以便滑回來後能正常使用 */
+    pointer-events: auto !important; /* 重新為滑出的面板啟用點擊，以便滑回來後能正常使用 */
     transform: translateX(calc(-100% - 2rem));
 }
 /* --- END MODIFICATION --- */
