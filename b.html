@@ -215,7 +215,8 @@
                     </div>
                 </div>
 
-                <div class="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2">
+                <!-- MODIFICATION: Added id="main-ui-buttons" to this container -->
+                <div id="main-ui-buttons" class="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2">
                     <div id="login-status">
                         <div id="google-signin-container" style="display: none;"></div>
                         
@@ -561,7 +562,8 @@
         const osmLayer = new ol.layer.Tile({
             source: new ol.source.OSM({
                  attributions: '內容為外送員分享經驗 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者',
-            })
+            }),
+            zIndex: 0 // --- MODIFICATION: Set explicit zIndex ---
         });
         
         const areaGridSource = new ol.source.Vector();
@@ -569,7 +571,8 @@
             source: areaGridSource,
             style: function(feature) {
                 return feature.getStyle();
-            }
+            },
+            zIndex: 1 // --- MODIFICATION: Set explicit zIndex ---
         });
 
         const vectorSource = new ol.source.Vector();
@@ -584,7 +587,8 @@
                     width: 1.5,
                     lineDash: [4, 4]
                 })
-            })
+            }),
+            zIndex: 3 // --- MODIFICATION: Set explicit zIndex ---
         });
         
         const radiusSource = new ol.source.Vector();
@@ -599,6 +603,7 @@
                     width: 2,
                 }),
             }),
+            zIndex: 3 // --- MODIFICATION: Set explicit zIndex ---
         });
 
         function formatAddress(address) {
@@ -661,7 +666,11 @@
             }
         }
 
-        const clusterLayer = new ol.layer.Vector({ source: clusterSource, style: clusterStyleFunction });
+        const clusterLayer = new ol.layer.Vector({ 
+            source: clusterSource, 
+            style: clusterStyleFunction,
+            zIndex: 2 // --- MODIFICATION: Set explicit zIndex ---
+        });
         
         const taiwanExtent = ol.proj.transformExtent([118.0, 21.5, 122.5, 25.5], 'EPSG:4326', 'EPSG:3857');
 
@@ -720,6 +729,9 @@
             let isAdmin = false; 
             const isMobile = window.innerWidth < 768;
             
+            // --- MODIFICATION: Variable to store detached UI buttons ---
+            let detachedUIButtons = null;
+
             let initialAddLocationCoords = null;
             let tempMarker = null;
             let isDraggingMarker = false;
@@ -1391,6 +1403,11 @@
                     }
                     
                     if (isMobile) {
+                        // --- MODIFICATION: Detach the main UI buttons to prevent interference ---
+                        const $buttons = $('#main-ui-buttons');
+                        if ($buttons.length) {
+                            detachedUIButtons = $buttons.detach();
+                        }
                         $('#add-location-modal-mobile').addClass('minimized');
                         $('#restore-mobile-modal-btn').removeClass('hidden');
                     }
@@ -1448,6 +1465,11 @@
                          tempMarker.getElement().style.display = 'block';
                     }
                     if (isMobile) {
+                        // --- MODIFICATION: Re-attach the main UI buttons ---
+                        if (detachedUIButtons) {
+                            $('#map-container').append(detachedUIButtons);
+                            detachedUIButtons = null;
+                        }
                         $('#add-location-modal-mobile').removeClass('minimized');
                         $('#restore-mobile-modal-btn').addClass('hidden');
                     }
@@ -1680,6 +1702,12 @@
             }
             
             function exitAddMode() {
+                // --- MODIFICATION: Ensure UI buttons are restored if they were detached ---
+                if (detachedUIButtons) {
+                    $('#map-container').append(detachedUIButtons);
+                    detachedUIButtons = null;
+                }
+
                 if (isAreaSelectionMode) {
                     toggleAreaSelectionMode(false);
                 }
@@ -2950,107 +2978,7 @@
 
             $('#close-review-modal').on('click', () => {
                 if (reviewMapInstance) {
-                    reviewMapInstance.setTarget(null);
-                    reviewMapInstance = null;
-                }
-                $('#review-modal').addClass('hidden');
-            });
-            
-            $('#pending-tab').on('click', function() {
-                $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
-                $('#approved-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
-                loadReviewData('pending');
-            });
-
-            $('#approved-tab').on('click', function() {
-                $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
-                $('#pending-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
-                loadReviewData('approved');
-            });
-            
-            $('#review-modal').on('click', '#review-refresh-btn', async function() {
-                showNotification('正在更新列表...', 'info');
-                await loadData();
-                const activeTab = $('#pending-tab').hasClass('border-indigo-500') ? 'pending' : 'approved';
-                loadReviewData(activeTab);
-            });
-
-            function loadReviewData(status = 'pending') {
-                const $listPanel = $('#review-list-panel');
-                const $detailPanel = $('#review-detail-panel');
-                $listPanel.html('');
-                $detailPanel.html('<p class="text-gray-500">請從左側列表選擇一個地點以查看詳細資訊。</p>');
-
-                const reportsToReview = rawReports.filter(report => {
-                    const currentStatus = String(report['審核']).toUpperCase();
-                    if (status === 'pending') {
-                        return currentStatus !== 'TRUE' && currentStatus !== 'REJECT';
-                    } else {
-                        return currentStatus === 'TRUE' || currentStatus === 'REJECT';
-                    }
-                });
-
-                if (reportsToReview.length === 0) {
-                    $listPanel.html(`<p class="p-4 text-sm text-gray-500">沒有${status === 'pending' ? '待審核' : '已審核或已駁回'}的項目。</p>`);
-                    return;
-                }
-
-                reportsToReview.forEach(report => {
-                    const listItem = $(`
-                        <div class="p-4 border-b cursor-pointer hover:bg-gray-100 review-item" data-row-index="${report.rowIndex}" data-is-community="${!!report.isCommunity}">
-                            <p class="font-semibold text-gray-800">${report.areaName || report['地址']}</p>
-                            <p class="text-sm text-gray-600 truncate">${report['黑名原因'] || '無原因 (社區項目)'}</p>
-                            <p class="text-xs text-gray-400 mt-1">提交者: ${report.submitterEmail || report.submitterLineId || report['製作者'] ||'N/A'}</p>
-                        </div>
-                    `);
-                    $listPanel.append(listItem);
-                });
-            }
-
-            $('#review-list-panel').on('click', '.review-item', function() {
-                $('.review-item').removeClass('bg-indigo-50');
-                $(this).addClass('bg-indigo-50');
-                const rowIndex = $(this).data('row-index');
-                const isCommunity = $(this).data('is-community');
-                
-                const report = rawReports.find(r => r.rowIndex == rowIndex && !!r.isCommunity === isCommunity);
-
-                if (report) {
-                    displayReviewDetails(report);
-                }
-            });
-
-            function displayReviewDetails(report) {
-                const $detailPanel = $('#review-detail-panel');
-                const submissionDate = report.timestamp ? 
-                    new Date(report.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) : 
-                    '日期不明';
-
-                if (report.isCommunity) {
-                    const detailHtml = `
-                        <div id="review-map-container" class="relative w-full h-64 bg-gray-200 mb-4 rounded-lg overflow-hidden">
-                            <div id="review-map" class="w-full h-full"></div>
-                        </div>
-                        <div class="space-y-2 text-sm">
-                            <h3 class="text-xl font-bold text-gray-900">${report.areaName || '未命名社區'}</h3>
-                            <hr class="my-2">
-                            <p><strong>座標:</strong> ${parseFloat(report['經度']).toFixed(5)}, ${parseFloat(report['緯度']).toFixed(5)}</p>
-                            <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || report.submitterLineId || report['製作者'] || 'N/A'})</p>
-                            <p><strong>提交時間:</strong> ${submissionDate}</p>
-                            <p><strong>試算表分頁名稱:</strong> 社區列表</p>
-                            <p><strong>試算表列數:</strong> ${report.rowIndex}</p>
-                        </div>
-                        <div class="mt-6 flex space-x-4">
-                            <button class="admin-action-btn flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700" data-action="approve" data-row-index="${report.rowIndex}" data-is-community="true">通過</button>
-                            <button class="admin-action-btn flex-1 bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700" data-action="reject" data-row-index="${report.rowIndex}" data-is-community="true">駁回</button>
-                        </div>
-                    `;
-                    $detailPanel.html(detailHtml);
-
-                    // Initialize review map
-                    if (reviewMapInstance) {
-                        reviewMapInstance.setTarget(null);
-                        reviewMapInstance = null;
+                   reviewMapInstance = null;
                     }
                     
                     setTimeout(() => {
@@ -3371,3 +3299,4 @@
     </script>
 </body>
 </html>
+
