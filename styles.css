@@ -206,6 +206,13 @@ html, body {
     transform: translateX(calc(-100% - 2rem)); /* Move it off screen to the left, considering padding */
 }
 
+/* Fix for minimized modal blocking underlying elements */
+#add-location-modal-mobile.pointer-events-passthrough {
+    pointer-events: none;
+}
+#add-location-modal-mobile.pointer-events-passthrough > .bg-white {
+    pointer-events: auto; /* Re-enable pointer events ONLY for the visible panel part (when it slides back in) */
+}
 /* NEW: Vote button styles */
 .vote-btn.voted-like svg {
     fill: #10B981; /* A brighter green */
@@ -303,3 +310,4 @@ html, body {
 #chat-messages.hide-system-messages .system-message {
     display: none;
 }
+
