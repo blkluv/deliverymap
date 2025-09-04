@@ -206,101 +206,18 @@ html, body {
     transform: translateX(calc(-100% - 2rem)); /* Move it off screen to the left, considering padding */
 }
 
-/* NEW: Vote button styles */
+/* BEGIN MODIFICATION: Added styles to fix toolbar being blocked */
+#add-location-modal-mobile.pointer-events-passthrough {
+    pointer-events: none;
+}
+
+#add-location-modal-mobile.pointer-events-passthrough > .bg-white {
+    pointer-events: auto; /* Re-enable pointer events for the panel itself */
+}
+/* END MODIFICATION */
+
+
 .vote-btn.voted-like svg {
     fill: #10B981; /* A brighter green */
-}
-.vote-btn.voted-dislike svg {
-    fill: #EF4444; /* A brighter red */
-}
-
-/* NEW: Grid canvas style */
-#grid-canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 10; /* Above map tiles, below UI controls */
-    pointer-events: none; /* MODIFIED: Let map handle events so zoom/pan works */
-}
-
-/* NEW: Grid toolbar styles */
-#grid-toolbar {
-    position: absolute;
-    top: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 20;
-    background-color: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(5px);
-    padding: 0.5rem;
-    border-radius: 0.75rem;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    align-items: center;
-    gap: 0.5rem;
-}
-.grid-tool-btn {
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-    transition: background-color 0.2s;
-    border: 2px solid transparent;
-}
-.grid-tool-btn:hover {
-    background-color: #e5e7eb; /* gray-200 */
-}
-.grid-tool-btn.active {
-    background-color: #dbeafe; /* blue-100 */
-    border-color: #3b82f6; /* blue-500 */
-}
-#marker-tools {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding-left: 0.5rem;
-    border-left: 1px solid #d1d5db; /* gray-300 */
-}
-
-/* MODIFIED: Grid Color Palette Styles */
-#grid-color-palette {
-    /* Repositioned from top-right to below the center toolbar */
-    top: 4.5rem; 
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    
-    /* Changed layout from vertical to horizontal */
-    flex-direction: row;
-    width: auto;
-    gap: 1rem;
-}
-
-#grid-color-palette > div {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-#grid-color-palette input[type="color"] {
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    width: 2.5rem; /* Adjusted width for horizontal layout */
-    height: 2rem; /* 32px */
-    background-color: transparent;
-    border: 1px solid #d1d5db; /* gray-300 */
-    border-radius: 0.375rem; /* rounded-md */
-    cursor: pointer;
-}
-#grid-color-palette input[type="color"]::-webkit-color-swatch-wrapper {
-    padding: 0;
-}
-#grid-color-palette input[type="color"]::-webkit-color-swatch {
-    border: none;
-    border-radius: 0.25rem; /* rounded */
-}
-
-/* NEW: Styles for hiding system messages in chat */
-#chat-messages.hide-system-messages .system-message {
-    display: none;
-}
+/* ... existing code ... -->
 
