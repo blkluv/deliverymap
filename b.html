@@ -62,13 +62,31 @@
     <!-- NEW: External Stylesheet -->
     <link rel="stylesheet" href="styles.css">
     
-    <!-- NEW: Additional styles for context menu -->
+    <!-- NEW: Additional styles for context menu and mobile submit button -->
     <style>
         .chat-message-item {
             -webkit-user-select: none; /* Safari */
             -ms-user-select: none; /* IE 10+ */
             user-select: none; /* Standard syntax */
         }
+        /* --- BEGIN MODIFICATION: Mobile Grid Submit Button Styles --- */
+        #mobile-grid-submit-btn {
+            position: absolute;
+            bottom: var(--mobile-bottom-offset, 6rem);
+            right: 1rem;
+            z-index: 20;
+            background-color: #ef4444; /* red-500 */
+            color: white;
+            font-weight: bold;
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            box-shadow: 0 4px 14px 0 rgba(0,0,0,0.25);
+            transition: background-color 0.2s;
+        }
+        #mobile-grid-submit-btn:hover {
+            background-color: #dc2626; /* red-600 */
+        }
+        /* --- END MODIFICATION --- */
     </style>
 
 </head>
@@ -96,10 +114,12 @@
                             <input type="hidden" id="edit-area-row-index" name="areaRowIndex">
                             <input type="hidden" id="edit-original-name" name="originalName">
                             <p id="location-instruction" class="text-sm text-gray-600">請移動地圖中心點來選擇位置。</p>
-                            <div class="hidden md:block">
+                            <!-- --- BEGIN MODIFICATION: Ensured Area Name is present for cloning --- -->
+                            <div>
                                 <label class="block text-sm font-medium text-gray-700">社區/區域名稱</label>
                                 <input type="text" id="add-area-name" name="areaName" class="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm">
                             </div>
+                            <!-- --- END MODIFICATION --- -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">地址 <span class="text-red-500">*</span></label>
                                 <div id="address-input-container">
@@ -215,8 +235,7 @@
                     </div>
                 </div>
 
-                <!-- MODIFICATION: Added id="main-ui-buttons" to this container -->
-                <div id="main-ui-buttons" class="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2">
+                <div id="main-action-buttons" class="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2">
                     <div id="login-status">
                         <div id="google-signin-container" style="display: none;"></div>
                         
@@ -272,7 +291,6 @@
                     </div>
                 </div>
                 
-                <!-- MODIFIED: Button style and position -->
                 <button id="complete-placement-btn" class="hidden absolute top-20 right-20 z-20 bg-red-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-red-700 transition-colors">
                     完成位置設定
                 </button>
@@ -283,12 +301,15 @@
                     </svg>
                 </button>
 
-                <!-- NEW: Button to restore the minimized mobile modal -->
                 <button id="restore-mobile-modal-btn" class="hidden absolute top-1/2 -translate-y-1/2 -left-1 z-30 bg-white p-2 rounded-r-full shadow-lg">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
                 </button>
+                
+                <!-- --- BEGIN MODIFICATION: Added Mobile Grid Submit Button --- -->
+                <button id="mobile-grid-submit-btn" class="hidden">送出</button>
+                <!-- --- END MODIFICATION --- -->
 
             </main>
         </div>
@@ -298,11 +319,13 @@
              <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col transition-transform duration-300 ease-in-out" style="max-height: calc(100vh - 5rem);">
                 <form id="add-location-form-mobile" class="flex-grow flex flex-col overflow-hidden">
                     <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
+                        <!-- --- BEGIN MODIFICATION: Added Minimize Button --- -->
                         <button type="button" id="minimize-mobile-modal-btn" class="hidden text-gray-400 hover:text-gray-600 p-2 -ml-2 mr-2">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                             </svg>
                         </button>
+                        <!-- --- END MODIFICATION --- -->
                         <div id="mobile-modal-title-container" class="flex-grow">
                              <div class="flex border-b border-gray-200">
                                 <button type="button" id="mobile-add-point-tab" class="mobile-add-tab active py-2 px-4 text-sm font-medium text-center text-indigo-600 bg-indigo-50 rounded-t-lg">新增地點</button>
@@ -563,7 +586,7 @@
             source: new ol.source.OSM({
                  attributions: '內容為外送員分享經驗 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者',
             }),
-            zIndex: 0 // --- MODIFICATION: Set explicit zIndex ---
+            zIndex: 0 
         });
         
         const areaGridSource = new ol.source.Vector();
@@ -572,7 +595,7 @@
             style: function(feature) {
                 return feature.getStyle();
             },
-            zIndex: 1 // --- MODIFICATION: Set explicit zIndex ---
+            zIndex: 1 
         });
 
         const vectorSource = new ol.source.Vector();
@@ -588,7 +611,7 @@
                     lineDash: [4, 4]
                 })
             }),
-            zIndex: 3 // --- MODIFICATION: Set explicit zIndex ---
+            zIndex: 2 
         });
         
         const radiusSource = new ol.source.Vector();
@@ -603,7 +626,7 @@
                     width: 2,
                 }),
             }),
-            zIndex: 3 // --- MODIFICATION: Set explicit zIndex ---
+            zIndex: 2 
         });
 
         function formatAddress(address) {
@@ -669,7 +692,7 @@
         const clusterLayer = new ol.layer.Vector({ 
             source: clusterSource, 
             style: clusterStyleFunction,
-            zIndex: 2 // --- MODIFICATION: Set explicit zIndex ---
+            zIndex: 3 
         });
         
         const taiwanExtent = ol.proj.transformExtent([118.0, 21.5, 122.5, 25.5], 'EPSG:4326', 'EPSG:3857');
@@ -677,6 +700,11 @@
         const map = new ol.Map({
             target: 'map', 
             layers: [osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer],
+            // --- BEGIN MODIFICATION: Disable double click zoom ---
+            interactions: ol.interaction.defaults({
+                doubleClickZoom: false,
+            }),
+            // --- END MODIFICATION ---
             view: new ol.View({ 
                 center: ol.proj.fromLonLat([120.9, 23.9]), 
                 zoom: 8,
@@ -729,9 +757,6 @@
             let isAdmin = false; 
             const isMobile = window.innerWidth < 768;
             
-            // --- MODIFICATION: Variable to store detached UI buttons ---
-            let detachedUIButtons = null;
-
             let initialAddLocationCoords = null;
             let tempMarker = null;
             let isDraggingMarker = false;
@@ -761,6 +786,8 @@
             let reviewMapInstance = null;
             let managementAreaMaps = {};
 
+            let cachedActionButtons = null;
+
             map.getInteractions().forEach(interaction => {
                 if (interaction instanceof ol.interaction.DragPan) {
                     dragPanInteraction = interaction;
@@ -785,7 +812,6 @@
             let isLocationKnown = false;
             let unreadChatCount = 0;
             let isChatHistoryLoaded = false;
-            // NEW: Variable to hold info for context menu actions
             let contextMenuTarget = { userId: null, userName: null };
 
             function loadUserVotes() {
@@ -825,7 +851,7 @@
                                 city: log.conversation_location,
                                 pictureUrl: log.pictureUrl || '',
                                 timestamp: log.updated_time,
-                                userId: log.conversation_id // Add userId for context menu on historical messages
+                                userId: log.conversation_id 
                             };
                             appendChatMessage(messageData);
                          });
@@ -1296,12 +1322,13 @@
                     }
                 });
 
+                // --- MODIFICATION: Draw red dot for locked center ---
                 if (lockedCenterForEditing) {
                     const pixel = map.getPixelFromCoordinate(lockedCenterForEditing);
                     if (pixel) {
                         gridCtx.beginPath();
-                        gridCtx.arc(pixel[0], pixel[1], 5, 0, 2 * Math.PI, false);
-                        gridCtx.fillStyle = 'red';
+                        gridCtx.arc(pixel[0], pixel[1], 8, 0, 2 * Math.PI, false);
+                        gridCtx.fillStyle = 'rgba(239, 68, 68, 0.9)'; // red-500
                         gridCtx.fill();
                         gridCtx.lineWidth = 2;
                         gridCtx.strokeStyle = 'white';
@@ -1387,6 +1414,8 @@
                 
                 map.un('moveend', drawGrid);
                 $('#grid-color-palette').toggleClass('hidden', !enable);
+                // --- MODIFICATION: Show/hide mobile submit button ---
+                $('#mobile-grid-submit-btn').toggleClass('hidden', !enable);
 
                 if (enable) {
                     const zoomThreshold = isMobile ? GRID_ZOOM_LEVEL_MOBILE : GRID_ZOOM_LEVEL_WEB;
@@ -1403,10 +1432,9 @@
                     }
                     
                     if (isMobile) {
-                        // --- MODIFICATION: Detach the main UI buttons to prevent interference ---
-                        const $buttons = $('#main-ui-buttons');
+                        const $buttons = $('#main-action-buttons');
                         if ($buttons.length) {
-                            detachedUIButtons = $buttons.detach();
+                            cachedActionButtons = $buttons.detach();
                         }
                         $('#add-location-modal-mobile').addClass('minimized');
                         $('#restore-mobile-modal-btn').removeClass('hidden');
@@ -1465,10 +1493,9 @@
                          tempMarker.getElement().style.display = 'block';
                     }
                     if (isMobile) {
-                        // --- MODIFICATION: Re-attach the main UI buttons ---
-                        if (detachedUIButtons) {
-                            $('#map-container').append(detachedUIButtons);
-                            detachedUIButtons = null;
+                        if (cachedActionButtons) {
+                            $('#map-container').append(cachedActionButtons);
+                            cachedActionButtons = null;
                         }
                         $('#add-location-modal-mobile').removeClass('minimized');
                         $('#restore-mobile-modal-btn').addClass('hidden');
@@ -1559,28 +1586,28 @@
                 }
             });
             
-            // 新增行動版「新增地點/建築」頁籤切換邏輯
             $('#add-location-modal-mobile').on('click', '.mobile-add-tab', function() {
                 const $clickedTab = $(this);
                 const isAreaTab = $clickedTab.attr('id') === 'mobile-add-area-tab';
                 const $form = $('#add-location-form-mobile');
 
-                // 更新頁籤樣式
                 $('.mobile-add-tab').removeClass('active text-indigo-600 bg-indigo-50 rounded-t-lg').addClass('text-gray-500 hover:text-gray-700');
                 $clickedTab.addClass('active text-indigo-600 bg-indigo-50 rounded-t-lg').removeClass('text-gray-500 hover:text-gray-700');
 
-                // 切換顯示的表單區塊
                 $('#mobile-point-fields').toggleClass('hidden', isAreaTab);
                 $('#mobile-area-fields').toggleClass('hidden', !isAreaTab);
-
-                // 根據當前分頁顯示/隱藏手動縮小按鈕
                 $('#minimize-mobile-modal-btn').toggleClass('hidden', !isAreaTab);
+                
+                // --- BEGIN MODIFICATION: Set locked center on tab switch ---
+                if (isAreaTab && tempMarker) {
+                    lockedCenterForEditing = tempMarker.getPosition();
+                } else {
+                    lockedCenterForEditing = null;
+                }
+                // --- END MODIFICATION ---
 
-                // 連動「標示為整個社區/區域」checkbox
-                // 確保 #add-is-area 是存在於 DOM 中（不論在哪個 fields 容器裡）
                 const $isAreaCheckbox = $form.find('#add-is-area');
                 if ($isAreaCheckbox.length) {
-                    // 如果 checkbox 的狀態與當前頁籤不符，則更新它並觸發 change 事件
                     if ($isAreaCheckbox.is(':checked') !== isAreaTab) {
                         $isAreaCheckbox.prop('checked', isAreaTab).trigger('change');
                     }
@@ -1599,34 +1626,30 @@
                 radiusSource.addFeature(circleFeature);
             }
 
+            // --- BEGIN MODIFICATION: Updated pointer move handler for dragging marker ---
             function handlePointerMove(e) {
                 if (isDraggingMarker) {
                     const newCoord = map.getEventCoordinate(e);
-                    const initialLonLat = ol.proj.toLonLat(initialAddLocationCoords);
-                    const newLonLat = ol.proj.toLonLat(newCoord);
-                    const maxDistance = 500;
-
-                    if (ol.sphere.getDistance(initialLonLat, newLonLat) <= maxDistance) {
-                        tempMarker.setPosition(newCoord);
-                    } else {
-                        const angle = Math.atan2(newCoord[1] - initialAddLocationCoords[1], newCoord[0] - initialAddLocationCoords[0]);
-                        const resolution = map.getView().getResolution();
-                        const radiusInMapUnits = maxDistance / ol.proj.getPointResolution(map.getView().getProjection(), resolution, initialAddLocationCoords);
-                        const edgeX = initialAddLocationCoords[0] + radiusInMapUnits * Math.cos(angle);
-                        const edgeY = initialAddLocationCoords[1] + radiusInMapUnits * Math.sin(angle);
-                        tempMarker.setPosition([edgeX, edgeY]);
-                    }
+                    tempMarker.setPosition(newCoord);
                 }
             }
+            // --- END MODIFICATION ---
             
+            // --- BEGIN MODIFICATION: Updated pointer up handler with reverse geocoding ---
             function handlePointerUp() {
                 if (isDraggingMarker) {
+                    isDraggingMarker = false;
                     map.getInteractions().forEach(i => { if(i instanceof ol.interaction.DragPan) i.setActive(true); });
                     document.removeEventListener('pointermove', handlePointerMove);
                     document.removeEventListener('pointerup', handlePointerUp);
-                    isDraggingMarker = false;
+
+                    // Reverse geocode after drag ends
+                    const finalCoords = tempMarker.getPosition();
+                    const finalLonLat = ol.proj.toLonLat(finalCoords);
+                    reverseGeocode(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
                 }
             }
+            // --- END MODIFICATION ---
             
             function enterMobilePlacementMode(coordinate, areaBoundsToLoad = null) {
                 initialAddLocationCoords = coordinate;
@@ -1645,22 +1668,23 @@
                     toggleAreaSelectionMode(false); 
                     $('#add-location-modal-mobile').removeClass('hidden'); 
                 } else {
-                    drawRadiusCircle(coordinate);
-                    $('#complete-placement-btn').removeClass('hidden');
+                    // This button is for point placement, not area
+                    // $('#complete-placement-btn').removeClass('hidden');
                     map.getView().animate({ center: coordinate, zoom: 18, duration: 500 });
                 }
 
+                // --- BEGIN MODIFICATION: Simplified drag listener for mobile marker ---
                 markerEl.addEventListener('pointerdown', (e) => {
-                    const isAreaEdit = !!($('#edit-area-row-index').val());
-                    if (isAreaEdit && $('#add-is-area').is(':checked')) {
-                        return;
-                    }
+                    const isAreaModeActive = $('#mobile-add-area-tab').hasClass('active');
+                    if (isAreaModeActive) return; // Don't allow dragging in area mode from marker
+
                     isDraggingMarker = true;
                     map.getInteractions().forEach(i => { if(i instanceof ol.interaction.DragPan) i.setActive(false); });
                     document.addEventListener('pointermove', handlePointerMove);
                     document.addEventListener('pointerup', handlePointerUp);
                     e.stopPropagation();
                 });
+                // --- END MODIFICATION ---
             }
 
             function enterDesktopAddMode(coordinate, areaBoundsToLoad = null) {
@@ -1702,12 +1726,6 @@
             }
             
             function exitAddMode() {
-                // --- MODIFICATION: Ensure UI buttons are restored if they were detached ---
-                if (detachedUIButtons) {
-                    $('#map-container').append(detachedUIButtons);
-                    detachedUIButtons = null;
-                }
-
                 if (isAreaSelectionMode) {
                     toggleAreaSelectionMode(false);
                 }
@@ -1758,17 +1776,40 @@
                         const mapCoords = ol.proj.fromLonLat(coords);
                         
                         if (isMobile) {
+                            // --- MODIFICATION: Directly show the modal on mobile ---
                             enterMobilePlacementMode(mapCoords);
+                            const finalLonLat = ol.proj.toLonLat(mapCoords);
+                            
+                            const formContent = $('#add-location-form > .px-6').children().clone(true, true);
+                            $('#mobile-point-fields').empty().append(formContent);
+                            $('#mobile-area-fields').empty().append(formContent.clone(true, true));
+                            
+                            $('#add-location-form-mobile')[0].reset();
+                            reverseGeocode(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
+                            
+                            $('#mobile-add-point-tab').trigger('click');
+                            $('#add-location-modal-mobile').removeClass('hidden');
+
                         } else {
                             enterDesktopAddMode(mapCoords);
                         }
                     },
                     (error) => {
                         showNotification('無法取得您的位置，請手動輸入地址。', 'warning');
+                        const centerCoords = map.getView().getCenter();
                         if (isMobile) {
-                            showNotification('在行動裝置上需要定位權限才能新增店家。', 'error');
+                             enterMobilePlacementMode(centerCoords);
+                             // Also open the modal directly
+                             const finalLonLat = ol.proj.toLonLat(centerCoords);
+                             const formContent = $('#add-location-form > .px-6').children().clone(true, true);
+                            $('#mobile-point-fields').empty().append(formContent);
+                            $('#mobile-area-fields').empty().append(formContent.clone(true, true));
+                            $('#add-location-form-mobile')[0].reset();
+                            reverseGeocode(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
+                            $('#mobile-add-point-tab').trigger('click');
+                            $('#add-location-modal-mobile').removeClass('hidden');
                         } else {
-                            enterDesktopAddMode(map.getView().getCenter());
+                            enterDesktopAddMode(centerCoords);
                         }
                     },
                     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
@@ -1779,6 +1820,7 @@
                 const finalCoords = tempMarker.getPosition();
                 const finalLonLat = ol.proj.toLonLat(finalCoords);
                 
+                // --- BEGIN MODIFICATION: Update form cloning logic for Area Name ---
                 const formContent = $('#add-location-form > .px-6').children().clone(true, true);
                 const $pointFields = $('#mobile-point-fields');
                 const $areaFields = $('#mobile-area-fields');
@@ -1786,13 +1828,18 @@
                 $pointFields.empty().append(formContent);
                 $areaFields.empty().append($pointFields.children().clone(true, true));
                 
+                // Hide fields not relevant to areas and show the ones that are
                 $areaFields.find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').hide();
+                $areaFields.find('#add-area-name').closest('div').show();
+
+                // Hide area name for points
+                $pointFields.find('#add-area-name').closest('div').hide();
                 $pointFields.find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').show();
+                // --- END MODIFICATION ---
 
                 $('#add-location-form-mobile')[0].reset();
                 reverseGeocode(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
                 
-                // 確保手動縮小按鈕在初次打開時是隱藏的
                 $('#minimize-mobile-modal-btn').addClass('hidden');
                 
                 $('#mobile-add-point-tab').trigger('click');
@@ -1800,6 +1847,12 @@
                 $('#add-location-modal-mobile').removeClass('hidden');
                 $('#complete-placement-btn').addClass('hidden');
             });
+
+            // --- BEGIN MODIFICATION: Add click listener for new mobile submit button ---
+            $('#mobile-grid-submit-btn').on('click', function() {
+                $('#add-location-form-mobile').submit();
+            });
+            // --- END MODIFICATION ---
 
             $('#close-add-location-modal, #close-add-location-modal-mobile').on('click', exitAddMode);
 
@@ -2143,28 +2196,24 @@
                 }
             }
             
-            $(document).on('change', '#add-address', async function() {
-                const $form = $(this).closest('form');
+            // --- BEGIN MODIFICATION: Debounced address input handler ---
+            let geocodeTimeout;
+            $(document).on('input', '#add-location-form-mobile #add-address', function() {
+                clearTimeout(geocodeTimeout);
                 const address = $(this).val();
-                if (address) {
-                    const data = await geocodeAddress(address);
-                    if (data && data.results && data.results.length > 0) {
-                        const location = data.results[0].geometry.location;
-                        latestGeocodeBounds = data.results[0].geometry.viewport;
-                        const coords = ol.proj.fromLonLat([location.lng, location.lat]);
-                        
-                        if (isMobile) {
-                            if (tempMarker) tempMarker.setPosition(coords);
-                        } else {
-                            map.getView().setCenter(coords);
+                if (address && isMobile && tempMarker) {
+                    geocodeTimeout = setTimeout(async () => {
+                        const data = await geocodeAddress(address);
+                        if (data && data.results && data.results.length > 0) {
+                            const location = data.results[0].geometry.location;
+                            const coords = ol.proj.fromLonLat([location.lng, location.lat]);
+                            tempMarker.setPosition(coords);
+                            map.getView().animate({ center: coords, zoom: 18 });
                         }
-                        map.getView().setZoom(17);
-                    } else {
-                        latestGeocodeBounds = null;
-                        showNotification('找不到輸入の地址', 'error');
-                    }
+                    }, 800); // 800ms delay
                 }
             });
+            // --- END MODIFICATION ---
 
             function handleFormSubmit(e) {
                 e.preventDefault();
@@ -2236,20 +2285,14 @@
                     };
                     areaBoundsStr = JSON.stringify(compressedData);
                     
-                    finalCoords = lockedCenterForEditing || map.getView().getCenter();
+                    finalCoords = lockedCenterForEditing || (isMobile ? tempMarker.getPosition() : map.getView().getCenter());
+
 
                 } else {
                     finalCoords = isMobile ? (tempMarker ? tempMarker.getPosition() : null) : map.getView().getCenter();
                     if (!finalCoords) {
                         showNotification('請在地圖上設定一個位置。', 'error');
                         return;
-                    }
-                    if (initialAddLocationCoords) {
-                        const distance = ol.sphere.getDistance(ol.proj.toLonLat(initialAddLocationCoords), ol.proj.toLonLat(finalCoords));
-                        if (distance > 500) {
-                            showNotification(`修改後的位置(${Math.round(distance)}公尺)不能超過初始定位點500公尺。`, 'error');
-                            return;
-                        }
                     }
                 }
                 
@@ -2978,7 +3021,107 @@
 
             $('#close-review-modal').on('click', () => {
                 if (reviewMapInstance) {
-                   reviewMapInstance = null;
+                    reviewMapInstance.setTarget(null);
+                    reviewMapInstance = null;
+                }
+                $('#review-modal').addClass('hidden');
+            });
+            
+            $('#pending-tab').on('click', function() {
+                $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
+                $('#approved-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
+                loadReviewData('pending');
+            });
+
+            $('#approved-tab').on('click', function() {
+                $(this).addClass('border-indigo-500 text-indigo-600').removeClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
+                $('#pending-tab').removeClass('border-indigo-500 text-indigo-600').addClass('border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300');
+                loadReviewData('approved');
+            });
+            
+            $('#review-modal').on('click', '#review-refresh-btn', async function() {
+                showNotification('正在更新列表...', 'info');
+                await loadData();
+                const activeTab = $('#pending-tab').hasClass('border-indigo-500') ? 'pending' : 'approved';
+                loadReviewData(activeTab);
+            });
+
+        function loadReviewData(status = 'pending') {
+                const $listPanel = $('#review-list-panel');
+                const $detailPanel = $('#review-detail-panel');
+                $listPanel.html('');
+                $detailPanel.html('<p class="text-gray-500">請從左側列表選擇一個地點以查看詳細資訊。</p>');
+
+                const reportsToReview = rawReports.filter(report => {
+                    const currentStatus = String(report['審核']).toUpperCase();
+                    if (status === 'pending') {
+                        return currentStatus !== 'TRUE' && currentStatus !== 'REJECT';
+                    } else {
+                        return currentStatus === 'TRUE' || currentStatus === 'REJECT';
+                    }
+                });
+
+                if (reportsToReview.length === 0) {
+                    $listPanel.html(`<p class="p-4 text-sm text-gray-500">沒有${status === 'pending' ? '待審核' : '已審核或已駁回'}的項目。</p>`);
+                    return;
+                }
+
+                reportsToReview.forEach(report => {
+                    const listItem = $(`
+                        <div class="p-4 border-b cursor-pointer hover:bg-gray-100 review-item" data-row-index="${report.rowIndex}" data-is-community="${!!report.isCommunity}">
+                            <p class="font-semibold text-gray-800">${report.areaName || report['地址']}</p>
+                            <p class="text-sm text-gray-600 truncate">${report['黑名原因'] || '無原因 (社區項目)'}</p>
+                            <p class="text-xs text-gray-400 mt-1">提交者: ${report.submitterEmail || report.submitterLineId || report['製作者'] ||'N/A'}</p>
+                        </div>
+                    `);
+                    $listPanel.append(listItem);
+                });
+            }
+
+            $('#review-list-panel').on('click', '.review-item', function() {
+                $('.review-item').removeClass('bg-indigo-50');
+                $(this).addClass('bg-indigo-50');
+                const rowIndex = $(this).data('row-index');
+                const isCommunity = $(this).data('is-community');
+                
+                const report = rawReports.find(r => r.rowIndex == rowIndex && !!r.isCommunity === isCommunity);
+
+                if (report) {
+                    displayReviewDetails(report);
+                }
+            });
+
+            function displayReviewDetails(report) {
+                const $detailPanel = $('#review-detail-panel');
+                const submissionDate = report.timestamp ? 
+                    new Date(report.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) : 
+                    '日期不明';
+
+                if (report.isCommunity) {
+                    const detailHtml = `
+                        <div id="review-map-container" class="relative w-full h-64 bg-gray-200 mb-4 rounded-lg overflow-hidden">
+                            <div id="review-map" class="w-full h-full"></div>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <h3 class="text-xl font-bold text-gray-900">${report.areaName || '未命名社區'}</h3>
+                            <hr class="my-2">
+                            <p><strong>座標:</strong> ${parseFloat(report['經度']).toFixed(5)}, ${parseFloat(report['緯度']).toFixed(5)}</p>
+                            <p><strong>提交者:</strong> ${report.submitterName || 'N/A'} (${report.submitterEmail || report.submitterLineId || report['製作者'] || 'N/A'})</p>
+                            <p><strong>提交時間:</strong> ${submissionDate}</p>
+                            <p><strong>試算表分頁名稱:</strong> 社區列表</p>
+                            <p><strong>試算表列數:</strong> ${report.rowIndex}</p>
+                        </div>
+                        <div class="mt-6 flex space-x-4">
+                            <button class="admin-action-btn flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700" data-action="approve" data-row-index="${report.rowIndex}" data-is-community="true">通過</button>
+                            <button class="admin-action-btn flex-1 bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700" data-action="reject" data-row-index="${report.rowIndex}" data-is-community="true">駁回</button>
+                        </div>
+                    `;
+                    $detailPanel.html(detailHtml);
+
+                    // Initialize review map
+                    if (reviewMapInstance) {
+                        reviewMapInstance.setTarget(null);
+                        reviewMapInstance = null;
                     }
                     
                     setTimeout(() => {
