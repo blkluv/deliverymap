@@ -51,7 +51,6 @@ function applyFilters() {
     
     let results = state.allFeatures;
     if (keyword && state.fuse) {
-        // 使用 pinyin-pro 進行拼音轉換
         const pinyinKeyword = pinyinPro.pinyin(keyword, { pattern: 'pinyin', toneType: 'none', removeNonZh: true });
         results = state.fuse.search(pinyinKeyword).map(result => result.item);
     }
@@ -101,6 +100,95 @@ export function updateStoreList() {
 }
 
 /**
+ * 為指定的 Feature 顯示 Popup
+ * @param {ol.Feature} feature - 要顯示資訊的 Feature
+ */
+function displayPopupForFeature(feature) {
+    const coordinates = feature.getGeometry().getCoordinates();
+    state.currentFeatureData = feature.getProperties();
+    
+    const reportsByFullAddress = new Map();
+    state.currentFeatureData.reports.forEach(report => {
+        const fullAddr = report['地址'];
+        if (!reportsByFullAddress.has(fullAddr)) {
+            reportsByFullAddress.set(fullAddr, []);
+        }
+        reportsByFullAddress.get(fullAddr).push(report);
+    });
+
+    if (reportsByFullAddress.size > 1) {
+        renderUnitListPopup(state.currentFeatureData, reportsByFullAddress);
+    } else {
+        renderConsolidatedPopup(state.currentFeatureData, state.currentFeatureData.reports);
+    }
+    state.infoOverlay.setPosition(coordinates);
+}
+
+
+// --- Popup 渲染函式 ---
+
+function renderUnitListPopup(featureData, reportsByFullAddress) {
+    const shortAddress = map.formatAddress(featureData.address);
+    const sortedAddresses = Array.from(reportsByFullAddress.keys()).sort((a, b) => a.localeCompare(b, 'zh-Hant-TW-u-kn-true'));
+
+    let listHtml = sortedAddresses.map(fullAddr => {
+        const addrMatch = fullAddr.match(/(\d.*)/);
+        const displayAddr = addrMatch ? addrMatch[1].trim() : fullAddr;
+        return `<li class="border-t py-2 px-1 cursor-pointer hover:bg-gray-100 rounded unit-item" data-address="${encodeURIComponent(fullAddr)}"><p class="font-semibold truncate" title="${fullAddr}">${displayAddr}</p></li>`;
+    }).join('');
+
+    $('#popup-content').html(`
+        <h3 class="text-lg font-bold text-gray-800">${shortAddress}</h3>
+        ${renderVoteSection(featureData)}
+        <p class="text-sm text-gray-600 my-2 border-t pt-2">此地點有多筆回報，請選擇查看：</p>
+        <ul class="text-sm max-h-40 overflow-y-auto custom-scrollbar pr-2">${listHtml}</ul>
+    `);
+}
+
+function renderConsolidatedPopup(featureData, reports) {
+    const shortAddress = map.formatAddress(reports[0]['地址']);
+    let reportsHtml = reports.map(report => {
+        const dateString = report.timestamp ? new Date(report.timestamp).toLocaleDateString('zh-TW') : '日期不明';
+        return `
+            <div class="border-t pt-2 mt-2">
+                <p class="text-xs text-gray-500">${report.submitterName || '匿名'} &bull; ${dateString}</p>
+                <p class="font-semibold">${report['黑名類別']}</p>
+                <p class="whitespace-pre-wrap">${report['黑名原因'] || ''}</p>
+            </div>`;
+    }).join('');
+
+    $('#popup-content').html(`
+        <h3 class="text-lg font-bold text-gray-800">${shortAddress}</h3>
+        ${renderVoteSection(featureData)}
+        <div class="text-sm mt-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">${reportsHtml}</div>
+    `);
+}
+
+function renderVoteSection(featureData) {
+    const { likes = 0, dislikes = 0, address: locationId } = featureData;
+    const score = likes - dislikes;
+    const scoreColor = score > 0 ? 'text-green-600' : (score < 0 ? 'text-red-600' : 'text-gray-600');
+    const userVote = state.userVotes[locationId];
+
+    return `
+        <div class="flex items-center justify-between text-sm mt-2">
+            <span>總評分 (<span class="score-display ${scoreColor} font-bold">${score}</span>)</span>
+            <div class="flex items-center space-x-2">
+                <button class="vote-btn p-1 rounded-full hover:bg-gray-200 ${userVote === 'like' ? 'voted-like' : ''}" data-location-id="${locationId}" data-vote-type="like">
+                    <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.364a1 1 0 00.949-.684l2.121-6.364A1 1 0 0015.364 9H12V4a1 1 0 00-1-1h-1a1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.4 10.333zM6 8h2.545M5 10.5a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 013 0v3a1.5 1.5 0 01-1.5 1.5z"/></svg>
+                </button>
+                <span class="likes-count text-sm text-gray-600">${likes}</span>
+                <button class="vote-btn p-1 rounded-full hover:bg-gray-200 ${userVote === 'dislike' ? 'voted-dislike' : ''}" data-location-id="${locationId}" data-vote-type="dislike">
+                     <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1h-6.364a1 1 0 00-.949.684L3.565 9H6v7a1 1 0 001 1h1a1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.6-4.8zM14 12h-2.545M15 9.5a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-3 0v-3a1.5 1.5 0 011.5 1.5z"/></svg>
+                </button>
+                <span class="dislikes-count text-sm text-gray-600">${dislikes}</span>
+            </div>
+        </div>`;
+}
+
+// --- 新增/編輯地點相關函式 ---
+
+/**
  * 處理新增/編輯表單提交
  * @param {Event} e - 表單提交事件
  */
@@ -119,7 +207,7 @@ function handleFormSubmit(e) {
             showNotification('請在地圖網格上至少選取一個區塊。', 'error');
             return;
         }
-        // ... (省略網格資料壓縮邏輯) ...
+        // ... (網格資料壓縮邏輯) ...
         finalCoords = state.lockedCenterForEditing || (state.isMobile ? state.tempMarker.getPosition() : state.map.getView().getCenter());
     } else {
         finalCoords = state.isMobile ? (state.tempMarker ? state.tempMarker.getPosition() : null) : state.map.getView().getCenter();
@@ -175,10 +263,6 @@ function handleFormSubmit(e) {
         });
 }
 
-/**
- * 進入地點新增模式 (桌面版)
- * @param {ol.Coordinate} coordinate 
- */
 function enterDesktopAddMode(coordinate) {
     state.initialAddLocationCoords = coordinate;
     $('#app-container').addClass('desktop-add-mode');
@@ -195,10 +279,6 @@ function enterDesktopAddMode(coordinate) {
     state.map.on('moveend', handleDesktopMapMove);
 }
 
-/**
- * 進入地點新增模式 (行動版)
- * @param {ol.Coordinate} coordinate 
- */
 function enterMobilePlacementMode(coordinate) {
     state.initialAddLocationCoords = coordinate;
     if(state.tempMarker) state.map.removeOverlay(state.tempMarker);
@@ -215,16 +295,13 @@ function enterMobilePlacementMode(coordinate) {
     markerEl.addEventListener('pointerdown', (e) => {
         if ($('#mobile-add-area-tab').hasClass('active')) return;
         state.isDraggingMarker = true;
-        state.map.getInteractions().forEach(i => { if(i instanceof ol.interaction.DragPan) i.setActive(false); });
+        state.dragPanInteraction.setActive(false);
         document.addEventListener('pointermove', handlePointerMove);
-        document.addEventListener('pointerup', handlePointerUp);
+        document.addEventListener('pointerup', handlePointerUp, { once: true });
         e.stopPropagation();
     });
 }
 
-/**
- * 退出新增/編輯模式
- */
 function exitAddMode() {
     if (state.isAreaSelectionMode) {
         grid.toggleAreaSelectionMode(false);
@@ -249,7 +326,8 @@ function exitAddMode() {
     api.loadData();
 }
 
-// 事件處理函式
+// --- 事件處理函式 ---
+
 function handleDesktopMapMove() {
     if ($('#app-container').hasClass('desktop-add-mode')) {
         const centerLonLat = ol.proj.toLonLat(state.map.getView().getCenter());
@@ -264,11 +342,35 @@ function handlePointerMove(e) {
 function handlePointerUp() {
     if (state.isDraggingMarker) {
         state.isDraggingMarker = false;
-        state.map.getInteractions().forEach(i => { if(i instanceof ol.interaction.DragPan) i.setActive(true); });
+        state.dragPanInteraction.setActive(true);
         document.removeEventListener('pointermove', handlePointerMove);
-        document.removeEventListener('pointerup', handlePointerUp);
         const finalLonLat = ol.proj.toLonLat(state.tempMarker.getPosition());
         api.reverseGeocode(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
+    }
+}
+
+function handleMapClick(evt) {
+    if (state.isAreaSelectionMode || $('#app-container').hasClass('desktop-add-mode')) return;
+    
+    let featureClicked = false;
+    state.map.forEachFeatureAtPixel(evt.pixel, (feature, layer) => {
+        if (featureClicked) return;
+        
+        const clusterFeatures = feature.get('features');
+        if (clusterFeatures) {
+            featureClicked = true;
+            if (clusterFeatures.length > 1) {
+                const extent = ol.extent.createEmpty();
+                clusterFeatures.forEach(f => ol.extent.extend(extent, f.getGeometry().getExtent()));
+                state.map.getView().fit(extent, { duration: 500, padding: [80, 80, 80, 80] });
+            } else {
+                displayPopupForFeature(clusterFeatures[0]);
+            }
+        }
+    }, { hitTolerance: 5 });
+
+    if (!featureClicked) {
+        state.infoOverlay.setPosition(undefined);
     }
 }
 
@@ -277,11 +379,15 @@ function handlePointerUp() {
  */
 export function initializeUI() {
     // Facebook 瀏覽器偵測
-    (function() { /* ... */ })();
+    if (navigator.userAgent.toLowerCase().includes("fban")) {
+        $('#facebook-blocker-modal').css('display', 'flex');
+    }
     // 清理 URL 參數
-    (function() { /* ... */ })();
+    if (new URL(window.location).searchParams.has('fbclid')) {
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+    }
     
-    // 主按鈕事件
+    // --- 主按鈕事件 ---
     $('#add-location-btn').on('click', () => {
         if (!state.isLoggedIn) {
             showNotification('請先登入才能新增地點！', 'warning');
@@ -290,7 +396,8 @@ export function initializeUI() {
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const mapCoords = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
-                state.isMobile ? enterMobilePlacementMode(mapCoords) : enterDesktopAddMode(mapCoords);
+                const action = state.isMobile ? enterMobilePlacementMode : enterDesktopAddMode;
+                action(mapCoords);
                 if (state.isMobile) {
                     $('#add-location-modal-mobile').removeClass('hidden');
                     const lonLat = ol.proj.toLonLat(mapCoords);
@@ -300,51 +407,60 @@ export function initializeUI() {
             () => {
                 showNotification('無法取得您的位置，請手動選擇。', 'warning');
                 const centerCoords = state.map.getView().getCenter();
-                state.isMobile ? enterMobilePlacementMode(centerCoords) : enterDesktopAddMode(centerCoords);
+                const action = state.isMobile ? enterMobilePlacementMode : enterDesktopAddMode;
+                action(centerCoords);
                  if (state.isMobile) $('#add-location-modal-mobile').removeClass('hidden');
             }
         );
     });
 
-    $('#search-address-btn, #open-filter-modal, #center-on-me-btn, #open-chat-btn').on('click', function() {
-        const id = $(this).attr('id');
-        if (id === 'search-address-btn') $('#search-panel').toggleClass('hidden');
-        if (id === 'open-filter-modal') $('#filter-modal').removeClass('hidden');
-        if (id === 'center-on-me-btn' && state.userPositionCoords) state.map.getView().animate({ center: state.userPositionCoords, zoom: 16 });
-        if (id === 'open-chat-btn') {
-             $('#chat-modal').removeClass('hidden');
-             state.unreadChatCount = 0;
-             $('#chat-unread-badge').addClass('hidden').text('');
-        }
+    $('#search-address-btn').on('click', () => $('#search-panel').toggleClass('hidden'));
+    $('#open-filter-modal').on('click', () => $('#filter-modal').removeClass('hidden'));
+    $('#center-on-me-btn').on('click', () => state.userPositionCoords && state.map.getView().animate({ center: state.userPositionCoords, zoom: 16 }));
+    $('#open-chat-btn').on('click', () => {
+         $('#chat-modal').removeClass('hidden');
+         state.unreadChatCount = 0;
+         $('#chat-unread-badge').addClass('hidden').text('');
     });
 
-    // 表單與 Modals
+    // --- 表單與 Modals ---
     $('#add-location-form, #add-location-form-mobile').on('submit', handleFormSubmit);
-    $('#close-add-location-modal, #close-add-location-modal-mobile').on('click', exitAddMode);
+    $('#close-add-location-modal, #close-add-location-modal-mobile, #popup-closer').on('click', (e) => {
+        e.preventDefault();
+        const id = $(e.target).closest('[id]').attr('id');
+        if (id.includes('add-location')) exitAddMode();
+        if (id === 'popup-closer') state.infoOverlay.setPosition(undefined);
+    });
     $('#filter-btn').on('click', applyFilters);
     $('#reset-btn').on('click', () => { $('#category-select, #keyword-search').val(''); applyFilters(); });
-    $('.mobile-add-tab').on('click', function() { /* ... Tab切換邏輯 ... */ });
     
-    // 其他 UI
-    $('#store-list-filters').on('click', '.store-filter-btn', function() { /* ... 列表篩選邏輯 ... */ });
+    // 行動版新增介面Tabs
+    $('.mobile-add-tab').on('click', function() {
+        const isArea = $(this).attr('id') === 'mobile-add-area-tab';
+        $('.mobile-add-tab').removeClass('active text-indigo-600 bg-indigo-50').addClass('text-gray-500');
+        $(this).addClass('active text-indigo-600 bg-indigo-50');
+        $('#mobile-point-fields').toggleClass('hidden', isArea);
+        $('#mobile-area-fields').toggleClass('hidden', !isArea);
+        $('#minimize-mobile-modal-btn').toggleClass('hidden', !isArea);
+        if (isArea && state.tempMarker) {
+            state.lockedCenterForEditing = state.tempMarker.getPosition();
+        } else {
+            state.lockedCenterForEditing = null;
+        }
+        $('#add-is-area').prop('checked', isArea).trigger('change');
+    });
+
+    // --- 地圖與列表互動 ---
     state.map.on('singleclick', handleMapClick);
     state.map.on('moveend', updateStoreList);
+    $('#store-list-filters').on('click', '.store-filter-btn', function() {
+        $('.store-filter-btn').removeClass('active bg-blue-600 text-white').addClass('text-black bg-white');
+        $(this).addClass('active bg-blue-600 text-white');
+        updateStoreList();
+    });
+
+    // --- Popup 內部點擊 ---
+    $('#popup').on('click', '.vote-btn', function() { /* ... 投票邏輯 ... */ });
+    $('#popup').on('click', '.unit-item', function() { /* ... 顯示單一戶popup ... */ });
 }
-
-/**
- * 處理地圖點擊事件
- * @param {ol.MapBrowserEvent} evt - 地圖事件
- */
-function handleMapClick(evt) { /* ... */ }
-
-/**
- * 為指定的 Feature 顯示 Popup
- * @param {ol.Feature} feature - 要顯示資訊的 Feature
- */
-function displayPopupForFeature(feature) { /* ... */ }
-
-// Popup 渲染函式...
-function renderUnitListPopup(featureData, reportsByFullAddress) { /* ... */ }
-function renderConsolidatedPopup(featureData, reports) { /* ... */ }
-function renderVoteSection(featureData) { /* ... */ }
 
