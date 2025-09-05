@@ -23,7 +23,6 @@
             -ms-user-select: none; /* IE 10+ */
             user-select: none; /* Standard syntax */
         }
-        /* Styles for mobile grid submit button, kept here as it's a small, specific style */
         #mobile-grid-submit-btn {
             position: absolute;
             bottom: var(--mobile-bottom-offset, 6rem);
@@ -260,14 +259,76 @@
         </div>
 
         <!-- All Modals (Filter, Product, Management, Review, Chat, etc.) -->
-        <!-- ... modal html structure ... -->
+        <div id="add-location-modal-mobile" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4 overflow-hidden">
+             <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col transition-transform duration-300 ease-in-out" style="max-height: calc(100vh - 5rem);">
+                <form id="add-location-form-mobile" class="flex-grow flex flex-col overflow-hidden">
+                    <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
+                        <button type="button" id="minimize-mobile-modal-btn" class="hidden text-gray-400 hover:text-gray-600 p-2 -ml-2 mr-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <div id="mobile-modal-title-container" class="flex-grow">
+                             <div class="flex border-b border-gray-200">
+                                <button type="button" id="mobile-add-point-tab" class="mobile-add-tab active py-2 px-4 text-sm font-medium text-center text-indigo-600 bg-indigo-50 rounded-t-lg">新增地點</button>
+                                <button type="button" id="mobile-add-area-tab" class="mobile-add-tab py-2 px-4 text-sm font-medium text-center text-gray-500 hover:text-gray-700">新增建築</button>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2 pl-2">
+                             <button id="submit-location-btn-mobile" type="submit" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center w-28">
+                                <span class="submit-text">送出審核</span>
+                                <span class="spinner hidden animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
+                            </button>
+                            <button id="close-add-location-modal-mobile" type="button" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+                        </div>
+                    </div>
+                    <div class="px-6 pt-2 pb-16 space-y-4 overflow-y-auto custom-scrollbar flex-grow">
+                       <div id="mobile-point-fields">
+                       </div>
+                       <div id="mobile-area-fields" class="hidden">
+                       </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div id="filter-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+            <!-- Filter Modal Content -->
+        </div>
+        <div id="product-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+            <!-- Product Modal Content -->
+        </div>
+        <div id="management-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+            <!-- Management Modal Content -->
+        </div>
+        <div id="review-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+            <!-- Review Modal Content -->
+        </div>
+        <div id="chat-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+            <!-- Chat Modal Content -->
+        </div>
+        <div id="facebook-blocker-modal" class="fixed inset-0 bg-black/80 z-[200] flex-col items-center justify-center p-8 text-white text-center hidden">
+            <!-- Facebook Blocker Content -->
+        </div>
+        <div id="chat-context-menu" class="hidden absolute z-[100] bg-white rounded-md shadow-lg py-1 w-32">
+            <!-- Chat Context Menu Content -->
+        </div>
+        <div id="mute-user-modal" class="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4 hidden">
+            <!-- Mute User Modal Content -->
+        </div>
         
     </div>
 
     <script>
         // Global function for Google Sign-In
         function handleCredentialResponse(response) {
-            const event = new CustomEvent('google-signin-success', { detail: response });
+            const base64Url = response.credential.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            
+            const profile = JSON.parse(jsonPayload);
+            const event = new CustomEvent('google-signin-success', { detail: profile });
             window.dispatchEvent(event);
         }
         window.handleCredentialResponse = handleCredentialResponse;
@@ -278,3 +339,4 @@
 
 </body>
 </html>
+
