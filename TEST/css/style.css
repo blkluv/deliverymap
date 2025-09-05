@@ -129,7 +129,7 @@ html, body {
 .new-location-marker {
      width: 32px;
      height: 32px;
-     background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ef4444" width="32px" height="32px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>');
+     background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ef4444" width="32px" height="32px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7-75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>');
      background-size: contain;
      cursor: grab;
      transform: translate(-50%, -100%);
@@ -196,10 +196,33 @@ html, body {
     }
 }
 @media (min-width: 768px) {
-    #add-location-modal-mobile {
+    #add-location-modal:not(.desktop-mode) {
         display: none; /* Hide mobile modal on desktop */
     }
 }
+
+/* --- BEGIN MODIFICATION: Mobile modal minimization styles with pointer-events fix --- */
+/*
+  此規則為關鍵修復。當行動版視窗具備 .minimized class 時，
+  我們使用 pointer-events: none !important; 強制讓其整個容器變得不可互動。
+  這能讓點擊「穿透」它，去觸發下方的元素，
+  例如網格工具列和右上角的按鈕。
+*/
+#add-location-modal-mobile.minimized {
+    pointer-events: none !important;
+}
+
+/*
+  此規則處理視覺上的滑出動畫效果，
+  並在視窗滑回時，重新啟用其內部的互動。
+*/
+#add-location-modal-mobile.minimized > .bg-white {
+    pointer-events: auto !important; /* 重新為滑出的面板啟用點擊，以便滑回來後能正常使用 */
+    transform: translateX(calc(-100% - 2rem));
+}
+/* --- END MODIFICATION --- */
+
+
 /* NEW: Vote button styles */
 .vote-btn.voted-like svg {
     fill: #10B981; /* A brighter green */
@@ -215,8 +238,8 @@ html, body {
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 15; /* Above map layers, below UI controls */
-    pointer-events: none;
+    z-index: 15; /* MODIFICATION: Increased z-index to ensure it's above OL layers */
+    pointer-events: none; /* MODIFIED: Let map handle events so zoom/pan works */
 }
 
 /* NEW: Grid toolbar styles */
@@ -255,19 +278,33 @@ html, body {
     border-left: 1px solid #d1d5db; /* gray-300 */
 }
 
-/* NEW: Grid Color Palette Styles */
+/* MODIFIED: Grid Color Palette Styles */
 #grid-color-palette {
+    /* Repositioned from top-right to below the center toolbar */
+    top: 4.5rem; 
     left: 50%;
+    right: auto;
     transform: translateX(-50%);
+    
+    /* Changed layout from vertical to horizontal */
+    flex-direction: row;
+    width: auto;
+    gap: 1rem;
+}
+
+#grid-color-palette > div {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 #grid-color-palette input[type="color"] {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
-    width: 100%;
+    width: 2.5rem; /* Adjusted width for horizontal layout */
     height: 2rem; /* 32px */
     background-color: transparent;
-    border: none;
+    border: 1px solid #d1d5db; /* gray-300 */
     border-radius: 0.375rem; /* rounded-md */
     cursor: pointer;
 }
@@ -275,7 +312,7 @@ html, body {
     padding: 0;
 }
 #grid-color-palette input[type="color"]::-webkit-color-swatch {
-    border: 1px solid #d1d5db; /* gray-300 */
+    border: none;
     border-radius: 0.25rem; /* rounded */
 }
 
@@ -284,15 +321,3 @@ html, body {
     display: none;
 }
 
-/* NEW: Mobile Add Modal Sliding Animation & Click-through */
-#add-location-modal-mobile.minimized > .bg-white {
-    transform: translateX(-100%);
-}
-/* When minimized, make the container ignore pointer events to allow clicking through to the map/toolbar */
-#add-location-modal-mobile.minimized {
-    pointer-events: none !important;
-}
-/* But, ensure the restore button within it is still clickable */
-#add-location-modal-mobile.minimized #restore-mobile-modal-btn {
-    pointer-events: auto !important;
-}
