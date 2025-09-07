@@ -3,6 +3,7 @@
  */
 import { showNotification } from './ui.js';
 import { GOOGLE_APPS_SCRIPT_URL, GOOGLE_API_KEY, CHAT_APPS_SCRIPT_URL } from './config.js';
+import { getUserProfile } from './auth.js'; // 修正：匯入 getUserProfile
 
 /**
  * 從 Google Sheet 載入主要的地點資料。
