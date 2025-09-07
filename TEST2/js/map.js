@@ -22,7 +22,8 @@ export const areaGridLayer = new ol.layer.Vector({
 });
 
 export const vectorSource = new ol.source.Vector();
-const clusterSource = new ol.source.Cluster({ 
+// 修正：新增 export，讓 ui.js 可以匯入
+export const clusterSource = new ol.source.Cluster({ 
     distance: 50, 
     minDistance: 25, 
     source: vectorSource 
@@ -51,7 +52,6 @@ const radiusLayer = new ol.layer.Vector({
     zIndex: 2
 });
 
-// 修正：將 clusterLayer 匯出，讓 ui.js 可以使用
 export const clusterLayer = new ol.layer.Vector({ 
     source: clusterSource, 
     style: clusterStyleFunction,
