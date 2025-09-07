@@ -131,10 +131,14 @@ export const map = new ol.Map({
         extent: taiwanExtent,
         minZoom: 8,
     }),
-    controls: ol.control.defaults({ attributionOptions: { collapsible: false } }).extend([
+    // 修正：使用新版 OpenLayers 的 controls 語法
+    controls: [
         new ol.control.Zoom(),
         new ol.control.Rotate(),
-    ])
+        new ol.control.Attribution({
+            collapsible: false
+        })
+    ]
 });
 
 // 取得內建的拖曳平移互動
