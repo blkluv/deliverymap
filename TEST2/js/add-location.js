@@ -278,17 +278,15 @@ async function reverseGeocodeAndUpdateForm(lon, lat, $form = $('#add-location-fo
  */
 function drawRadiusCircle(centerCoords) {
     radiusSource.clear();
-    const radius = 500; // 500 公尺
-    const view = map.getView();
-    const projection = view.getProjection();
-    const resolution = view.getResolutionAtCenter();
-    const pointResolution = ol.proj.getPointResolution(projection, resolution, centerCoords);
-    const radiusInMapUnits = radius / pointResolution;
-    
-    const circle = new ol.geom.Circle(centerCoords, radiusInMapUnits);
+    const radius = 500; // 半徑（單位：公尺）
+
+    // 地圖的預設投影 (EPSG:3857) 單位就是公尺，所以可以直接使用半徑值。
+    const circle = new ol.geom.Circle(centerCoords, radius);
+
     const circleFeature = new ol.Feature(circle);
     radiusSource.addFeature(circleFeature);
 }
+
 
 function compressGridData(selectedGridCells) {
     const cellsArray = Array.from(selectedGridCells.entries());
