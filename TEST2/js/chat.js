@@ -13,6 +13,9 @@ let unreadChatCount = 0;
 let currentUserDisplayName = '匿名';
 let currentUserCity = '未知區域';
 let contextMenuTarget = { userId: null, userName: null };
+// 修正：新增旗標與佇列來管理系統訊息
+let isHistoryLoaded = false;
+let systemMessageQueue = [];
 
 export const setCurrentUserDisplayName = (name) => currentUserDisplayName = name;
 export const setCurrentUserCity = (city) => currentUserCity = city || '未知區域';
@@ -41,14 +44,22 @@ export function initializeChat() {
                         // 舊版邏輯，現在由 archived history 取代
                         break;
                     case 'chat':
-                    case 'system_join':
-                    case 'system_leave':
-                    case 'system_name_change':
+                        // 修正：只有對話訊息才觸發計數器
                         if ($('#chat-modal').hasClass('hidden')) {
                             unreadChatCount++;
                             $('#chat-unread-badge').text(unreadChatCount).removeClass('hidden');
                         }
                         appendChatMessage(data);
+                        break;
+                    case 'system_join':
+                    case 'system_leave':
+                    case 'system_name_change':
+                        // 修正：如果歷史紀錄尚未載入，就先將系統訊息存入佇列
+                        if (isHistoryLoaded) {
+                            appendChatMessage(data);
+                        } else {
+                            systemMessageQueue.push(data);
+                        }
                         break;
                     case 'pong': // Heartbeat response
                         break;
@@ -96,9 +107,13 @@ export function sendJoinMessage() {
 async function loadArchivedChatHistory() {
     if (!getLoginStatus()) return;
     try {
+        // 修正：重設旗標與佇列
+        isHistoryLoaded = false;
+        systemMessageQueue = [];
+        const $chatMessages = $('#chat-messages').empty();
+
         const history = await api.getArchivedChatHistory();
         if (Array.isArray(history) && history.length > 0) {
-            const $chatMessages = $('#chat-messages').empty();
             history.forEach(log => {
                 appendChatMessage({
                     type: 'chat',
@@ -110,12 +125,27 @@ async function loadArchivedChatHistory() {
                     userId: log.conversation_id,
                 });
             });
-            $chatMessages.scrollTop($chatMessages[0].scrollHeight);
         }
+        
+        // 修正：設定旗標為 true，並處理佇列中的訊息
+        isHistoryLoaded = true;
+        processSystemMessageQueue();
+
+        $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+
     } catch (error) {
         console.error("無法載入歷史聊天紀錄:", error);
     }
 }
+
+/**
+ * 處理並顯示佇列中的系統訊息。
+ */
+function processSystemMessageQueue() {
+    systemMessageQueue.forEach(appendChatMessage);
+    systemMessageQueue = []; // 清空佇列
+}
+
 
 /**
  * 將一則訊息附加到聊天視窗。
@@ -221,9 +251,8 @@ export function setupChatListeners() {
 
     $('#open-chat-btn').on('click', async () => {
         $('#chat-modal').removeClass('hidden');
-        if (unreadChatCount > 0) {
-            await loadArchivedChatHistory(); // 重新載入歷史以確保訊息最新
-        }
+        // 修正：每次打開都重新載入歷史紀錄
+        await loadArchivedChatHistory();
         unreadChatCount = 0;
         $('#chat-unread-badge').addClass('hidden').text('');
         setTimeout(() => $('#chat-messages').scrollTop($('#chat-messages')[0].scrollHeight), 0);
@@ -258,3 +287,4 @@ export function setupChatListeners() {
         }
     });
 }
+
