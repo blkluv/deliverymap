@@ -22,7 +22,17 @@ let rawReports = [];
 async function loadAndProcessData(city = null) {
     uiModule.showNotification('正在讀取資料...');
     try {
+        // 新增：檢查 pinyin-pro 和 Fuse.js 是否成功載入
+        if (typeof pinyinPro === 'undefined' || typeof Fuse === 'undefined') {
+            throw new Error('相依性函式庫 (pinyin-pro or Fuse.js) 載入失敗。');
+        }
+
         rawReports = await api.loadData(city);
+        // 新增：檢查 API 回應是否因 CORS 等問題為空
+        if (!rawReports) {
+            throw new Error('從伺服器取得的資料為空，這通常是 CORS 錯誤造成的。');
+        }
+
         managementModule.setRawReports(rawReports);
         processRawData(rawReports);
 
@@ -31,7 +41,14 @@ async function loadAndProcessData(city = null) {
         uiModule.hideNotification();
     } catch (error) {
         console.error("資料載入與處理失敗:", error);
-        uiModule.showNotification('無法載入資料！請稍後再試。', 'error');
+        // 修改：提供更詳細的錯誤訊息給使用者
+        let errorMessage = '無法載入資料！請稍後再試。';
+        if (error.message.includes('fetch') || error.message.includes('CORS')) {
+            errorMessage = '無法載入資料：發生網路或 CORS 錯誤，請檢查您的後端 Apps Script 部署設定。';
+        } else if (error.message.includes('相依性函式庫') || error.message.includes('資料為空')) {
+            errorMessage = `錯誤：${error.message}`;
+        }
+        uiModule.showNotification(errorMessage, 'error');
     }
 }
 
