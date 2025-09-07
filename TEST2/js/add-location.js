@@ -358,7 +358,7 @@ export function setupAddLocationListeners() {
         // 根據勾選狀態，明確地、強制地控制工具列的顯示與隱藏
         if (isChecked) {
             // 當勾選時，顯示工具列和調色盤
-            $('#grid-toolbar').removeClass('hidden').addClass('flex');
+            $('#grid-toolbar').removeClass('hidden');
             $('#grid-color-palette').removeClass('hidden');
 
             const center = isMobile && tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
