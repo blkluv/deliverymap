@@ -300,4 +300,3 @@ export function setupGridToolbar() {
         $('#map').toggleClass('pan-mode', currentAreaTool === 'pan').toggleClass('paint-mode', currentAreaTool !== 'pan');
     });
 }
-
