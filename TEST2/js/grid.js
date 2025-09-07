@@ -31,7 +31,6 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
     uiState.isDrawingOnGrid = enable;
     map.un('moveend', drawGrid);
 
-    // 修正：將工具列的顯示/隱藏邏輯集中於此
     $('#grid-toolbar').toggleClass('hidden', !enable).toggleClass('flex', enable);
     $('#grid-color-palette').toggleClass('hidden', !enable);
 
@@ -81,6 +80,8 @@ function drawGrid() {
     if (!uiState.isDrawingOnGrid) return;
     
     const mapSize = map.getSize();
+    if (!mapSize || mapSize[0] === 0 || mapSize[1] === 0) return;
+    
     gridCanvas.width = mapSize[0];
     gridCanvas.height = mapSize[1];
     gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
@@ -89,8 +90,32 @@ function drawGrid() {
     const [minLon, minLat] = ol.proj.toLonLat(ol.extent.getBottomLeft(extent));
     const [maxLon, maxLat] = ol.proj.toLonLat(ol.extent.getTopRight(extent));
     
-    // ... (網格線繪製邏輯省略以求簡潔) ...
+    // 修正：補完繪製網格線的完整邏輯
+    const startLon = Math.floor(minLon / GRID_INTERVAL) * GRID_INTERVAL;
+    const startLat = Math.floor(minLat / GRID_INTERVAL) * GRID_INTERVAL;
+    
+    gridCtx.strokeStyle = 'rgba(128, 128, 128, 0.5)'; // 使用更清晰的顏色
+    gridCtx.lineWidth = 1;
+    gridCtx.beginPath();
 
+    // 繪製垂直線
+    for (let lon = startLon; lon < maxLon; lon += GRID_INTERVAL) {
+        const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([lon, minLat]));
+        if(pixel) {
+            gridCtx.moveTo(pixel[0], 0);
+            gridCtx.lineTo(pixel[0], mapSize[1]);
+        }
+    }
+    // 繪製水平線
+    for (let lat = startLat; lat < maxLat; lat += GRID_INTERVAL) {
+        const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([minLon, lat]));
+        if(pixel) {
+            gridCtx.moveTo(0, pixel[1]);
+            gridCtx.lineTo(mapSize[0], pixel[1]);
+        }
+    }
+    gridCtx.stroke();
+    
     gridCtx.font = 'bold 16px sans-serif';
     gridCtx.textAlign = 'center';
     gridCtx.textBaseline = 'middle';
@@ -200,8 +225,8 @@ function loadAreaBounds(areaBoundsStr) {
             cellsToLoad = compressed.map(cellStr => {
                 const [coords, fill, marker, markerColor] = cellStr.split(':');
                 const [x, y] = coords.split(',').map(Number);
-                const lon = origin.lon + x * GRID_INTERVAL;
-                const lat = origin.lat + y * GRID_INTERVAL;
+                const lon = origin.lon + GRID_INTERVAL;
+                const lat = origin.lat + GRID_INTERVAL;
                 const data = {};
                 if (fill !== '') data.fillColor = palette.f[parseInt(fill, 10)];
                 if (marker !== '') data.marker = markerMap[marker];
