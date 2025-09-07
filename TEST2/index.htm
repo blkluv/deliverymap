@@ -13,7 +13,12 @@
         (function() {
             const ua = navigator.userAgent.toLowerCase();
             if (ua.includes("fban") || ua.includes("fbav")) {
-                document.addEventListener('DOMContentLoaded', () => document.getElementById('facebook-blocker-modal')?.style.display = 'flex');
+                document.addEventListener('DOMContentLoaded', () => {
+                    const modal = document.getElementById('facebook-blocker-modal');
+                    if (modal) {
+                        modal.style.display = 'flex';
+                    }
+                });
             }
         })();
     </script>
