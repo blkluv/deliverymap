@@ -2,7 +2,7 @@
  * @file 處理使用者登入、登出及身份驗證。
  */
 import * as api from './api.js';
-import { SESSION_TOKEN_KEY } from './config.js';
+import { SESSION_TOKEN_KEY, GOOGLE_APPS_SCRIPT_URL } from './config.js';
 import { showNotification } from './ui.js';
 
 // --- 模組內部狀態 ---
@@ -21,7 +21,7 @@ export const getIsAdmin = () => isAdmin;
  */
 async function handleGoogleSignIn(googleProfile) {
     try {
-        const response = await fetch(api.GOOGLE_APPS_SCRIPT_URL, {
+        const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({ action: 'google_login', profile: googleProfile })
@@ -46,7 +46,7 @@ async function handleGoogleSignIn(googleProfile) {
 function handleSignOut() {
     const token = localStorage.getItem(SESSION_TOKEN_KEY);
     if (token) {
-        fetch(api.GOOGLE_APPS_SCRIPT_URL, { 
+        fetch(GOOGLE_APPS_SCRIPT_URL, { 
             method: 'POST', 
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({ action: 'logout', token: token })
@@ -79,7 +79,7 @@ export async function verifyToken() {
     if (!token) return false;
 
     try {
-        const result = await api.verifyTokenAPI(token); // 修正：呼叫 api.js 中的函式
+        const result = await api.verifyTokenAPI(token);
         if (result.status === 'success' && result.user) {
             setLoginState(result.user);
             return true;
@@ -121,7 +121,7 @@ async function setLoginState(profile) {
  */
 async function checkIfAdmin(email) {
     try {
-        const response = await fetch(`${api.GOOGLE_APPS_SCRIPT_URL}?action=checkAdmin&email=${encodeURIComponent(email)}`);
+        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?action=checkAdmin&email=${encodeURIComponent(email)}`);
         const result = await response.json();
         isAdmin = result.isAdmin;
         $('#review-btn').toggleClass('hidden', !isAdmin);
