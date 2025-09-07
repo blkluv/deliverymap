@@ -352,23 +352,24 @@ export function setupAddLocationListeners() {
         const form = $(this).closest('form');
         const isAreaEdit = !!(form.find('#edit-area-row-index').val());
 
-        // 呼叫 grid 模組中的函式來切換模式
+        // 呼叫 grid 模組中的函式來切換核心模式（例如畫布）
         toggleAreaSelectionMode(isChecked, isAreaEdit ? areaBoundsForEditing : null);
 
+        // 根據勾選狀態，明確地、強制地控制工具列的顯示與隱藏
         if (isChecked) {
-            // 當勾選時，額外確保工具列顯示
+            // 當勾選時，顯示工具列和調色盤
+            $('#grid-toolbar').removeClass('hidden').addClass('flex');
+            $('#grid-color-palette').removeClass('hidden');
+
             const center = isMobile && tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
             if (isAreaEdit) {
                  setLockedCenterForEditing(center);
             }
-            // 強制顯示工具列，確保 UI 正確
-            $('#grid-toolbar').removeClass('hidden').addClass('flex');
-            $('#grid-color-palette').removeClass('hidden');
         } else {
-            // 當取消勾選時，確保工具列隱藏
-            setLockedCenterForEditing(null);
+            // 當取消勾選時，隱藏工具列和調色盤
             $('#grid-toolbar').addClass('hidden').removeClass('flex');
             $('#grid-color-palette').addClass('hidden');
+            setLockedCenterForEditing(null);
         }
     });
     
@@ -395,4 +396,5 @@ export function setupAddLocationListeners() {
         $(this).addClass('hidden');
     });
 }
+
 
