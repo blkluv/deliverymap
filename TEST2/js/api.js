@@ -1,7 +1,8 @@
 /**
  * @file 集中管理所有對外部 API 的請求。
  */
-import { APPS_SCRIPT_URL, CHAT_APPS_SCRIPT_URL, GOOGLE_MAPS_API_KEY } from './config.js';
+// 修正：將匯入的變數名稱 GOOGLE_APPS_SCRIPT_URL 改為 APPS_SCRIPT_URL 以匹配 config.js
+import { GOOGLE_APPS_SCRIPT_URL as APPS_SCRIPT_URL, CHAT_APPS_SCRIPT_URL, GOOGLE_MAPS_API_KEY } from './config.js';
 import { getUserProfile } from './auth.js';
 
 /**
@@ -63,7 +64,6 @@ export async function geocodeAddress(address) {
 }
 
 /**
- * 修正：新增 getAddressFromCoords 函式並匯出
  * 使用 Google Geocoding API 將座標轉換為地址。
  * @param {number} lon - 經度。
  * @param {number} lat - 緯度。
@@ -82,7 +82,6 @@ export async function getAddressFromCoords(lon, lat) {
     }
 }
 
-
 /**
  * 反向地理編碼以取得城市名稱。
  * @param {number} lon - 經度。
@@ -90,12 +89,17 @@ export async function getAddressFromCoords(lon, lat) {
  * @returns {Promise<string|null>} - 城市名稱。
  */
 export async function reverseGeocodeForCity(lon, lat) {
-    const data = await getAddressFromCoords(lon, lat);
-    if(data && data.results && data.results.length > 0) {
-        const cityComponent = data.results[0].address_components.find(c => c.types.includes('administrative_area_level_1'));
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${GOOGLE_MAPS_API_KEY}&language=zh-TW&result_type=administrative_area_level_1`;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Geocoding API response not OK');
+        const data = await response.json();
+        const cityComponent = data.results?.[0]?.address_components.find(c => c.types.includes('administrative_area_level_1'));
         return cityComponent?.long_name || null;
+    } catch (error) {
+        console.error("Reverse geocoding for city failed:", error);
+        return null;
     }
-    return null;
 }
 
 /**
@@ -251,3 +255,4 @@ export function verifyToken(token) {
 export function logout(token) {
     postRequest(APPS_SCRIPT_URL, { action: 'logout', token }).catch(e => console.error("Logout failed", e));
 }
+
