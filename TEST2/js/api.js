@@ -3,7 +3,6 @@
  */
 import { showNotification } from './ui.js';
 import { GOOGLE_APPS_SCRIPT_URL, GOOGLE_API_KEY, CHAT_APPS_SCRIPT_URL } from './config.js';
-import { getUserProfile } from './auth.js';
 
 /**
  * 從 Google Sheet 載入主要的地點資料。
@@ -78,6 +77,20 @@ export async function reverseGeocodeForCity(lon, lat) {
 }
 
 /**
+ * 呼叫後端 API 驗證 session token。
+ * @param {string} token - 要驗證的 token。
+ * @returns {Promise<Object>}
+ */
+export async function verifyTokenAPI(token) {
+    const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'verify_token', token: token })
+    });
+    return response.json();
+}
+
+/**
  * 提交新的地點或更新現有地點。
  * @param {Object} payload - 要提交的資料。
  * @returns {Promise<Object>}
@@ -126,16 +139,16 @@ export function sendVote(locationId, voteType, change, reports) {
  * 使用者刪除自己提交的資料。
  * @param {number} rowIndex - 資料在試算表中的列索引。
  * @param {boolean} isCommunity - 是否為社區/建築資料。
- * @returns {Promise<Object>}
+ * @param {Object} userProfile - 當前使用者的個人資料物件。
+ * @returns {Promise<Response>}
  */
-export async function userDelete(rowIndex, isCommunity) {
-    const profile = getUserProfile();
+export function userDelete(rowIndex, isCommunity, userProfile) {
     const payload = {
         action: 'user_delete',
         rowIndex,
         isCommunity,
-        userEmail: profile.email,
-        lineUserId: profile.lineUserId
+        userEmail: userProfile.email,
+        lineUserId: userProfile.lineUserId
     };
     return fetch(GOOGLE_APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
 }
@@ -145,15 +158,15 @@ export async function userDelete(rowIndex, isCommunity) {
  * @param {string} action - 操作類型。
  * @param {number} rowIndex - 資料列索引。
  * @param {boolean} isCommunity - 是否為社區資料。
+ * @param {Object} userProfile - 當前管理員的個人資料物件。
  * @returns {Promise<Object>}
  */
-export async function sendAdminAction(action, rowIndex, isCommunity) {
-    const profile = getUserProfile();
+export async function sendAdminAction(action, rowIndex, isCommunity, userProfile) {
     const payload = {
         action: action, // 'approve', 'reject', 'delete'
         rowIndex: rowIndex,
         isCommunity: isCommunity,
-        adminEmail: profile.email
+        adminEmail: userProfile.email
     };
     const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
         method: 'POST',
@@ -167,7 +180,7 @@ export async function sendAdminAction(action, rowIndex, isCommunity) {
  * 從 Google Sheet 載入聊天歷史紀錄。
  * @returns {Promise<Array>}
  */
-export async function getArchivedChatHistory() { // 修正：函式名稱對齊
+export async function getArchivedChatHistory() {
     try {
         const response = await fetch(`${CHAT_APPS_SCRIPT_URL}?action=get_chat_history&t=${new Date().getTime()}`);
         return await response.json();
@@ -183,13 +196,13 @@ export async function getArchivedChatHistory() { // 修正：函式名稱對齊
  * @param {string} targetUserId - 目標使用者的 ID (email 或 lineId)。
  * @param {string} targetUserName - 目標使用者的暱稱。
  * @param {string} duration - 禁言時長 (例如 "1d30m")。
+ * @param {Object} userProfile - 當前管理員的個人資料物件。
  * @returns {Promise<Object>}
  */
-export async function muteUserAPI(targetUserId, targetUserName, duration) { // 修正：新增 muteUserAPI
-    const profile = getUserProfile();
+export async function muteUserAPI(targetUserId, targetUserName, duration, userProfile) {
     const payload = {
         action: 'muteUser',
-        adminEmail: profile.email,
+        adminEmail: userProfile.email,
         targetUserId,
         targetUserName,
         duration,
