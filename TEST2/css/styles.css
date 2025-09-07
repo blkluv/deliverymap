@@ -31,11 +31,17 @@ html, body {
 }
 /* NEW: Map Enhancement Style */
 #map .ol-layer canvas {
-    transition: filter 0.5s ease-in-out;
+    transition: filter 0.5s ease-in-out, opacity 0.3s ease-in-out;
 }
 #map.map-enhanced .ol-layer canvas {
     filter: var(--map-filter-style);
 }
+
+/* 修正：當地圖進入網格模式時，讓地圖底圖稍微變暗，突顯網格 */
+#map.grid-mode-active .ol-layer canvas {
+    opacity: 0.6;
+}
+
 /* OpenLayers 彈出視窗樣式 */
 .ol-popup {
     position: absolute;
@@ -129,7 +135,7 @@ html, body {
 .new-location-marker {
      width: 32px;
      height: 32px;
-     background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ef4444" width="32px" height="32px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7-75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>');
+     background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ef4444" width="32px" height="32px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>');
      background-size: contain;
      cursor: grab;
      transform: translate(-50%, -100%);
@@ -202,22 +208,11 @@ html, body {
 }
 
 /* --- BEGIN MODIFICATION: Mobile modal minimization styles with pointer-events fix --- */
-/*
-  此規則為關鍵修復。當行動版視窗具備 .minimized class 時，
-  我們使用 pointer-events: none !important; 強制讓其整個容器變得不可互動。
-  這能讓點擊「穿透」它，去觸發下方的元素，
-  例如網格工具列和右上角的按鈕。
-*/
 #add-location-modal-mobile.minimized {
     pointer-events: none !important;
 }
-
-/*
-  此規則處理視覺上的滑出動畫效果，
-  並在視窗滑回時，重新啟用其內部的互動。
-*/
 #add-location-modal-mobile.minimized > .bg-white {
-    pointer-events: auto !important; /* 重新為滑出的面板啟用點擊，以便滑回來後能正常使用 */
+    pointer-events: auto !important; 
     transform: translateX(calc(-100% - 2rem));
 }
 /* --- END MODIFICATION --- */
@@ -231,15 +226,16 @@ html, body {
     fill: #EF4444; /* A brighter red */
 }
 
-/* NEW: Grid canvas style */
+/* 修正：網格畫布樣式 */
 #grid-canvas {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 15; /* MODIFICATION: Increased z-index to ensure it's above OL layers */
-    pointer-events: none; /* MODIFIED: Let map handle events so zoom/pan works */
+    /* 大幅提高 z-index 確保它在所有地圖圖層之上 */
+    z-index: 40; 
+    pointer-events: none; /* 讓點擊事件可以穿透到下方的地圖 */
 }
 
 /* NEW: Grid toolbar styles */
@@ -248,7 +244,7 @@ html, body {
     top: 1rem;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 20;
+    z-index: 45; /* 確保在網格畫布之上 */
     background-color: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(5px);
     padding: 0.5rem;
@@ -285,6 +281,7 @@ html, body {
     left: 50%;
     right: auto;
     transform: translateX(-50%);
+    z-index: 45; /* 確保在網格畫布之上 */
     
     /* Changed layout from vertical to horizontal */
     flex-direction: row;
