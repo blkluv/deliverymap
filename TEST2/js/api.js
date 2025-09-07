@@ -91,6 +91,21 @@ export async function verifyTokenAPI(token) {
 }
 
 /**
+ * 呼叫後端 API 更新使用者暱稱。
+ * @param {Object} payload - 包含使用者資訊和新暱稱的物件。
+ * @returns {Promise<Object>}
+ */
+export async function updateNickname(payload) {
+    const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'update_nickname', ...payload })
+    });
+    return response.json();
+}
+
+
+/**
  * 提交新的地點或更新現有地點。
  * @param {Object} payload - 要提交的資料。
  * @returns {Promise<Object>}
