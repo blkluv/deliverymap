@@ -346,29 +346,22 @@ export function setupAddLocationListeners() {
     $('#add-location-form, #add-location-form-mobile').on('submit', handleFormSubmit);
     $(document).on('change', '#add-address', handleAddressInputChange);
     
-    // 修正：使用更穩健的事件委派來處理核取方塊的變化，避免重複 ID 的問題
+    // 修正：使用更穩健的事件委派來處理核取方塊的變化，確保行為正確
     const handleAreaCheckboxChange = function() {
         const isChecked = this.checked;
         const form = $(this).closest('form');
         const isAreaEdit = !!(form.find('#edit-area-row-index').val());
 
         // 呼叫 grid 模組中的函式來切換核心模式（例如畫布）
+        // 這個函式會處理工具列的顯示/隱藏
         toggleAreaSelectionMode(isChecked, isAreaEdit ? areaBoundsForEditing : null);
 
-        // 根據勾選狀態，明確地、強制地控制工具列的顯示與隱藏
         if (isChecked) {
-            // 當勾選時，顯示工具列和調色盤
-            $('#grid-toolbar').removeClass('hidden').addClass('flex');
-            $('#grid-color-palette').removeClass('hidden');
-
             const center = isMobile && tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
             if (isAreaEdit) {
                  setLockedCenterForEditing(center);
             }
         } else {
-            // 當取消勾選時，隱藏工具列和調色盤
-            $('#grid-toolbar').addClass('hidden').removeClass('flex');
-            $('#grid-color-palette').addClass('hidden');
             setLockedCenterForEditing(null);
         }
     };
