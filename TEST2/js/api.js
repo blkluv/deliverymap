@@ -3,7 +3,7 @@
  */
 import { showNotification } from './ui.js';
 import { GOOGLE_APPS_SCRIPT_URL, GOOGLE_API_KEY, CHAT_APPS_SCRIPT_URL } from './config.js';
-import { getUserProfile } from './auth.js'; // 修正：匯入 getUserProfile
+import { getUserProfile } from './auth.js';
 
 /**
  * 從 Google Sheet 載入主要的地點資料。
@@ -167,7 +167,7 @@ export async function sendAdminAction(action, rowIndex, isCommunity) {
  * 從 Google Sheet 載入聊天歷史紀錄。
  * @returns {Promise<Array>}
  */
-export async function loadArchivedChatHistory() {
+export async function getArchivedChatHistory() { // 修正：函式名稱對齊
     try {
         const response = await fetch(`${CHAT_APPS_SCRIPT_URL}?action=get_chat_history&t=${new Date().getTime()}`);
         return await response.json();
@@ -176,5 +176,29 @@ export async function loadArchivedChatHistory() {
         showNotification('載入歷史聊天紀錄失敗', 'error');
         return [];
     }
+}
+
+/**
+ * 呼叫後端 API 禁言使用者。
+ * @param {string} targetUserId - 目標使用者的 ID (email 或 lineId)。
+ * @param {string} targetUserName - 目標使用者的暱稱。
+ * @param {string} duration - 禁言時長 (例如 "1d30m")。
+ * @returns {Promise<Object>}
+ */
+export async function muteUserAPI(targetUserId, targetUserName, duration) { // 修正：新增 muteUserAPI
+    const profile = getUserProfile();
+    const payload = {
+        action: 'muteUser',
+        adminEmail: profile.email,
+        targetUserId,
+        targetUserName,
+        duration,
+    };
+    const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+    });
+    return response.json();
 }
 
