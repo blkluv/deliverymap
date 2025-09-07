@@ -393,4 +393,3 @@ export function setupAddLocationListeners() {
         $(this).addClass('hidden');
     });
 }
-
