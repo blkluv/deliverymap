@@ -6,7 +6,8 @@
 export const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw93ckEaMhqOmcrsGiMFY3gkxQVLDlKItY_O-xmEaswKibQ8YlscrVjHuB2viTV0XZg/exec';
 export const CHAT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_Xmv4WeUCDOjpZmXdHLwtWg4kAOhcMB0brJQWkzquFqOLjupnFcB7AvdQM022dqWrQ/exec';
 export const GOOGLE_API_KEY = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
-export const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/'; // 修正：新增 WebSocket URL
+export const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/';
+export const SESSION_TOKEN_KEY = 'userSessionToken'; // 修正：新增此行
 
 // --- Map Settings ---
 export const MAP_FILTER_CONTRAST = 1;
