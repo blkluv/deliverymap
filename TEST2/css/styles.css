@@ -233,8 +233,9 @@ html, body {
     left: 0;
     width: 100%;
     height: 100%;
+    /* 大幅提高 z-index 確保它在所有地圖圖層之上 */
     z-index: 40; 
-    /* 移除 pointer-events: none; 將由 JavaScript 動態控制 */
+    pointer-events: none; /* 讓點擊事件可以穿透到下方的地圖 */
 }
 
 /* NEW: Grid toolbar styles */
@@ -316,4 +317,3 @@ html, body {
 #chat-messages.hide-system-messages .system-message {
     display: none;
 }
-
