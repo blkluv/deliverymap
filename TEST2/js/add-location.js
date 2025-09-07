@@ -5,16 +5,14 @@ import { showNotification, uiState } from './ui.js';
 import * as api from './api.js';
 import { getLoginStatus, getUserProfile } from './auth.js';
 import { map, radiusSource } from './map.js';
-import { toggleAreaSelectionMode, getSelectedGridCells, setLockedCenterForEditing } from './grid.js';
+import { toggleAreaSelectionMode, getSelectedGridCells, clearSelectedGridCells, setLockedCenterForEditing } from './grid.js';
 
 // --- 模組內部狀態 ---
 let initialAddLocationCoords = null;
 let tempMarker = null; // 行動版上的可拖曳標記
 let isDraggingMarker = false;
 const isMobile = window.innerWidth < 768;
-// 修正：新增模組級變數來管理編輯狀態
-let areaBoundsForEditing = null; 
-
+let areaBoundsForEditing = null; // 用於儲存編輯時的區域資料
 
 /**
  * 進入行動版的地點放置模式。
@@ -112,6 +110,7 @@ export function exitAddMode() {
     
     $('form[id^="add-location-form"]').find('#add-is-area').prop('checked', false);
     $('form[id^="add-location-form"]').find('#edit-row-index, #edit-area-row-index, #edit-original-name').val('');
+    // 觸發資料刷新事件
     document.dispatchEvent(new CustomEvent('refresh-data'));
 }
 
@@ -138,9 +137,12 @@ async function handleCompletePlacementClick() {
     const finalCoords = tempMarker.getPosition();
     const finalLonLat = ol.proj.toLonLat(finalCoords);
     
+    // 複製桌面版表單結構到行動版
     const formContent = $('#add-location-form > .px-6').children().clone(true, true);
     $('#mobile-point-fields').empty().append(formContent);
     $('#mobile-area-fields').empty().append(formContent.clone(true, true));
+    
+    // 調整不同 tab 的欄位顯示
     $('#mobile-area-fields').find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').hide();
 
     await reverseGeocodeAndUpdateForm(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
@@ -166,7 +168,7 @@ async function handleFormSubmit(e) {
             return;
         }
         areaBoundsStr = compressGridData(selectedGridCells);
-        finalCoords = map.getView().getCenter();
+        finalCoords = map.getView().getCenter(); // 或使用 lockedCenterForEditing
     } else {
         finalCoords = isMobile ? tempMarker.getPosition() : map.getView().getCenter();
         if (!finalCoords) {
@@ -361,7 +363,7 @@ export function setupAddLocationListeners() {
             toggleAreaSelectionMode(false);
         }
     });
-
+    
     $('#add-location-modal-mobile').on('click', '.mobile-add-tab', function() {
         const isAreaTab = $(this).is('#mobile-add-area-tab');
         $('.mobile-add-tab').removeClass('active text-indigo-600 bg-indigo-50').addClass('text-gray-500');
