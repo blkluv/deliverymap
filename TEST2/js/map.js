@@ -2,7 +2,6 @@
  * @file 處理所有與 OpenLayers 地圖相關的初始化與操作。
  */
 import { mapIcons, categoryColors, clusterColorPalette, LABEL_VISIBILITY_ZOOM } from './config.js';
-import { uiState } from './ui.js';
 
 // --- OpenLayers 元件與圖層 ---
 const styleCache = {};
@@ -23,7 +22,8 @@ const areaGridLayer = new ol.layer.Vector({
 });
 
 export const vectorSource = new ol.source.Vector();
-const clusterSource = new ol.source.Cluster({ 
+// 修改：新增 export，讓其他模組可以使用 clusterSource
+export const clusterSource = new ol.source.Cluster({ 
     distance: 50, 
     minDistance: 25, 
     source: vectorSource 
@@ -261,55 +261,5 @@ export function drawCommunityAreas(areas) {
             console.error("繪製社區範圍失敗:", areaData.areaBounds, e);
         }
     });
-}
-
-
-/**
- * 處理地圖點擊事件，顯示彈出視窗或縮放至聚合點。
- * @param {ol.MapBrowserEvent} evt - 地圖瀏覽器事件。
- */
-export function handleMapClick(evt) {
-    if (uiState.isDesktopAddMode || uiState.isDrawingOnGrid) return;
-    
-    let featureClicked = false;
-    
-    // 優先檢查是否點擊到社區/建築範圍
-    const areaFeature = map.forEachFeatureAtPixel(evt.pixel, f => f.get('parentData') ? f : null, {
-        layerFilter: layer => layer === areaGridLayer
-    });
-    
-    if(areaFeature) {
-        featureClicked = true;
-        // 未來可以加入點擊社區後的互動
-        console.log("Clicked on area:", areaFeature.get('parentData'));
-    }
-
-    if (featureClicked) return;
-
-    // 接著檢查是否點擊到地點聚合圖層
-    const clusterFeature = map.forEachFeatureAtPixel(evt.pixel, f => f, {
-        layerFilter: layer => layer === clusterLayer
-    });
-
-    if (clusterFeature) {
-        featureClicked = true;
-        const featuresInCluster = clusterFeature.get('features');
-        if (featuresInCluster.length > 1) { 
-            const extent = ol.extent.createEmpty();
-            featuresInCluster.forEach(f => ol.extent.extend(extent, f.getGeometry().getExtent()));
-            map.getView().fit(extent, { duration: 500, padding: [80, 80, 80, 80] });
-        } else { 
-            const originalFeature = featuresInCluster[0];
-            const coordinates = originalFeature.getGeometry().getCoordinates();
-            uiState.currentFeatureData = originalFeature.getProperties();
-            
-            map.getView().animate({ center: coordinates, zoom: 18, duration: 800 });
-            uiModule.renderPopup(uiState.currentFeatureData, coordinates);
-        }
-    }
-
-    if (!featureClicked) {
-        infoOverlay.setPosition(undefined);
-    }
 }
 
