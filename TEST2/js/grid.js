@@ -37,11 +37,11 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
     if (enable) {
         const zoomThreshold = isMobile ? GRID_ZOOM_LEVEL_MOBILE : GRID_ZOOM_LEVEL_WEB;
         map.getView().animate({ zoom: zoomThreshold });
-        $('#map').addClass('map-enhanced grid-mode-active paint-mode');
-        if (dragPanInteraction) dragPanInteraction.setActive(false);
+        $('#map').addClass('map-enhanced grid-mode-active');
         
-        // 修正：讓畫布接收滑鼠事件
+        // 預設為填色工具，所以畫布可互動，地圖平移關閉
         gridCanvas.style.pointerEvents = 'auto';
+        if (dragPanInteraction) dragPanInteraction.setActive(false);
         
         $('#location-instruction').text('請在地圖上的網格標示範圍。');
         $('#desktop-center-marker').addClass('hidden');
@@ -59,15 +59,11 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
         $('#grid-canvas').removeClass('hidden');
         drawGrid();
         map.on('moveend', drawGrid);
-        
-        // 修正：將事件監聽器直接綁定到 canvas 上
         gridCanvas.addEventListener('pointerdown', mapPointerDown);
 
     } else {
         $('#map').removeClass('map-enhanced grid-mode-active paint-mode pan-mode');
         if (dragPanInteraction) dragPanInteraction.setActive(true);
-        
-        // 修正：停用畫布的滑鼠事件，讓地圖可以操作
         gridCanvas.style.pointerEvents = 'none';
 
         if (isMobile && cachedActionButtons) {
@@ -79,8 +75,6 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
         $('#location-instruction').text('請移動地圖中心點來選擇位置。');
         $('#grid-canvas').addClass('hidden');
         gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-        
-        // 修正：移除 canvas 上的事件監聽器
         gridCanvas.removeEventListener('pointerdown', mapPointerDown);
     }
 }
@@ -171,7 +165,6 @@ function drawGrid() {
 function paintCell(evt) {
     if (currentAreaTool === 'pan') return;
 
-    // 修正：從 DOM PointerEvent 取得相對於 canvas 的 pixel 座標
     const rect = gridCanvas.getBoundingClientRect();
     const pixel = [evt.clientX - rect.left, evt.clientY - rect.top];
     const mapCoord = map.getCoordinateFromPixel(pixel);
@@ -296,7 +289,18 @@ export function setupGridToolbar() {
         $btn.addClass('active');
         currentAreaTool = toolId.replace('tool-', '');
 
-        if (dragPanInteraction) dragPanInteraction.setActive(currentAreaTool === 'pan');
-        $('#map').toggleClass('pan-mode', currentAreaTool === 'pan').toggleClass('paint-mode', currentAreaTool !== 'pan');
+        // 修正：根據選擇的工具，動態切換畫布的互動性和地圖的平移功能
+        if (currentAreaTool === 'pan') {
+            // 若為平移工具：停用畫布互動，啟用地圖平移
+            gridCanvas.style.pointerEvents = 'none';
+            if (dragPanInteraction) dragPanInteraction.setActive(true);
+            $('#map').addClass('pan-mode').removeClass('paint-mode');
+        } else {
+            // 若為繪圖工具：啟用畫布互動，停用地圖平移
+            gridCanvas.style.pointerEvents = 'auto';
+            if (dragPanInteraction) dragPanInteraction.setActive(false);
+            $('#map').removeClass('pan-mode').addClass('paint-mode');
+        }
     });
 }
+
