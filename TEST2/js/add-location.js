@@ -346,9 +346,9 @@ export function setupAddLocationListeners() {
     $('#add-location-form, #add-location-form-mobile').on('submit', handleFormSubmit);
     $(document).on('change', '#add-address', handleAddressInputChange);
     
-    // 修正：新增對 #add-is-area 核取方塊的變動監聽器
-    $(document).on('change', 'form[id^="add-location-form"] #add-is-area', function() {
-        const isChecked = $(this).is(':checked');
+    // 修正：將事件監聽器改為從父層 Modal 進行委派，避免重複 ID 的問題
+    const handleAreaCheckboxChange = function() {
+        const isChecked = this.checked;
         const form = $(this).closest('form');
         const isAreaEdit = !!(form.find('#edit-area-row-index').val());
 
@@ -362,7 +362,10 @@ export function setupAddLocationListeners() {
             setLockedCenterForEditing(null);
             toggleAreaSelectionMode(false);
         }
-    });
+    };
+
+    $('#add-location-modal').on('change', '#add-is-area', handleAreaCheckboxChange);
+    $('#add-location-modal-mobile').on('change', '#add-is-area', handleAreaCheckboxChange);
     
     $('#add-location-modal-mobile').on('click', '.mobile-add-tab', function() {
         const isAreaTab = $(this).is('#mobile-add-area-tab');
