@@ -15,14 +15,14 @@ const osmLayer = new ol.layer.Tile({
 });
 
 export const areaGridSource = new ol.source.Vector();
-const areaGridLayer = new ol.layer.Vector({
+// 修正：新增 export，讓 ui.js 可以匯入
+export const areaGridLayer = new ol.layer.Vector({
     source: areaGridSource,
     style: (feature) => feature.getStyle(),
     zIndex: 1
 });
 
 export const vectorSource = new ol.source.Vector();
-// 修改：新增 export，讓其他模組可以使用 clusterSource
 export const clusterSource = new ol.source.Cluster({ 
     distance: 50, 
     minDistance: 25, 
