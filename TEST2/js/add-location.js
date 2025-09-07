@@ -346,26 +346,31 @@ export function setupAddLocationListeners() {
     $('#add-location-form, #add-location-form-mobile').on('submit', handleFormSubmit);
     $(document).on('change', '#add-address', handleAddressInputChange);
     
-    // 修正：將事件監聽器改為從父層 Modal 進行委派，避免重複 ID 的問題
-    const handleAreaCheckboxChange = function() {
-        const isChecked = this.checked;
+    // 修正：使用事件委派來處理核取方塊的變化，確保行為正確
+    $('#app').on('change', '#add-location-form #add-is-area, #add-location-form-mobile #add-is-area', function() {
+        const isChecked = $(this).is(':checked');
         const form = $(this).closest('form');
         const isAreaEdit = !!(form.find('#edit-area-row-index').val());
 
+        // 呼叫 grid 模組中的函式來切換模式
+        toggleAreaSelectionMode(isChecked, isAreaEdit ? areaBoundsForEditing : null);
+
         if (isChecked) {
+            // 當勾選時，額外確保工具列顯示
             const center = isMobile && tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
             if (isAreaEdit) {
                  setLockedCenterForEditing(center);
             }
-            toggleAreaSelectionMode(true, isAreaEdit ? areaBoundsForEditing : null);
+            // 強制顯示工具列，確保 UI 正確
+            $('#grid-toolbar').removeClass('hidden').addClass('flex');
+            $('#grid-color-palette').removeClass('hidden');
         } else {
+            // 當取消勾選時，確保工具列隱藏
             setLockedCenterForEditing(null);
-            toggleAreaSelectionMode(false);
+            $('#grid-toolbar').addClass('hidden').removeClass('flex');
+            $('#grid-color-palette').addClass('hidden');
         }
-    };
-
-    $('#add-location-modal').on('change', '#add-is-area', handleAreaCheckboxChange);
-    $('#add-location-modal-mobile').on('change', '#add-is-area', handleAreaCheckboxChange);
+    });
     
     $('#add-location-modal-mobile').on('click', '.mobile-add-tab', function() {
         const isAreaTab = $(this).is('#mobile-add-area-tab');
