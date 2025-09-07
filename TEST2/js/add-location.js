@@ -346,9 +346,9 @@ export function setupAddLocationListeners() {
     $('#add-location-form, #add-location-form-mobile').on('submit', handleFormSubmit);
     $(document).on('change', '#add-address', handleAddressInputChange);
     
-    // 修正：使用事件委派來處理核取方塊的變化，確保行為正確
-    $('#app').on('change', '#add-location-form #add-is-area, #add-location-form-mobile #add-is-area', function() {
-        const isChecked = $(this).is(':checked');
+    // 修正：使用更穩健的事件委派來處理核取方塊的變化，避免重複 ID 的問題
+    const handleAreaCheckboxChange = function() {
+        const isChecked = this.checked;
         const form = $(this).closest('form');
         const isAreaEdit = !!(form.find('#edit-area-row-index').val());
 
@@ -358,7 +358,7 @@ export function setupAddLocationListeners() {
         // 根據勾選狀態，明確地、強制地控制工具列的顯示與隱藏
         if (isChecked) {
             // 當勾選時，顯示工具列和調色盤
-            $('#grid-toolbar').removeClass('hidden');
+            $('#grid-toolbar').removeClass('hidden').addClass('flex');
             $('#grid-color-palette').removeClass('hidden');
 
             const center = isMobile && tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
@@ -371,7 +371,11 @@ export function setupAddLocationListeners() {
             $('#grid-color-palette').addClass('hidden');
             setLockedCenterForEditing(null);
         }
-    });
+    };
+
+    // 分別為桌面版和行動版的 Modal 綁定事件監聽器
+    $('#add-location-modal').on('change', '#add-is-area', handleAreaCheckboxChange);
+    $('#add-location-modal-mobile').on('change', '#add-is-area', handleAreaCheckboxChange);
     
     $('#add-location-modal-mobile').on('click', '.mobile-add-tab', function() {
         const isAreaTab = $(this).is('#mobile-add-area-tab');
@@ -396,5 +400,4 @@ export function setupAddLocationListeners() {
         $(this).addClass('hidden');
     });
 }
-
 
