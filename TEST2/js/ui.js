@@ -1,7 +1,7 @@
 /**
  * @file 管理使用者介面 (UI) 的各種互動，如彈出視窗、通知、列表更新等。
  */
-import { map, infoOverlay, clusterLayer, areaGridLayer } from './map.js'; // 修正：直接從 map.js 匯入 clusterLayer
+import { map, infoOverlay, clusterLayer, areaGridLayer, clusterSource, vectorSource } from './map.js';
 import { categoryColors, allCategories, legendIcons } from './config.js';
 import * as api from './api.js';
 import { getLoginStatus } from './auth.js';
@@ -78,12 +78,10 @@ export function handleMapClick(evt) {
     if(areaFeature) {
         featureClicked = true;
         console.log("Clicked on area:", areaFeature.get('parentData'));
-        // 可以在此處添加顯示區域資訊的邏輯
     }
 
     if (featureClicked) return;
 
-    // 修正：將 layerFilter 的判斷目標改為 clusterLayer
     const clusterFeature = map.forEachFeatureAtPixel(evt.pixel, f => f, {
         layerFilter: layer => layer === clusterLayer
     });
@@ -181,13 +179,13 @@ export function updateStoreList() {
     const uniqueFeatures = [];
     const featureKeys = new Set();
 
-    map.forEachFeatureInExtent(extent, (feature) => {
-        // 從聚合點中提取原始 feature
-        const originalFeatures = feature.get('features') || [feature];
-        originalFeatures.forEach(f => {
-            if (!featureKeys.has(f.getId())) {
-                uniqueFeatures.push(f);
-                featureKeys.add(f.getId());
+    // 修正：應從 clusterSource (資料來源) 中獲取 features，而不是 map (地圖物件)
+    clusterSource.forEachFeatureInExtent(extent, (cluster) => {
+        const features = cluster.get('features');
+        features.forEach(function(feature) {
+            if (!featureKeys.has(feature.getId())) {
+                uniqueFeatures.push(feature);
+                featureKeys.add(feature.getId());
             }
         });
     });
@@ -237,7 +235,6 @@ function applyFilters() {
         return (!category || feature.get('category') === category);
     });
     
-    const vectorSource = map.getLayers().getArray().find(l => l.getSource() instanceof ol.source.Cluster).getSource().getSource();
     vectorSource.clear();
     vectorSource.addFeatures(finalFeatures);
     updateStoreList(); 
@@ -246,7 +243,6 @@ function applyFilters() {
 
 function resetFilters() {
     $('#category-select, #keyword-search').val('');
-    const vectorSource = map.getLayers().getArray().find(l => l.getSource() instanceof ol.source.Cluster).getSource().getSource();
     vectorSource.clear();
     vectorSource.addFeatures(allFeatures);
     updateStoreList();
