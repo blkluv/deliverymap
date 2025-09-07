@@ -272,13 +272,22 @@ async function reverseGeocodeAndUpdateForm(lon, lat, $form = $('#add-location-fo
     }
 }
 
+/**
+ * 繪製半徑圓圈。
+ * @param {ol.Coordinate} centerCoords - 圓心座標。
+ */
 function drawRadiusCircle(centerCoords) {
     radiusSource.clear();
-    const radius = 500; // 公尺
-    const circle = new ol.geom.Circle(centerCoords, radius);
-    const circleFeature = new ol.Feature(ol.geom.transform(circle, 'EPSG:3857', 'EPSG:4326'));
-    const transformedCircle = circleFeature.getGeometry().transform('EPSG:4326', 'EPSG:3857');
-    radiusSource.addFeature(new ol.Feature(transformedCircle));
+    const radius = 500; // 500 公尺
+    const view = map.getView();
+    const projection = view.getProjection();
+    const resolution = view.getResolutionAtCenter();
+    const pointResolution = ol.proj.getPointResolution(projection, resolution, centerCoords);
+    const radiusInMapUnits = radius / pointResolution;
+    
+    const circle = new ol.geom.Circle(centerCoords, radiusInMapUnits);
+    const circleFeature = new ol.Feature(circle);
+    radiusSource.addFeature(circleFeature);
 }
 
 function compressGridData(selectedGridCells) {
