@@ -40,6 +40,9 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
         $('#map').addClass('map-enhanced grid-mode-active paint-mode');
         if (dragPanInteraction) dragPanInteraction.setActive(false);
         
+        // 修正：讓畫布接收滑鼠事件
+        gridCanvas.style.pointerEvents = 'auto';
+        
         $('#location-instruction').text('請在地圖上的網格標示範圍。');
         $('#desktop-center-marker').addClass('hidden');
         
@@ -56,10 +59,17 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
         $('#grid-canvas').removeClass('hidden');
         drawGrid();
         map.on('moveend', drawGrid);
-        map.getViewport().addEventListener('pointerdown', mapPointerDown);
+        
+        // 修正：將事件監聽器直接綁定到 canvas 上
+        gridCanvas.addEventListener('pointerdown', mapPointerDown);
+
     } else {
         $('#map').removeClass('map-enhanced grid-mode-active paint-mode pan-mode');
         if (dragPanInteraction) dragPanInteraction.setActive(true);
+        
+        // 修正：停用畫布的滑鼠事件，讓地圖可以操作
+        gridCanvas.style.pointerEvents = 'none';
+
         if (isMobile && cachedActionButtons) {
             $('#map-container').append(cachedActionButtons);
             cachedActionButtons = null;
@@ -69,7 +79,9 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
         $('#location-instruction').text('請移動地圖中心點來選擇位置。');
         $('#grid-canvas').addClass('hidden');
         gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-        map.getViewport().removeEventListener('pointerdown', mapPointerDown);
+        
+        // 修正：移除 canvas 上的事件監聽器
+        gridCanvas.removeEventListener('pointerdown', mapPointerDown);
     }
 }
 
@@ -90,15 +102,13 @@ function drawGrid() {
     const [minLon, minLat] = ol.proj.toLonLat(ol.extent.getBottomLeft(extent));
     const [maxLon, maxLat] = ol.proj.toLonLat(ol.extent.getTopRight(extent));
     
-    // 修正：補完繪製網格線的完整邏輯
     const startLon = Math.floor(minLon / GRID_INTERVAL) * GRID_INTERVAL;
     const startLat = Math.floor(minLat / GRID_INTERVAL) * GRID_INTERVAL;
     
-    gridCtx.strokeStyle = 'rgba(128, 128, 128, 0.5)'; // 使用更清晰的顏色
+    gridCtx.strokeStyle = 'rgba(128, 128, 128, 0.5)';
     gridCtx.lineWidth = 1;
     gridCtx.beginPath();
 
-    // 繪製垂直線
     for (let lon = startLon; lon < maxLon; lon += GRID_INTERVAL) {
         const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([lon, minLat]));
         if(pixel) {
@@ -106,7 +116,6 @@ function drawGrid() {
             gridCtx.lineTo(pixel[0], mapSize[1]);
         }
     }
-    // 繪製水平線
     for (let lat = startLat; lat < maxLat; lat += GRID_INTERVAL) {
         const pixel = map.getPixelFromCoordinate(ol.proj.fromLonLat([minLon, lat]));
         if(pixel) {
@@ -157,12 +166,18 @@ function drawGrid() {
 
 /**
  * 處理在網格上繪製/擦除的邏輯。
- * @param {ol.MapBrowserEvent} evt - 地圖事件。
+ * @param {PointerEvent} evt - DOM PointerEvent。
  */
 function paintCell(evt) {
     if (currentAreaTool === 'pan') return;
 
-    const [lon, lat] = ol.proj.toLonLat(map.getCoordinateFromPixel(evt.pixel));
+    // 修正：從 DOM PointerEvent 取得相對於 canvas 的 pixel 座標
+    const rect = gridCanvas.getBoundingClientRect();
+    const pixel = [evt.clientX - rect.left, evt.clientY - rect.top];
+    const mapCoord = map.getCoordinateFromPixel(pixel);
+    if (!mapCoord) return;
+    const [lon, lat] = ol.proj.toLonLat(mapCoord);
+
     const cellKey = `${(Math.floor(lon / GRID_INTERVAL) * GRID_INTERVAL).toFixed(GRID_PRECISION)}-${(Math.floor(lat / GRID_INTERVAL) * GRID_INTERVAL).toFixed(GRID_PRECISION)}`;
     
     if (cellKey === lastPaintedCellKey) return;
@@ -196,17 +211,21 @@ function paintCell(evt) {
 
 // --- 事件處理函式 ---
 const mapPointerDown = (evt) => {
-    if (evt.originalEvent.button !== 0 || !uiState.isDrawingOnGrid || currentAreaTool === 'pan') return;
+    if (evt.button !== 0 || !uiState.isDrawingOnGrid || currentAreaTool === 'pan') return;
     uiState.isPainting = true;
     paintCell(evt);
-    map.getViewport().addEventListener('pointermove', mapPointerMove);
-    map.getViewport().addEventListener('pointerup', mapPointerUp, { once: true });
+    gridCanvas.addEventListener('pointermove', mapPointerMove);
+    gridCanvas.addEventListener('pointerup', mapPointerUp, { once: true });
 };
-const mapPointerMove = (evt) => uiState.isPainting && paintCell(evt);
+const mapPointerMove = (evt) => {
+    if (uiState.isPainting) {
+        paintCell(evt);
+    }
+};
 const mapPointerUp = () => {
     uiState.isPainting = false;
     lastPaintedCellKey = null;
-    map.getViewport().removeEventListener('pointermove', mapPointerMove);
+    gridCanvas.removeEventListener('pointermove', mapPointerMove);
 };
 
 
@@ -225,8 +244,8 @@ function loadAreaBounds(areaBoundsStr) {
             cellsToLoad = compressed.map(cellStr => {
                 const [coords, fill, marker, markerColor] = cellStr.split(':');
                 const [x, y] = coords.split(',').map(Number);
-                const lon = origin.lon + GRID_INTERVAL;
-                const lat = origin.lat + GRID_INTERVAL;
+                const lon = origin.lon + x * GRID_INTERVAL;
+                const lat = origin.lat + y * GRID_INTERVAL;
                 const data = {};
                 if (fill !== '') data.fillColor = palette.f[parseInt(fill, 10)];
                 if (marker !== '') data.marker = markerMap[marker];
