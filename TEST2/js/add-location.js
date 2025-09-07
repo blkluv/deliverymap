@@ -5,13 +5,16 @@ import { showNotification, uiState } from './ui.js';
 import * as api from './api.js';
 import { getLoginStatus, getUserProfile } from './auth.js';
 import { map, radiusSource } from './map.js';
-import { toggleAreaSelectionMode, getSelectedGridCells, clearSelectedGridCells, setLockedCenterForEditing } from './grid.js';
+import { toggleAreaSelectionMode, getSelectedGridCells, setLockedCenterForEditing } from './grid.js';
 
 // --- 模組內部狀態 ---
 let initialAddLocationCoords = null;
 let tempMarker = null; // 行動版上的可拖曳標記
 let isDraggingMarker = false;
 const isMobile = window.innerWidth < 768;
+// 修正：新增模組級變數來管理編輯狀態
+let areaBoundsForEditing = null; 
+
 
 /**
  * 進入行動版的地點放置模式。
@@ -34,8 +37,10 @@ export function enterMobilePlacementMode(coordinate, areaBoundsToLoad = null) {
     map.addOverlay(tempMarker);
 
     if (areaBoundsToLoad) {
+        areaBoundsForEditing = areaBoundsToLoad;
         $('#add-location-form-mobile').find('#add-is-area').prop('checked', true).trigger('change');
     } else {
+        areaBoundsForEditing = null;
         drawRadiusCircle(coordinate);
         $('#complete-placement-btn').removeClass('hidden');
         map.getView().animate({ center: coordinate, zoom: 18, duration: 500 });
@@ -57,7 +62,10 @@ export function enterDesktopAddMode(coordinate, areaBoundsToLoad = null) {
     $('#desktop-center-marker').removeClass('hidden');
 
     if (areaBoundsToLoad) {
+        areaBoundsForEditing = areaBoundsToLoad;
         $('#add-location-form').find('#add-is-area').prop('checked', true).trigger('change');
+    } else {
+        areaBoundsForEditing = null;
     }
     
     setTimeout(() => {
@@ -86,6 +94,7 @@ export function exitAddMode() {
     radiusSource.clear();
     initialAddLocationCoords = null;
     setLockedCenterForEditing(null);
+    areaBoundsForEditing = null;
     
     if (isMobile) {
         if(tempMarker) map.removeOverlay(tempMarker);
@@ -103,7 +112,6 @@ export function exitAddMode() {
     
     $('form[id^="add-location-form"]').find('#add-is-area').prop('checked', false);
     $('form[id^="add-location-form"]').find('#edit-row-index, #edit-area-row-index, #edit-original-name').val('');
-    // 觸發資料刷新事件
     document.dispatchEvent(new CustomEvent('refresh-data'));
 }
 
@@ -130,12 +138,9 @@ async function handleCompletePlacementClick() {
     const finalCoords = tempMarker.getPosition();
     const finalLonLat = ol.proj.toLonLat(finalCoords);
     
-    // 複製桌面版表單結構到行動版
     const formContent = $('#add-location-form > .px-6').children().clone(true, true);
     $('#mobile-point-fields').empty().append(formContent);
     $('#mobile-area-fields').empty().append(formContent.clone(true, true));
-    
-    // 調整不同 tab 的欄位顯示
     $('#mobile-area-fields').find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').hide();
 
     await reverseGeocodeAndUpdateForm(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
@@ -161,7 +166,7 @@ async function handleFormSubmit(e) {
             return;
         }
         areaBoundsStr = compressGridData(selectedGridCells);
-        finalCoords = map.getView().getCenter(); // 或使用 lockedCenterForEditing
+        finalCoords = map.getView().getCenter();
     } else {
         finalCoords = isMobile ? tempMarker.getPosition() : map.getView().getCenter();
         if (!finalCoords) {
@@ -272,17 +277,10 @@ async function reverseGeocodeAndUpdateForm(lon, lat, $form = $('#add-location-fo
     }
 }
 
-/**
- * 繪製半徑圓圈。
- * @param {ol.Coordinate} centerCoords - 圓心座標。
- */
 function drawRadiusCircle(centerCoords) {
     radiusSource.clear();
-    const radius = 500; // 半徑（單位：公尺）
-
-    // 地圖的預設投影 (EPSG:3857) 單位就是公尺，所以可以直接使用半徑值。
+    const radius = 500;
     const circle = new ol.geom.Circle(centerCoords, radius);
-
     const circleFeature = new ol.Feature(circle);
     radiusSource.addFeature(circleFeature);
 }
@@ -342,17 +340,28 @@ function compressGridData(selectedGridCells) {
 export function setupAddLocationListeners() {
     $('#add-location-btn').on('click', handleAddLocationClick);
     $('#complete-placement-btn').on('click', handleCompletePlacementClick);
-    
-    // 關閉 Modal
     $('#close-add-location-modal, #close-add-location-modal-mobile').on('click', exitAddMode);
-
-    // 表單提交
     $('#add-location-form, #add-location-form-mobile').on('submit', handleFormSubmit);
-
-    // 地址輸入框變更
     $(document).on('change', '#add-address', handleAddressInputChange);
     
-    // 行動版 Tab 切換
+    // 修正：新增對 #add-is-area 核取方塊的變動監聽器
+    $(document).on('change', 'form[id^="add-location-form"] #add-is-area', function() {
+        const isChecked = $(this).is(':checked');
+        const form = $(this).closest('form');
+        const isAreaEdit = !!(form.find('#edit-area-row-index').val());
+
+        if (isChecked) {
+            const center = isMobile && tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
+            if (isAreaEdit) {
+                 setLockedCenterForEditing(center);
+            }
+            toggleAreaSelectionMode(true, isAreaEdit ? areaBoundsForEditing : null);
+        } else {
+            setLockedCenterForEditing(null);
+            toggleAreaSelectionMode(false);
+        }
+    });
+
     $('#add-location-modal-mobile').on('click', '.mobile-add-tab', function() {
         const isAreaTab = $(this).is('#mobile-add-area-tab');
         $('.mobile-add-tab').removeClass('active text-indigo-600 bg-indigo-50').addClass('text-gray-500');
@@ -367,7 +376,6 @@ export function setupAddLocationListeners() {
         }
     });
 
-    // 行動版最小化/還原
     $('#minimize-mobile-modal-btn').on('click', () => {
         $('#add-location-modal-mobile').addClass('minimized');
         $('#restore-mobile-modal-btn').removeClass('hidden');
