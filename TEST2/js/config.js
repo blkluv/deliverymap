@@ -4,7 +4,7 @@
 
 // --- API & URLs ---
 export const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzcL991Bet1Geoe6riBVjVRTjMdaI_2Rz__hDz2hm4M2WQL2F20QYkOfbSpX-XOUysQPw/exec';
-export const CHAT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_Xmv4WeUCDOjpZmXdHLwtWg4kAOhcMB0brJQWkzquFqOLjupnFcB7AvdQM022dqWrQ/exec';
+export const CHAT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbymKoTzeyRC_54zQA-eNUsuJz8yN0YPoUQG1G1s8V6xmqQkfEPjoZBr10a3k8FivFMP/exec';
 export const GOOGLE_API_KEY = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
 export const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/';
 export const SESSION_TOKEN_KEY = 'userSessionToken'; // 修正：新增此行
