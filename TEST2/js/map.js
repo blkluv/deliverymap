@@ -133,21 +133,15 @@ export const map = new ol.Map({
         zoom: 8,
         extent: taiwanExtent,
         minZoom: 8,
+        enableRotation: !isMobile, // 修改：此選項會停用旋轉地圖的互動功能
     }),
-    // 修改：自訂互動，在手機版上停用旋轉功能
-    interactions: ol.interaction.defaults({
-        altShiftDragRotate: !isMobile,
-        pinchRotate: !isMobile
-    }),
-    // 修改：自訂控制項，在手機版上隱藏旋轉按鈕
-    controls: ol.control.defaults({
-        rotate: !isMobile,
-        attributionOptions: {
+    // 修正：手動建立控制項陣列以修復錯誤，並根據是否為行動裝置決定是否顯示旋轉按鈕
+    controls: [
+        new ol.control.Zoom(),
+        new ol.control.Attribution({
             collapsible: false
-        }
-    }).extend([
-        new ol.control.Zoom()
-    ])
+        })
+    ].concat(isMobile ? [] : [new ol.control.Rotate()]),
 });
 
 // 取得內建的拖曳平移互動
@@ -275,3 +269,4 @@ export function drawCommunityAreas(areas) {
         }
     });
 }
+
