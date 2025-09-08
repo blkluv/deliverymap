@@ -140,8 +140,14 @@ async function handleCompletePlacementClick() {
     // 複製桌面版表單結構到行動版
     const formContent = $('#add-location-form > .px-6').children().clone(true, true);
     $('#mobile-point-fields').empty().append(formContent);
-    $('#mobile-area-fields').empty().append(formContent.clone(true, true));
     
+    // 為建築頁籤建立獨立的表單內容
+    const areaFormContent = formContent.clone(true, true);
+    $('#mobile-area-fields').empty().append(areaFormContent);
+    
+    // 修改：在行動版的建築頁籤中，顯示「社區/區域名稱」欄位
+    areaFormContent.find('#add-area-name').closest('div').removeClass('hidden md:block');
+
     // 調整不同 tab 的欄位顯示
     $('#mobile-area-fields').find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').hide();
 
@@ -182,13 +188,8 @@ async function handleFormSubmit(e) {
     const lonLat = ol.proj.toLonLat(finalCoords);
     const profile = getUserProfile();
     const formData = new FormData($form[0]);
-
-    // ** MODIFIED: 修正決定 action 的邏輯 **
-    // 錯誤的邏輯會把一般使用者的編輯誤判為 admin_modify
-    // const action = formData.get('areaRowIndex') ? 'user_update_area' : formData.get('rowIndex') ? 'admin_modify' : formData.get('originalName') ? 'update' : 'create';
-    // 修正後的邏輯
     const action = formData.get('areaRowIndex') ? 'user_update_area' : 
-                   formData.get('rowIndex') ? 'update' : // <- 關鍵修正！
+                   formData.get('rowIndex') ? 'admin_modify' : 
                    formData.get('originalName') ? 'update' : 'create';
 
     const payload = {
@@ -199,9 +200,9 @@ async function handleFormSubmit(e) {
         lineUserId: profile.lineUserId,
         submitterName: profile.name || 'N/A',
         submitterEmail: profile.email || 'N/A',
-        submitterLineId: profile.lineUserId || 'N/A', // 確保送出 line id
-        address: formData.get('address'),
+        name: formData.get('address'),
         areaName: formData.get('areaName'),
+        address: formData.get('address'),
         lon: lonLat[0],
         lat: lonLat[1],
         timestamp: new Date().toISOString(),
@@ -398,3 +399,4 @@ export function setupAddLocationListeners() {
         $(this).addClass('hidden');
     });
 }
+
