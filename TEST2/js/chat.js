@@ -42,15 +42,14 @@ export function initializeChat() {
                         // 舊版邏輯，現在由 archived history 取代
                         break;
                     case 'chat':
-                        const isMobile = window.innerWidth < 768;
-                        if (!isMobile) {
-                             const profile = getUserProfile();
-                             const currentUserId = profile.email || profile.lineUserId;
-                             if (data.userId === currentUserId) {
-                                 // 在電腦版上，我們已經預先顯示了訊息，所以忽略伺服器的回送以避免重複。
-                                 return; 
-                             }
+                        // 修改：不論裝置為何，都檢查是否為使用者自己發送的訊息，以避免重複顯示
+                        const profile = getUserProfile();
+                        const currentUserId = profile.email || profile.lineUserId;
+                        if (data.userId === currentUserId) {
+                            // 我們已經預先顯示了訊息，所以忽略伺服器的回送以避免重複。
+                            return; 
                         }
+                        
                         if ($('#chat-modal').hasClass('hidden')) {
                             unreadChatCount++;
                             $('#chat-unread-badge').text(unreadChatCount).removeClass('hidden');
@@ -150,7 +149,7 @@ async function loadArchivedChatHistory() {
     systemMessageQueue = [];
     
     // 依序顯示載入訊息
-    appendLoadingMessage('讀取使用者訊息...(${userId})');
+    appendLoadingMessage('讀取使用者訊息...');
     await new Promise(resolve => setTimeout(resolve, 200));
     appendLoadingMessage(`正在偵測你的位置... (${currentUserCity})`);
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -211,7 +210,7 @@ function processSystemMessageQueue() {
  */
 function appendChatMessage(data) {
     const $chatMessages = $('#chat-messages');
-    if ($chatMessages.find(`[data-timestamp="${data.timestamp}"]`).length > 0) return;
+    if (data.timestamp && $chatMessages.find(`[data-timestamp="${data.timestamp}"]`).length > 0) return;
     
     const time = new Date(data.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
     const sanitizedMsg = $('<div>').text(data.message || '').html();
@@ -257,21 +256,19 @@ function sendChatMessage() {
     if (message && ws?.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'chat', message }));
 
-        const isMobile = window.innerWidth < 768;
-        if (!isMobile) {
-            const profile = getUserProfile();
-            const optimisticMessage = {
-                type: 'chat',
-                message: message,
-                // 修改：直接從 auth 模組取得目前的使用者名稱
-                nickname: profile.name || '匿名',
-                city: currentUserCity,
-                pictureUrl: profile.pictureUrl || '',
-                timestamp: new Date().toISOString(),
-                userId: profile.email || profile.lineUserId,
-            };
-            appendChatMessage(optimisticMessage);
-        }
+        // 修改：不論裝置為何，都立即顯示使用者自己發送的訊息
+        const profile = getUserProfile();
+        const optimisticMessage = {
+            type: 'chat',
+            message: message,
+            // 修改：直接從 auth 模組取得目前的使用者名稱
+            nickname: profile.name || '匿名',
+            city: currentUserCity,
+            pictureUrl: profile.pictureUrl || '',
+            timestamp: new Date().toISOString(),
+            userId: profile.email || profile.lineUserId,
+        };
+        appendChatMessage(optimisticMessage);
         
         $input.val('');
     }
