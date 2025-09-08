@@ -138,6 +138,7 @@ async function loadArchivedChatHistory() {
     $chatInput.prop('disabled', true).attr('placeholder', '載入中...');
     $sendBtn.prop('disabled', true);
 
+    isHistoryLoaded = false;
     systemMessageQueue = [];
     
     try {
@@ -165,14 +166,13 @@ async function loadArchivedChatHistory() {
                     pictureUrl: log.pictureUrl || '',
                     timestamp: log.updated_time,
                     userId: log.conversation_id,
-                    isAdmin: log.isAdmin, // 假設後端會提供此欄位
                 });
                 // 每則訊息間隔 20 毫秒，製造逐行出現的效果
                 await new Promise(resolve => setTimeout(resolve, 20));
             }
         }
         
-        isHistoryLoaded = true; // MODIFIED: 標記歷史紀錄已載入成功
+        isHistoryLoaded = true;
         processSystemMessageQueue();
 
         $chatMessages.scrollTop($chatMessages[0].scrollHeight);
@@ -215,18 +215,13 @@ function appendChatMessage(data) {
         const sanitizedNick = $('<div>').text(data.nickname || '匿名').html();
         const sanitizedCity = $('<div>').text(data.city || '未知').html();
         const pictureUrl = data.pictureUrl || 'https://placehold.co/40x40/E2E8F0/A0AEC0?text=?';
-        
-        // MODIFIED: 根據 isAdmin 旗標決定名稱顏色
-        const isAdmin = data.isAdmin === true;
-        const nameColorClass = isAdmin ? 'text-blue-600' : 'text-gray-900';
-
         messageHtml = `
             <div class="chat-message-item flex items-start space-x-3 p-1 rounded-md hover:bg-gray-100" 
                  data-timestamp="${data.timestamp}" data-user-id="${data.userId || ''}" data-user-name="${sanitizedNick}">
                 <img src="${pictureUrl}" alt="avatar" class="w-8 h-8 rounded-full">
                 <div>
                     <div class="flex items-baseline space-x-2">
-                        <span class="font-bold ${nameColorClass}">${sanitizedNick}</span>
+                        <span class="font-bold text-blue-600">${sanitizedNick}</span>
                         <span class="text-xs text-gray-500">(${sanitizedCity})</span>
                         <span class="text-xs text-gray-400">${time}</span>
                     </div>
@@ -266,7 +261,6 @@ function sendChatMessage() {
                 pictureUrl: profile.pictureUrl || '',
                 timestamp: new Date().toISOString(),
                 userId: profile.email || profile.lineUserId,
-                isAdmin: getIsAdmin(), // MODIFIED: 加上自己的管理員狀態
             };
             appendChatMessage(optimisticMessage);
         }
@@ -306,8 +300,7 @@ async function handleMuteUserSubmit(e) {
     showNotification(`正在禁言 ${contextMenuTarget.userName}...`, 'info');
     
     try {
-        // FIXED: 使用 contextMenuTarget 而非 contextMenu
-        const result = await api.muteUserAPI(contextMenuTarget.userId, contextMenuTarget.userName, duration);
+        const result = await api.muteUserAPI(contextMenu.userId, contextMenuTarget.userName, duration);
         if (result.status !== 'success') throw new Error(result.message);
         showNotification(`${contextMenuTarget.userName} 已被禁言。`, 'success');
         $('#mute-user-modal').addClass('hidden');
@@ -325,15 +318,10 @@ export function setupChatListeners() {
 
     $('#open-chat-btn').on('click', async () => {
         $('#chat-modal').removeClass('hidden');
-        
-        // MODIFIED: 只在首次打開時載入歷史紀錄
-        if (!isHistoryLoaded) {
-            await loadArchivedChatHistory();
-        }
-        
+        // 修正：每次打開都重新載入歷史紀錄
+        await loadArchivedChatHistory();
         unreadChatCount = 0;
         $('#chat-unread-badge').addClass('hidden').text('');
-        // 確保每次打開都滾動到底部
         setTimeout(() => $('#chat-messages').scrollTop($('#chat-messages')[0].scrollHeight), 0);
     });
     $('#close-chat-modal').on('click', () => $('#chat-modal').addClass('hidden'));
@@ -366,4 +354,3 @@ export function setupChatListeners() {
         }
     });
 }
-
