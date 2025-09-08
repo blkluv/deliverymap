@@ -15,6 +15,7 @@ const osmLayer = new ol.layer.Tile({
 });
 
 export const areaGridSource = new ol.source.Vector();
+// 修正：新增 export，讓 ui.js 可以匯入
 export const areaGridLayer = new ol.layer.Vector({
     source: areaGridSource,
     style: (feature) => feature.getStyle(),
@@ -22,7 +23,6 @@ export const areaGridLayer = new ol.layer.Vector({
 });
 
 export const vectorSource = new ol.source.Vector();
-// 修正：新增 export，讓 ui.js 可以匯入
 export const clusterSource = new ol.source.Cluster({ 
     distance: 50, 
     minDistance: 25, 
@@ -51,13 +51,6 @@ const radiusLayer = new ol.layer.Vector({
     }),
     zIndex: 2
 });
-
-export const clusterLayer = new ol.layer.Vector({ 
-    source: clusterSource, 
-    style: clusterStyleFunction,
-    zIndex: 3
-});
-
 
 function formatAddress(address) {
     if (!address) return '';
@@ -121,6 +114,11 @@ function clusterStyleFunction(feature) {
     }
 }
 
+const clusterLayer = new ol.layer.Vector({ 
+    source: clusterSource, 
+    style: clusterStyleFunction,
+    zIndex: 3
+});
 
 const taiwanExtent = ol.proj.transformExtent([118.0, 21.5, 122.5, 25.5], 'EPSG:4326', 'EPSG:3857');
 
@@ -133,6 +131,7 @@ export const map = new ol.Map({
         extent: taiwanExtent,
         minZoom: 8,
     }),
+    // 修正：使用新版 OpenLayers 的 controls 語法
     controls: [
         new ol.control.Zoom(),
         new ol.control.Rotate(),
