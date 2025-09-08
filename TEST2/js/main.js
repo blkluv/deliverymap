@@ -109,33 +109,63 @@ function processRawData(results) {
 
 
 /**
- * 初始化使用者地理位置。
+ * 初始化使用者地理位置，並根據結果載入對應資料。
  */
 async function initializeUserLocation() {
+    // 1. 預設中心點為南投市，並設定一個較寬的視野
+    const nantouCoords = ol.proj.fromLonLat([120.6839, 23.9079]);
+    mapModule.map.getView().setCenter(nantouCoords);
+    mapModule.map.getView().setZoom(8); // 初始設為台灣視野
+
     if (!navigator.geolocation) {
-        uiModule.showNotification('您的瀏覽器不支援地理定位', 'warning');
+        uiModule.showNotification('您的瀏覽器不支援地理定位，顯示預設地區。', 'warning');
         await loadAndProcessData();
         chatModule.sendJoinMessage();
         return;
     }
-    
+
+    // 2. 顯示提示，告知正在定位
+    uiModule.showNotification('正在取得您的位置...', 'info');
+
     try {
         const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000 }));
-        const coords = [pos.coords.longitude, pos.coords.latitude];
-        const mapCoords = ol.proj.fromLonLat(coords);
+        uiModule.showNotification('定位成功！正在載入地圖...', 'success');
         
-        mapModule.map.getView().animate({ center: mapCoords, zoom: 16 });
-        mapModule.userLocationOverlay.setPosition(mapCoords);
+        const userLonLat = [pos.coords.longitude, pos.coords.latitude];
+        const userMapCoords = ol.proj.fromLonLat(userLonLat);
+
+        // 從使用者位置取得城市資訊
+        const city = await api.reverseGeocodeForCity(userLonLat[0], userLonLat[1]);
+        chatModule.setCurrentUserCity(city);
+        
+        // 3. 執行從城市到使用者位置的縮放動畫
+        const view = mapModule.map.getView();
+        view.animate({
+            center: userMapCoords,
+            zoom: 12, // 先到城市等級的視野
+            duration: 1200
+        }, () => {
+            // 第一段動畫結束後，再放大到街道等級
+            view.animate({
+                zoom: 16,
+                duration: 800
+            });
+        });
+
+        // 放置使用者位置標記
+        mapModule.userLocationOverlay.setPosition(userMapCoords);
         $('#user-location').removeClass('hidden');
 
-        const city = await api.reverseGeocodeForCity(coords[0], coords[1]);
-        chatModule.setCurrentUserCity(city);
+        // 載入該城市的資料
         await loadAndProcessData(city);
         
     } catch (err) {
-        uiModule.showNotification('無法取得您的位置，將載入預設資料。', 'warning');
+        // 4. 若授權失敗或逾時
+        uiModule.showNotification('無法取得您的位置，顯示預設地區。', 'warning');
+        // 地圖已在南投，所以直接載入預設資料
         await loadAndProcessData();
     } finally {
+        // 不論成功或失敗，都發送加入聊天室的訊息
         chatModule.sendJoinMessage();
     }
 }
@@ -175,7 +205,6 @@ async function main() {
     addLocationModule.setupAddLocationListeners();
     managementModule.setupManagementListeners();
     authModule.setupAuthListeners();
-    // 修改：將地圖點擊事件的處理函式改為 uiModule 中的版本
     mapModule.map.on('singleclick', uiModule.handleMapClick);
     document.addEventListener('refresh-data', handleDataRefresh);
 
@@ -184,11 +213,14 @@ async function main() {
     if (!isLoggedIn && !navigator.userAgent.toLowerCase().includes("line")) {
         authModule.initializeGoogleButton();
     }
+    
+    // 將定位與資料載入作為第一步
     await initializeUserLocation();
 
-    // 修改：當所有主要資料載入完成後，預先載入聊天歷史紀錄
+    // 當所有主要資料載入完成後，預先載入聊天歷史紀錄
     chatModule.preloadHistory();
 }
 
 // 啟動
 document.addEventListener('DOMContentLoaded', main);
+
