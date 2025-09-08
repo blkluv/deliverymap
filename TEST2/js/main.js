@@ -185,8 +185,10 @@ async function main() {
         authModule.initializeGoogleButton();
     }
     await initializeUserLocation();
+
+    // 修改：當所有主要資料載入完成後，預先載入聊天歷史紀錄
+    chatModule.preloadHistory();
 }
 
 // 啟動
 document.addEventListener('DOMContentLoaded', main);
-
