@@ -44,6 +44,18 @@ export function initializeChat() {
                         // 舊版邏輯，現在由 archived history 取代
                         break;
                     case 'chat':
+                        // MODIFIED: For desktop, prevent the echoed message from being appended again,
+                        // as it was already added optimistically.
+                        const isMobile = window.innerWidth < 768;
+                        if (!isMobile) {
+                             const profile = getUserProfile();
+                             const currentUserId = profile.email || profile.lineUserId;
+                             if (data.userId === currentUserId) {
+                                 // On desktop, we've already shown the message optimistically.
+                                 // So, we ignore the echo from the server to prevent duplicates.
+                                 return; 
+                             }
+                        }
                         // 修正：只有對話訊息才觸發計數器
                         if ($('#chat-modal').hasClass('hidden')) {
                             unreadChatCount++;
@@ -198,6 +210,23 @@ function sendChatMessage() {
 
     if (message && ws?.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'chat', message }));
+
+        // MODIFIED: Optimistically append the message for desktop users for instant feedback.
+        const isMobile = window.innerWidth < 768;
+        if (!isMobile) {
+            const profile = getUserProfile();
+            const optimisticMessage = {
+                type: 'chat',
+                message: message,
+                nickname: currentUserDisplayName,
+                city: currentUserCity,
+                pictureUrl: profile.pictureUrl || '',
+                timestamp: new Date().toISOString(),
+                userId: profile.email || profile.lineUserId,
+            };
+            appendChatMessage(optimisticMessage);
+        }
+        
         $input.val('');
     }
 }
