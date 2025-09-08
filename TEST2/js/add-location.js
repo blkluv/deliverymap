@@ -182,8 +182,13 @@ async function handleFormSubmit(e) {
     const lonLat = ol.proj.toLonLat(finalCoords);
     const profile = getUserProfile();
     const formData = new FormData($form[0]);
+
+    // ** MODIFIED: 修正決定 action 的邏輯 **
+    // 錯誤的邏輯會把一般使用者的編輯誤判為 admin_modify
+    // const action = formData.get('areaRowIndex') ? 'user_update_area' : formData.get('rowIndex') ? 'admin_modify' : formData.get('originalName') ? 'update' : 'create';
+    // 修正後的邏輯
     const action = formData.get('areaRowIndex') ? 'user_update_area' : 
-                   formData.get('rowIndex') ? 'admin_modify' : 
+                   formData.get('rowIndex') ? 'update' : // <- 關鍵修正！
                    formData.get('originalName') ? 'update' : 'create';
 
     const payload = {
@@ -194,9 +199,9 @@ async function handleFormSubmit(e) {
         lineUserId: profile.lineUserId,
         submitterName: profile.name || 'N/A',
         submitterEmail: profile.email || 'N/A',
-        name: formData.get('address'),
-        areaName: formData.get('areaName'),
+        submitterLineId: profile.lineUserId || 'N/A', // 確保送出 line id
         address: formData.get('address'),
+        areaName: formData.get('areaName'),
         lon: lonLat[0],
         lat: lonLat[1],
         timestamp: new Date().toISOString(),
