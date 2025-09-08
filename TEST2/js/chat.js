@@ -156,7 +156,8 @@ async function loadArchivedChatHistory() {
         $chatMessages.find('.loading-message').remove();
 
         if (Array.isArray(history) && history.length > 0) {
-            history.forEach(log => {
+            // MODIFIED: 逐行顯示歷史訊息
+            for (const log of history) {
                 appendChatMessage({
                     type: 'chat',
                     message: log.message,
@@ -166,7 +167,9 @@ async function loadArchivedChatHistory() {
                     timestamp: log.updated_time,
                     userId: log.conversation_id,
                 });
-            });
+                // 每則訊息間隔 20 毫秒，製造逐行出現的效果
+                await new Promise(resolve => setTimeout(resolve, 20));
+            }
         }
         
         isHistoryLoaded = true;
@@ -297,7 +300,7 @@ async function handleMuteUserSubmit(e) {
     showNotification(`正在禁言 ${contextMenuTarget.userName}...`, 'info');
     
     try {
-        const result = await api.muteUserAPI(contextMenuTarget.userId, contextMenuTarget.userName, duration);
+        const result = await api.muteUserAPI(contextMenu.userId, contextMenuTarget.userName, duration);
         if (result.status !== 'success') throw new Error(result.message);
         showNotification(`${contextMenuTarget.userName} 已被禁言。`, 'success');
         $('#mute-user-modal').addClass('hidden');
