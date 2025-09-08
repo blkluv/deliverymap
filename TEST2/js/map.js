@@ -7,6 +7,9 @@ import { mapIcons, categoryColors, clusterColorPalette, LABEL_VISIBILITY_ZOOM } 
 const styleCache = {};
 export let dragPanInteraction = null;
 
+// 新增：偵測是否為行動裝置
+const isMobile = window.innerWidth < 768;
+
 const osmLayer = new ol.layer.Tile({
     source: new ol.source.OSM({
          attributions: '內容為外送員分享經驗 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者',
@@ -131,14 +134,20 @@ export const map = new ol.Map({
         extent: taiwanExtent,
         minZoom: 8,
     }),
-    // 修正：使用新版 OpenLayers 的 controls 語法
-    controls: [
-        new ol.control.Zoom(),
-        new ol.control.Rotate(),
-        new ol.control.Attribution({
+    // 修改：自訂互動，在手機版上停用旋轉功能
+    interactions: ol.interaction.defaults({
+        altShiftDragRotate: !isMobile,
+        pinchRotate: !isMobile
+    }),
+    // 修改：自訂控制項，在手機版上隱藏旋轉按鈕
+    controls: ol.control.defaults({
+        rotate: !isMobile,
+        attributionOptions: {
             collapsible: false
-        })
-    ]
+        }
+    }).extend([
+        new ol.control.Zoom()
+    ])
 });
 
 // 取得內建的拖曳平移互動
@@ -266,4 +275,3 @@ export function drawCommunityAreas(areas) {
         }
     });
 }
-
