@@ -12,7 +12,7 @@ const isMobile = window.innerWidth < 768;
 
 const osmLayer = new ol.layer.Tile({
     source: new ol.source.OSM({
-         attributions: '內容為外送員分享經驗 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者',
+         attributions: '內容為外送員分享經驗 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap',
     }),
     zIndex: 0
 });
