@@ -150,7 +150,7 @@ async function loadArchivedChatHistory() {
     systemMessageQueue = [];
     
     // 依序顯示載入訊息
-    appendLoadingMessage('讀取使用者訊息...');
+    appendLoadingMessage('讀取使用者訊息...(${userId})');
     await new Promise(resolve => setTimeout(resolve, 200));
     appendLoadingMessage(`正在偵測你的位置... (${currentUserCity})`);
     await new Promise(resolve => setTimeout(resolve, 300));
