@@ -114,17 +114,47 @@ export function sendJoinMessage() {
 }
 
 /**
+ * 將一則系統/載入訊息附加到聊天視窗。
+ * @param {string} message - 要顯示的訊息。
+ */
+function appendLoadingMessage(message) {
+    const $chatMessages = $('#chat-messages');
+    const messageHtml = `<div class="text-center text-xs text-gray-500 italic py-1 loading-message">${message}</div>`;
+    $chatMessages.append(messageHtml);
+    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+}
+
+/**
  * 載入存檔的歷史聊天紀錄。
  */
 async function loadArchivedChatHistory() {
     if (!getLoginStatus()) return;
-    try {
-        // 修正：重設旗標與佇列
-        isHistoryLoaded = false;
-        systemMessageQueue = [];
-        const $chatMessages = $('#chat-messages').empty();
 
+    const $chatMessages = $('#chat-messages').empty();
+    const $chatInput = $('#chat-input');
+    const $sendBtn = $('#send-chat-btn');
+
+    // 鎖定輸入區域
+    $chatInput.prop('disabled', true).attr('placeholder', '載入中...');
+    $sendBtn.prop('disabled', true);
+
+    isHistoryLoaded = false;
+    systemMessageQueue = [];
+    
+    try {
+        // 依序顯示載入訊息
+        appendLoadingMessage('讀取使用者訊息...');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        appendLoadingMessage(`正在偵測你的位置... (${currentUserCity})`);
+        await new Promise(resolve => setTimeout(resolve, 400));
+        
+        appendLoadingMessage('讀取歷史訊息...');
         const history = await api.getArchivedChatHistory();
+        
+        // 顯示歷史紀錄前移除載入訊息
+        $chatMessages.find('.loading-message').remove();
+
         if (Array.isArray(history) && history.length > 0) {
             history.forEach(log => {
                 appendChatMessage({
@@ -139,7 +169,6 @@ async function loadArchivedChatHistory() {
             });
         }
         
-        // 修正：設定旗標為 true，並處理佇列中的訊息
         isHistoryLoaded = true;
         processSystemMessageQueue();
 
@@ -147,6 +176,12 @@ async function loadArchivedChatHistory() {
 
     } catch (error) {
         console.error("無法載入歷史聊天紀錄:", error);
+        $chatMessages.find('.loading-message').remove();
+        appendLoadingMessage('載入歷史紀錄失敗，請稍後再試。');
+    } finally {
+        // 解鎖輸入區域
+        $chatInput.prop('disabled', false).attr('placeholder', '輸入訊息...');
+        $sendBtn.prop('disabled', false);
     }
 }
 
