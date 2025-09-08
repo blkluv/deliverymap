@@ -10,14 +10,12 @@ import * as api from './api.js';
 let ws = null;
 let heartbeatInterval = null;
 let unreadChatCount = 0;
-let currentUserDisplayName = '匿名';
 let currentUserCity = '未知區域';
 let contextMenuTarget = { userId: null, userName: null };
-// 修正：新增旗標與佇列來管理系統訊息
-let isHistoryLoaded = false;
 let systemMessageQueue = [];
+// 修改：用於快取歷史訊息的 Promise，避免重複載入
+let historyPromise = null;
 
-export const setCurrentUserDisplayName = (name) => currentUserDisplayName = name;
 export const setCurrentUserCity = (city) => currentUserCity = city || '未知區域';
 
 /**
@@ -44,19 +42,15 @@ export function initializeChat() {
                         // 舊版邏輯，現在由 archived history 取代
                         break;
                     case 'chat':
-                        // MODIFIED: For desktop, prevent the echoed message from being appended again,
-                        // as it was already added optimistically.
                         const isMobile = window.innerWidth < 768;
                         if (!isMobile) {
                              const profile = getUserProfile();
                              const currentUserId = profile.email || profile.lineUserId;
                              if (data.userId === currentUserId) {
-                                 // On desktop, we've already shown the message optimistically.
-                                 // So, we ignore the echo from the server to prevent duplicates.
+                                 // 在電腦版上，我們已經預先顯示了訊息，所以忽略伺服器的回送以避免重複。
                                  return; 
                              }
                         }
-                        // 修正：只有對話訊息才觸發計數器
                         if ($('#chat-modal').hasClass('hidden')) {
                             unreadChatCount++;
                             $('#chat-unread-badge').text(unreadChatCount).removeClass('hidden');
@@ -66,8 +60,8 @@ export function initializeChat() {
                     case 'system_join':
                     case 'system_leave':
                     case 'system_name_change':
-                        // 修正：如果歷史紀錄尚未載入，就先將系統訊息存入佇列
-                        if (isHistoryLoaded) {
+                        // 如果歷史紀錄尚未載入，就先將系統訊息存入佇列
+                        if (historyPromise && historyPromise.then) {
                             appendChatMessage(data);
                         } else {
                             systemMessageQueue.push(data);
@@ -106,7 +100,8 @@ export function sendJoinMessage() {
         ws.send(JSON.stringify({
             type: 'join',
             userId: profile.email || profile.lineUserId,
-            nickname: currentUserDisplayName,
+            // 修改：直接從 auth 模組取得目前的使用者名稱
+            nickname: profile.name || '匿名',
             pictureUrl: profile.pictureUrl || '',
             city: currentUserCity
         }));
@@ -125,7 +120,22 @@ function appendLoadingMessage(message) {
 }
 
 /**
- * 載入存檔的歷史聊天紀錄。
+ * 預先載入聊天歷史紀錄。
+ */
+export function preloadHistory() {
+    if (!historyPromise && getLoginStatus()) {
+        historyPromise = api.getArchivedChatHistory();
+        // 處理潛在的錯誤，這樣它們就不會導致未處理的 promise rejection
+        historyPromise.catch(err => {
+            console.error("聊天歷史紀錄預載失敗:", err);
+            historyPromise = null; // 如果預載失敗，允許重試
+        });
+    }
+}
+
+
+/**
+ * 載入存檔的歷史聊天紀錄並顯示在畫面上。
  */
 async function loadArchivedChatHistory() {
     if (!getLoginStatus()) return;
@@ -137,26 +147,26 @@ async function loadArchivedChatHistory() {
     // 鎖定輸入區域
     $chatInput.prop('disabled', true).attr('placeholder', '載入中...');
     $sendBtn.prop('disabled', true);
-
-    isHistoryLoaded = false;
     systemMessageQueue = [];
     
+    // 依序顯示載入訊息
+    appendLoadingMessage('讀取使用者訊息...');
+    await new Promise(resolve => setTimeout(resolve, 200));
+    appendLoadingMessage(`正在偵測你的位置... (${currentUserCity})`);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    appendLoadingMessage('讀取歷史訊息...');
+
     try {
-        // 依序顯示載入訊息
-        appendLoadingMessage('讀取使用者訊息...');
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // 如果 promise 不存在 (例如預載失敗或未執行)，則立即開始載入
+        if (!historyPromise) {
+            preloadHistory();
+        }
         
-        appendLoadingMessage(`正在偵測你的位置... (${currentUserCity})`);
-        await new Promise(resolve => setTimeout(resolve, 400));
+        const history = await historyPromise;
         
-        appendLoadingMessage('讀取歷史訊息...');
-        const history = await api.getArchivedChatHistory();
-        
-        // 顯示歷史紀錄前移除載入訊息
         $chatMessages.find('.loading-message').remove();
 
         if (Array.isArray(history) && history.length > 0) {
-            // MODIFIED: 逐行顯示歷史訊息
             for (const log of history) {
                 appendChatMessage({
                     type: 'chat',
@@ -167,18 +177,16 @@ async function loadArchivedChatHistory() {
                     timestamp: log.updated_time,
                     userId: log.conversation_id,
                 });
-                // 每則訊息間隔 20 毫秒，製造逐行出現的效果
                 await new Promise(resolve => setTimeout(resolve, 20));
             }
         }
         
-        isHistoryLoaded = true;
         processSystemMessageQueue();
-
         $chatMessages.scrollTop($chatMessages[0].scrollHeight);
 
     } catch (error) {
         console.error("無法載入歷史聊天紀錄:", error);
+        historyPromise = null; // 發生錯誤時重設 promise 以允許重試
         $chatMessages.find('.loading-message').remove();
         appendLoadingMessage('載入歷史紀錄失敗，請稍後再試。');
     } finally {
@@ -249,14 +257,14 @@ function sendChatMessage() {
     if (message && ws?.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'chat', message }));
 
-        // MODIFIED: Optimistically append the message for desktop users for instant feedback.
         const isMobile = window.innerWidth < 768;
         if (!isMobile) {
             const profile = getUserProfile();
             const optimisticMessage = {
                 type: 'chat',
                 message: message,
-                nickname: currentUserDisplayName,
+                // 修改：直接從 auth 模組取得目前的使用者名稱
+                nickname: profile.name || '匿名',
                 city: currentUserCity,
                 pictureUrl: profile.pictureUrl || '',
                 timestamp: new Date().toISOString(),
@@ -300,7 +308,7 @@ async function handleMuteUserSubmit(e) {
     showNotification(`正在禁言 ${contextMenuTarget.userName}...`, 'info');
     
     try {
-        const result = await api.muteUserAPI(contextMenu.userId, contextMenuTarget.userName, duration);
+        const result = await api.muteUserAPI(contextMenuTarget.userId, contextMenuTarget.userName, duration);
         if (result.status !== 'success') throw new Error(result.message);
         showNotification(`${contextMenuTarget.userName} 已被禁言。`, 'success');
         $('#mute-user-modal').addClass('hidden');
@@ -318,7 +326,8 @@ export function setupChatListeners() {
 
     $('#open-chat-btn').on('click', async () => {
         $('#chat-modal').removeClass('hidden');
-        // 修正：每次打開都重新載入歷史紀錄
+        // 修改：每次打開時都呼叫 loadArchivedChatHistory，
+        // 該函式內部會處理快取，確保只載入一次資料但每次都正確渲染畫面。
         await loadArchivedChatHistory();
         unreadChatCount = 0;
         $('#chat-unread-badge').addClass('hidden').text('');
@@ -354,3 +363,4 @@ export function setupChatListeners() {
         }
     });
 }
+
