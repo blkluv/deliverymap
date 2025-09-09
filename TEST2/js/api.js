@@ -229,4 +229,3 @@ export async function muteUserAPI(targetUserId, targetUserName, duration, userPr
     });
     return response.json();
 }
-
