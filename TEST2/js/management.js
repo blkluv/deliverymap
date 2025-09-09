@@ -323,3 +323,4 @@ function renderAreaOnMap(mapId, areaBounds) {
         return null;
     }
 }
+
