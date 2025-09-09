@@ -33,6 +33,40 @@
         })();
     </script>
     
+    <!-- [MODIFIED] Initial Location Fetcher Script -->
+    <script>
+        // 將使用者座標的讀取設為第一步，以利地圖順暢載入
+        window.initialLocationPromise = new Promise((resolve) => {
+            if (!navigator.geolocation) {
+                console.warn('您的瀏覽器不支援地理定位。');
+                // 預設台灣中心點
+                resolve({ lon: 120.9, lat: 23.9, zoom: 8, success: false });
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    resolve({
+                        lon: position.coords.longitude,
+                        lat: position.coords.latitude,
+                        zoom: 16, // 成功取得位置時，使用較大的縮放層級
+                        success: true
+                    });
+                },
+                () => {
+                    console.warn('無法取得使用者位置。');
+                    // 若失敗，同樣使用預設台灣中心點
+                    resolve({ lon: 120.9, lat: 23.9, zoom: 8, success: false });
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 8000, // 8秒超時
+                    maximumAge: 0
+                }
+            );
+        });
+    </script>
+    
     <!-- Libraries CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css">
     
@@ -428,3 +462,4 @@
     </script>
 </body>
 </html>
+
