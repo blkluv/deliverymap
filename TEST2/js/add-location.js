@@ -159,6 +159,10 @@ async function handleCompletePlacementClick() {
     $('#complete-placement-btn').addClass('hidden');
 }
 
+/**
+ * [MODIFIED] 處理表單提交
+ * - 修正了判斷 `action` 類型的邏輯，確保普通使用者的修改請求被識別為 'update' 而非 'admin_modify'
+ */
 async function handleFormSubmit(e) {
     e.preventDefault();
     const $form = $(e.target);
@@ -174,7 +178,7 @@ async function handleFormSubmit(e) {
             return;
         }
         areaBoundsStr = compressGridData(selectedGridCells);
-        finalCoords = map.getView().getCenter(); // 或使用 lockedCenterForEditing
+        finalCoords = map.getView().getCenter();
     } else {
         finalCoords = isMobile ? tempMarker.getPosition() : map.getView().getCenter();
         if (!finalCoords) {
@@ -188,13 +192,25 @@ async function handleFormSubmit(e) {
     const lonLat = ol.proj.toLonLat(finalCoords);
     const profile = getUserProfile();
     const formData = new FormData($form[0]);
-    const action = formData.get('areaRowIndex') ? 'user_update_area' : 
-                   formData.get('rowIndex') ? 'admin_modify' : 
-                   formData.get('originalName') ? 'update' : 'create';
+    
+    // --- 修正 Action 判斷邏輯 ---
+    const isAreaEdit = !!formData.get('areaRowIndex');
+    const isPointEdit = !!formData.get('rowIndex');
+
+    let action;
+    if (isAreaEdit) {
+        action = 'user_update_area';
+    } else if (isPointEdit) {
+        action = 'update'; // <-- 這行是關鍵修正，之前錯誤地設為 admin_modify
+    } else {
+        action = 'create';
+    }
+    // --- 修正結束 ---
 
     const payload = {
         action,
         rowIndex: formData.get('areaRowIndex') || formData.get('rowIndex'),
+        // 'originalName' is not strictly needed by the new backend but doesn't hurt to send
         originalName: formData.get('originalName'),
         userEmail: profile.email,
         lineUserId: profile.lineUserId,
@@ -399,4 +415,3 @@ export function setupAddLocationListeners() {
         $(this).addClass('hidden');
     });
 }
-
