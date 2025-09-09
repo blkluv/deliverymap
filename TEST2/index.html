@@ -8,7 +8,7 @@
     <!-- LIFF SDK -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
-    <!-- Facebook Blocker Script (FIXED) -->
+    <!-- Facebook Blocker Script -->
     <script>
         (function() {
             const ua = navigator.userAgent.toLowerCase();
@@ -47,7 +47,7 @@
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
     <script src="https://unpkg.com/pinyin-pro@3.18.2/dist/index.js"></script>
     
-    <!-- Inline Style (from original file) -->
+    <!-- Inline Style -->
     <style>
         .chat-message-item {
             -webkit-user-select: none; /* Safari */
@@ -149,14 +149,14 @@
                     </div>
                 </div>
 
-                <div id="grid-color-palette" class="hidden absolute top-20 z-20 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg flex flex-row items-center space-x-6">
-                    <div class="flex items-center space-x-2">
-                        <label class="block text-sm font-medium text-gray-700">格子</label>
-                        <input type="color" id="palette-fill-color" value="#ef4444" class="w-8 h-8 p-0 border-none rounded cursor-pointer" style="appearance: none; -webkit-appearance: none; background-color: transparent;">
+                <div id="grid-color-palette" class="hidden absolute top-4 right-24 z-20 bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-lg flex flex-col space-y-2 w-28">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">格子顏色</label>
+                        <input type="color" id="palette-fill-color" value="#ef4444">
                     </div>
-                    <div class="flex items-center space-x-2">
-                        <label class="block text-sm font-medium text-gray-700">標記</label>
-                        <input type="color" id="palette-marker-color" value="#000000" class="w-8 h-8 p-0 border-none rounded cursor-pointer" style="appearance: none; -webkit-appearance: none; background-color: transparent;">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">標記顏色</label>
+                        <input type="color" id="palette-marker-color" value="#000000">
                     </div>
                 </div>
                 
@@ -241,7 +241,6 @@
         </div>
 
         <!-- Modals -->
-        <!-- 新增/編輯店家 Modal (Mobile Popup) -->
         <div id="add-location-modal-mobile" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 pt-12 sm:items-center sm:pt-4 overflow-hidden">
              <div class="bg-white shadow-2xl w-full max-w-md rounded-lg flex flex-col transition-transform duration-300 ease-in-out" style="max-height: calc(100vh - 5rem);">
                 <form id="add-location-form-mobile" class="flex-grow flex flex-col overflow-hidden">
@@ -271,7 +270,6 @@
             </div>
         </div>
 
-        <!-- 篩選 Modal -->
         <div id="filter-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
                 <div class="p-6 border-b flex justify-between items-center">
@@ -295,7 +293,6 @@
             </div>
         </div>
         
-        <!-- 公司產品 Modal -->
         <div id="product-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
                 <div class="p-6 border-b flex justify-between items-center">
@@ -306,7 +303,6 @@
             </div>
         </div>
 
-        <!-- Management Modal -->
         <div id="management-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col" style="height: 80vh;">
                 <div class="p-4 border-b flex justify-between items-center">
@@ -326,7 +322,6 @@
             </div>
         </div>
 
-        <!-- Review Modal -->
         <div id="review-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col" style="height: 90vh;">
                 <div class="p-4 border-b flex justify-between items-center">
@@ -353,7 +348,6 @@
             </div>
         </div>
 
-        <!-- Chat Modal -->
         <div id="chat-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col" style="height: 70vh;">
                 <div class="p-4 border-b flex justify-between items-center">
@@ -378,20 +372,17 @@
             </div>
         </div>
 
-        <!-- In-App Browser Blocker for Facebook -->
         <div id="facebook-blocker-modal" class="fixed inset-0 bg-black/80 z-[200] flex-col items-center justify-center p-8 text-white text-center hidden">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             <h2 class="text-2xl font-bold mb-4">功能可能受限</h2>
             <p class="text-lg">您似乎正在使用 Facebook 內建瀏覽器。<br><br>為了獲得最佳體驗，建議您點擊畫面右上角的「<span class="font-bold">•••</span>」選單，然後選擇「<span class="font-bold">在瀏覽器中開啟</span>」。</p>
         </div>
 
-        <!-- Chat Context Menu -->
         <div id="chat-context-menu" class="hidden absolute z-[100] bg-white rounded-md shadow-lg py-1 w-32">
             <a href="#" id="context-private-msg" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">私訊</a>
             <a href="#" id="context-mute-user" class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50 admin-only">禁言</a>
         </div>
 
-        <!-- Mute User Modal -->
         <div id="mute-user-modal" class="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4 hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-sm">
                 <form id="mute-user-form">
@@ -430,7 +421,6 @@
                 '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
             ).join(''));
             
-            // Dispatch a custom event for the auth module to handle
             window.dispatchEvent(new CustomEvent('google-signin-success', { 
                 detail: JSON.parse(jsonPayload) 
             }));
