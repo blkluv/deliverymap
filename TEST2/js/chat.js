@@ -2,7 +2,7 @@
  * @file 管理聊天室的 WebSocket 連線與訊息處理。
  */
 import { WEBSOCKET_URL } from './config.js';
-import { getLoginStatus, getIsAdmin, getUserProfile } from './auth.js';
+import { getLoginStatus, getIsAdmin, getUserProfile, triggerLogin } from './auth.js';
 import { showNotification } from './ui.js';
 import * as api from './api.js';
 
@@ -13,7 +13,6 @@ let unreadChatCount = 0;
 let currentUserCity = '未知區域';
 let contextMenuTarget = { userId: null, userName: null };
 let systemMessageQueue = [];
-// 修改：用於快取歷史訊息的 Promise，避免重複載入
 let historyPromise = null;
 
 export const setCurrentUserCity = (city) => currentUserCity = city || '未知區域';
@@ -39,14 +38,11 @@ export function initializeChat() {
                 const data = JSON.parse(event.data);
                 switch (data.type) {
                     case 'history':
-                        // 舊版邏輯，現在由 archived history 取代
                         break;
                     case 'chat':
-                        // 修改：不論裝置為何，都檢查是否為使用者自己發送的訊息，以避免重複顯示
                         const profile = getUserProfile();
                         const currentUserId = profile.email || profile.lineUserId;
                         if (data.userId === currentUserId) {
-                            // 我們已經預先顯示了訊息，所以忽略伺服器的回送以避免重複。
                             return; 
                         }
                         
@@ -59,14 +55,13 @@ export function initializeChat() {
                     case 'system_join':
                     case 'system_leave':
                     case 'system_name_change':
-                        // 如果歷史紀錄尚未載入，就先將系統訊息存入佇列
                         if (historyPromise && historyPromise.then) {
                             appendChatMessage(data);
                         } else {
                             systemMessageQueue.push(data);
                         }
                         break;
-                    case 'pong': // Heartbeat response
+                    case 'pong':
                         break;
                     default:
                         console.warn("收到未知的訊息類型:", data.type);
@@ -99,7 +94,6 @@ export function sendJoinMessage() {
         ws.send(JSON.stringify({
             type: 'join',
             userId: profile.email || profile.lineUserId,
-            // 修改：直接從 auth 模組取得目前的使用者名稱
             nickname: profile.name || '匿名',
             pictureUrl: profile.pictureUrl || '',
             city: currentUserCity
@@ -124,10 +118,9 @@ function appendLoadingMessage(message) {
 export function preloadHistory() {
     if (!historyPromise && getLoginStatus()) {
         historyPromise = api.getArchivedChatHistory();
-        // 處理潛在的錯誤，這樣它們就不會導致未處理的 promise rejection
         historyPromise.catch(err => {
             console.error("聊天歷史紀錄預載失敗:", err);
-            historyPromise = null; // 如果預載失敗，允許重試
+            historyPromise = null;
         });
     }
 }
@@ -143,12 +136,10 @@ async function loadArchivedChatHistory() {
     const $chatInput = $('#chat-input');
     const $sendBtn = $('#send-chat-btn');
 
-    // 鎖定輸入區域
     $chatInput.prop('disabled', true).attr('placeholder', '載入中...');
     $sendBtn.prop('disabled', true);
     systemMessageQueue = [];
     
-    // 依序顯示載入訊息
     appendLoadingMessage('讀取使用者訊息...');
     await new Promise(resolve => setTimeout(resolve, 200));
     appendLoadingMessage(`正在偵測你的位置... (${currentUserCity})`);
@@ -156,7 +147,6 @@ async function loadArchivedChatHistory() {
     appendLoadingMessage('讀取歷史訊息...');
 
     try {
-        // 如果 promise 不存在 (例如預載失敗或未執行)，則立即開始載入
         if (!historyPromise) {
             preloadHistory();
         }
@@ -185,11 +175,10 @@ async function loadArchivedChatHistory() {
 
     } catch (error) {
         console.error("無法載入歷史聊天紀錄:", error);
-        historyPromise = null; // 發生錯誤時重設 promise 以允許重試
+        historyPromise = null;
         $chatMessages.find('.loading-message').remove();
         appendLoadingMessage('載入歷史紀錄失敗，請稍後再試。');
     } finally {
-        // 解鎖輸入區域
         $chatInput.prop('disabled', false).attr('placeholder', '輸入訊息...');
         $sendBtn.prop('disabled', false);
     }
@@ -200,7 +189,7 @@ async function loadArchivedChatHistory() {
  */
 function processSystemMessageQueue() {
     systemMessageQueue.forEach(appendChatMessage);
-    systemMessageQueue = []; // 清空佇列
+    systemMessageQueue = [];
 }
 
 
@@ -256,12 +245,10 @@ function sendChatMessage() {
     if (message && ws?.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'chat', message }));
 
-        // 修改：不論裝置為何，都立即顯示使用者自己發送的訊息
         const profile = getUserProfile();
         const optimisticMessage = {
             type: 'chat',
             message: message,
-            // 修改：直接從 auth 模組取得目前的使用者名稱
             nickname: profile.name || '匿名',
             city: currentUserCity,
             pictureUrl: profile.pictureUrl || '',
@@ -322,9 +309,11 @@ export function setupChatListeners() {
     let longPressTimer;
 
     $('#open-chat-btn').on('click', async () => {
+        if (!getLoginStatus()) {
+            await triggerLogin();
+            return;
+        }
         $('#chat-modal').removeClass('hidden');
-        // 修改：每次打開時都呼叫 loadArchivedChatHistory，
-        // 該函式內部會處理快取，確保只載入一次資料但每次都正確渲染畫面。
         await loadArchivedChatHistory();
         unreadChatCount = 0;
         $('#chat-unread-badge').addClass('hidden').text('');
@@ -360,4 +349,3 @@ export function setupChatListeners() {
         }
     });
 }
-
