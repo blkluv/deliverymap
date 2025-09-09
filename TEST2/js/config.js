@@ -3,7 +3,7 @@
  */
 
 // --- API & URLs ---
-export const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyHsMxgHOuW2tAl2cIlKJ1tRVCSrDfoEAHGQiVejRPjHnKzJf6cxEa5x8dhnRLVPWBORg/exec';
+export const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDR4zC0wsUKCFJVMly2YULVNAoiInAK1WiNG9eUSw3t1LrYnt4-Z6mhvMaYMPCx0u5Jw/exec';
 export const CHAT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_Xmv4WeUCDOjpZmXdHLwtWg4kAOhcMB0brJQWkzquFqOLjupnFcB7AvdQM022dqWrQ/exec';
 export const GOOGLE_API_KEY = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
 export const WEBSOCKET_URL = 'wss://deliverymap.onrender.com/';
