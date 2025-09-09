@@ -19,22 +19,42 @@ export const getIsAdmin = () => isAdmin;
 const LIFF_ID = '2008020548-lVYKgg0B';
 
 /**
+ * 觸發登入流程。
+ * 如果使用者未登入，此函式會根據當前環境（LINE 或一般瀏覽器）啟動對應的登入程序。
+ */
+export async function triggerLogin() {
+    const isLineBrowser = navigator.userAgent.toLowerCase().includes("line");
+    if (isLineBrowser) {
+        // 在 LINE 環境中，呼叫 LIFF 登入，會彈出原生登入視窗
+        await initializeLiffLogin();
+    } else {
+        // 在一般瀏覽器中，提示使用者點擊 Google 登入按鈕
+        showNotification('請點擊右上角的按鈕登入', 'info');
+        const loginButton = document.getElementById('google-signin-container');
+        if (loginButton) {
+            // 新增視覺提示效果，引導使用者點擊
+            loginButton.style.transition = 'all 0.2s ease-in-out';
+            loginButton.style.transform = 'scale(1.05)';
+            loginButton.style.boxShadow = '0 0 15px rgba(59, 130, 246, 0.7)';
+            setTimeout(() => {
+                loginButton.style.transform = 'scale(1)';
+                loginButton.style.boxShadow = '';
+            }, 2500);
+        }
+    }
+}
+
+/**
  * 處理 LINE LIFF 登入流程
  * 當此函式在 LINE App 中被呼叫時，liff.login() 將會觸發原生的滑出式登入畫面。
  */
 export async function initializeLiffLogin() {
     try {
-        // 初始化 LIFF
         await liff.init({ liffId: LIFF_ID });
 
-        // 檢查使用者是否已登入 LINE
         if (!liff.isLoggedIn()) {
-            // 若未登入，則呼叫 LIFF 登入。
-            // 在 LINE 手機 App 中，這會觸發您描述的「由下往上滑出」的登入視窗。
-            // 登入後，頁面會自動重新載入，並進入下方的 else 區塊。
             liff.login();
         } else {
-            // 若已登入，則取得個人資料並交由後端處理
             const lineProfile = await liff.getProfile();
             await handleLineSignIn(lineProfile);
         }
@@ -59,7 +79,6 @@ async function handleLineSignIn(lineProfile) {
 
         if (result.status === 'success' && result.token) {
             localStorage.setItem(SESSION_TOKEN_KEY, result.token);
-            // 重新驗證 token 來更新整個 app 的狀態
             await verifyToken();
         } else {
             showNotification('登入失敗，請稍後再試。', 'error');
@@ -197,7 +216,7 @@ export function initializeGoogleButton() {
     if (window.google?.accounts?.id) {
         google.accounts.id.initialize({
             client_id: '35839698842-b73h9naufqdm7d0j378882k1e6aq6064.apps.googleusercontent.com',
-            callback: window.handleCredentialResponse // 確保這是全域函式
+            callback: window.handleCredentialResponse
         });
         google.accounts.id.renderButton(
             document.getElementById('google-signin-container'),
@@ -231,7 +250,7 @@ async function handleNicknameEdit() {
             document.dispatchEvent(new CustomEvent('nickname-changed', { detail: { newName: trimmedName } }));
         } catch (error) {
             showNotification(`暱稱更新失敗: ${error.message}`, 'error');
-            $('#user-name').text(currentName); // 還原
+            $('#user-name').text(currentName);
             userProfile.name = currentName;
         }
     }
