@@ -175,20 +175,34 @@ async function main() {
     addLocationModule.setupAddLocationListeners();
     managementModule.setupManagementListeners();
     authModule.setupAuthListeners();
-    // 修改：將地圖點擊事件的處理函式改為 uiModule 中的版本
     mapModule.map.on('singleclick', uiModule.handleMapClick);
     document.addEventListener('refresh-data', handleDataRefresh);
 
-    // 認證與資料載入流程
+    // --- 認證與資料載入流程 ---
+    // 1. 驗證本機儲存的 token
     const isLoggedIn = await authModule.verifyToken();
-    if (!isLoggedIn && !navigator.userAgent.toLowerCase().includes("line")) {
-        authModule.initializeGoogleButton();
+    // 2. 檢查是否在 LINE App 內
+    const isLineBrowser = navigator.userAgent.toLowerCase().includes("line");
+
+    // 3. 如果未登入，根據環境啟動對應的登入流程
+    if (!isLoggedIn) {
+        if (isLineBrowser) {
+            // 在 LINE App 中 -> 啟動 LIFF 登入流程
+            await authModule.initializeLiffLogin();
+            // 注意：initializeLiffLogin 若需重新導向，後續代碼可能不會執行
+        } else {
+            // 在一般瀏覽器中 -> 顯示 Google 登入按鈕
+            authModule.initializeGoogleButton();
+        }
     }
+    
+    // 4. 不論登入狀態如何，都繼續載入地理位置和地圖資料
     await initializeUserLocation();
 
-    // 修改：當所有主要資料載入完成後，預先載入聊天歷史紀錄
+    // 5. 當所有主要資料載入完成後，預先載入聊天歷史紀錄
     chatModule.preloadHistory();
 }
 
 // 啟動
 document.addEventListener('DOMContentLoaded', main);
+
