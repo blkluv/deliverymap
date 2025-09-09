@@ -190,11 +190,16 @@ async function handleFormSubmit(e) {
     const payload = {
         action: isAreaUpdate ? 'user_update_area' : (isPointUpdate ? 'update' : 'create'),
         rowIndex: formData.get('areaRowIndex') || formData.get('rowIndex'),
-        originalName: formData.get('originalName'),
+        
+        // 用於權限驗證的當前使用者資訊
         userEmail: profile.email,
         lineUserId: profile.lineUserId,
+        
+        // 用於寫入新紀錄的提交者資訊
         submitterName: profile.name || 'N/A',
-        submitterEmail: profile.email || 'N/A',
+        submitterEmail: profile.email, // 對於 LINE 使用者，此值為 null
+        submitterLineId: profile.lineUserId, // 對於 LINE 使用者，此值將會有內容
+
         name: formData.get('address'),
         areaName: formData.get('areaName'),
         address: formData.get('address'),
