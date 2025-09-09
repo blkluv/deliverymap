@@ -3,7 +3,7 @@
  */
 import { showNotification, uiState } from './ui.js';
 import * as api from './api.js';
-import { getLoginStatus, getUserProfile } from './auth.js';
+import { getLoginStatus, getUserProfile, triggerLogin } from './auth.js';
 import { map, radiusSource } from './map.js';
 import { toggleAreaSelectionMode, getSelectedGridCells, clearSelectedGridCells, setLockedCenterForEditing } from './grid.js';
 
@@ -110,7 +110,6 @@ export function exitAddMode() {
     
     $('form[id^="add-location-form"]').find('#add-is-area').prop('checked', false);
     $('form[id^="add-location-form"]').find('#edit-row-index, #edit-area-row-index, #edit-original-name').val('');
-    // 觸發資料刷新事件
     document.dispatchEvent(new CustomEvent('refresh-data'));
 }
 
@@ -118,7 +117,7 @@ export function exitAddMode() {
 
 async function handleAddLocationClick() {
     if (!getLoginStatus()) {
-        showNotification('請先登入才能新增地點！', 'warning');
+        await triggerLogin();
         return;
     }
     showNotification('正在取得您的目前位置...');
@@ -137,18 +136,14 @@ async function handleCompletePlacementClick() {
     const finalCoords = tempMarker.getPosition();
     const finalLonLat = ol.proj.toLonLat(finalCoords);
     
-    // 複製桌面版表單結構到行動版
     const formContent = $('#add-location-form > .px-6').children().clone(true, true);
     $('#mobile-point-fields').empty().append(formContent);
     
-    // 為建築頁籤建立獨立的表單內容
     const areaFormContent = formContent.clone(true, true);
     $('#mobile-area-fields').empty().append(areaFormContent);
     
-    // 修改：在行動版的建築頁籤中，顯示「社區/區域名稱」欄位
     areaFormContent.find('#add-area-name').closest('div').removeClass('hidden md:block');
 
-    // 調整不同 tab 的欄位顯示
     $('#mobile-area-fields').find('#add-category, #add-blacklist-category, #add-blacklist-reason').closest('div').hide();
 
     await reverseGeocodeAndUpdateForm(finalLonLat[0], finalLonLat[1], $('#add-location-form-mobile'));
@@ -159,10 +154,6 @@ async function handleCompletePlacementClick() {
     $('#complete-placement-btn').addClass('hidden');
 }
 
-/**
- * [MODIFIED] 處理表單提交
- * - 修正了判斷 `action` 類型的邏輯，確保普通使用者的修改請求被識別為 'update' 而非 'admin_modify'
- */
 async function handleFormSubmit(e) {
     e.preventDefault();
     const $form = $(e.target);
@@ -193,24 +184,12 @@ async function handleFormSubmit(e) {
     const profile = getUserProfile();
     const formData = new FormData($form[0]);
     
-    // --- 修正 Action 判斷邏輯 ---
-    const isAreaEdit = !!formData.get('areaRowIndex');
-    const isPointEdit = !!formData.get('rowIndex');
-
-    let action;
-    if (isAreaEdit) {
-        action = 'user_update_area';
-    } else if (isPointEdit) {
-        action = 'update'; // <-- 這行是關鍵修正，之前錯誤地設為 admin_modify
-    } else {
-        action = 'create';
-    }
-    // --- 修正結束 ---
+    const isAreaUpdate = !!formData.get('areaRowIndex');
+    const isPointUpdate = !!formData.get('rowIndex');
 
     const payload = {
-        action,
+        action: isAreaUpdate ? 'user_update_area' : (isPointUpdate ? 'update' : 'create'),
         rowIndex: formData.get('areaRowIndex') || formData.get('rowIndex'),
-        // 'originalName' is not strictly needed by the new backend but doesn't hurt to send
         originalName: formData.get('originalName'),
         userEmail: profile.email,
         lineUserId: profile.lineUserId,
@@ -368,14 +347,11 @@ export function setupAddLocationListeners() {
     $('#add-location-form, #add-location-form-mobile').on('submit', handleFormSubmit);
     $(document).on('change', '#add-address', handleAddressInputChange);
     
-    // 修正：使用更穩健的事件委派來處理核取方塊的變化，確保行為正確
     const handleAreaCheckboxChange = function() {
         const isChecked = this.checked;
         const form = $(this).closest('form');
         const isAreaEdit = !!(form.find('#edit-area-row-index').val());
 
-        // 呼叫 grid 模組中的函式來切換核心模式（例如畫布）
-        // 這個函式會處理工具列的顯示/隱藏
         toggleAreaSelectionMode(isChecked, isAreaEdit ? areaBoundsForEditing : null);
 
         if (isChecked) {
@@ -388,7 +364,6 @@ export function setupAddLocationListeners() {
         }
     };
 
-    // 分別為桌面版和行動版的 Modal 綁定事件監聽器
     $('#add-location-modal').on('change', '#add-is-area', handleAreaCheckboxChange);
     $('#add-location-modal-mobile').on('change', '#add-is-area', handleAreaCheckboxChange);
     
@@ -415,3 +390,4 @@ export function setupAddLocationListeners() {
         $(this).addClass('hidden');
     });
 }
+
