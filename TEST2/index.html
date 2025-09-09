@@ -39,8 +39,8 @@
         window.initialLocationPromise = new Promise((resolve) => {
             if (!navigator.geolocation) {
                 console.warn('您的瀏覽器不支援地理定位。');
-                // 預設台灣中心點
-                resolve({ lon: 120.9, lat: 23.9, zoom: 8, success: false });
+                // 預設台北車站
+                resolve({ lon: 121.5173, lat: 25.0479, zoom: 15, success: false });
                 return;
             }
 
@@ -55,8 +55,8 @@
                 },
                 () => {
                     console.warn('無法取得使用者位置。');
-                    // 若失敗，同樣使用預設台灣中心點
-                    resolve({ lon: 120.9, lat: 23.9, zoom: 8, success: false });
+                    // 若失敗，同樣使用預設台北車站
+                    resolve({ lon: 121.5173, lat: 25.0479, zoom: 15, success: false });
                 },
                 {
                     enableHighAccuracy: true,
