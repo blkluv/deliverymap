@@ -241,8 +241,8 @@ export const map = new ol.Map({
     target: 'map', 
     layers: [osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer],
     view: new ol.View({ 
-        center: ol.proj.fromLonLat([120.9, 23.9]), 
-        zoom: 8,
+        center: ol.proj.fromLonLat([121.5173, 25.0479]), 
+        zoom: 15,
         extent: taiwanExtent,
         minZoom: 8,
         enableRotation: !isMobile,
