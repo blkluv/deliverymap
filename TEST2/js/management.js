@@ -246,15 +246,24 @@ async function handleEditClick() {
 }
 
 async function handleDeleteClick() {
-    const rowIndex = $(this).data('row-index'), isCommunity = $(this).data('is-community');
+    const rowIndex = $(this).data('row-index');
+    const isCommunity = $(this).data('is-community');
+    const profile = getUserProfile();
+    
     if (confirm('確定要刪除這筆您提交的資料嗎？')) {
         showNotification('正在刪除...');
         try {
-            await api.userDelete(rowIndex, isCommunity);
-            showNotification("資料已刪除！", 'success');
-            closeManagementModal();
-            document.dispatchEvent(new CustomEvent('refresh-data'));
-        } catch (error) { showNotification(`刪除失敗: ${error.message}`, 'error'); }
+            const result = await api.userDelete(rowIndex, isCommunity, profile);
+             if (result.status === 'success') {
+                showNotification("資料已刪除！", 'success');
+                closeManagementModal();
+                document.dispatchEvent(new CustomEvent('refresh-data'));
+            } else {
+                throw new Error(result.message || '刪除失敗');
+            }
+        } catch (error) { 
+            showNotification(`刪除失敗: ${error.message}`, 'error'); 
+        }
     }
 }
 
@@ -269,12 +278,21 @@ function handleReviewItemClick() {
 async function handleAdminActionClick() {
     const action = $(this).data('action');
     const report = $('#review-detail-panel').data('report');
+    const profile = getUserProfile();
+
     if (!report || (action === 'delete' && !confirm('確定要永久刪除嗎？'))) return;
 
     try {
-        await api.sendAdminAction(action, report.rowIndex, !!report.isCommunity);
-        document.dispatchEvent(new CustomEvent('refresh-data', { detail: { source: 'review' } }));
-    } catch (error) { /* error shown by api module */ }
+        const result = await api.sendAdminAction(action, report.rowIndex, !!report.isCommunity, profile);
+        if (result.status === 'success') {
+            showNotification('操作成功！', 'success');
+            document.dispatchEvent(new CustomEvent('refresh-data', { detail: { source: 'review' } }));
+        } else {
+            throw new Error(result.message || '操作失敗');
+        }
+    } catch (error) {
+        showNotification(`操作失敗: ${error.message}`, 'error');
+    }
 }
 
 async function openEditModalForUser(report) {
