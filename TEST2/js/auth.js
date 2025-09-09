@@ -15,6 +15,59 @@ export const getLoginStatus = () => isLoggedIn;
 export const getUserProfile = () => userProfile;
 export const getIsAdmin = () => isAdmin;
 
+// --- LIFF ID ---
+const LIFF_ID = '2008020548-lVYKgg0B';
+
+/**
+ * 處理 LINE LIFF 登入流程
+ */
+export async function initializeLiffLogin() {
+    try {
+        // 初始化 LIFF
+        await liff.init({ liffId: LIFF_ID });
+
+        // 檢查使用者是否已登入 LINE
+        if (!liff.isLoggedIn()) {
+            // 若未登入，則導向 LIFF 的登入頁面
+            // liff.login() 會自動處理頁面重新導向
+            liff.login();
+        } else {
+            // 若已登入，則取得個人資料並交由後端處理
+            const lineProfile = await liff.getProfile();
+            await handleLineSignIn(lineProfile);
+        }
+    } catch (error) {
+        console.error('LIFF 初始化或登入失敗:', error);
+        showNotification('LINE 登入失敗，請稍後再試。', 'error');
+    }
+}
+
+/**
+ * 處理 LINE 登入成功後的回應。
+ * @param {Object} lineProfile - 從 LIFF 取得的使用者個人資料。
+ */
+async function handleLineSignIn(lineProfile) {
+    try {
+        const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'line_login', profile: lineProfile })
+        });
+        const result = await response.json();
+
+        if (result.status === 'success' && result.token) {
+            localStorage.setItem(SESSION_TOKEN_KEY, result.token);
+            // 重新驗證 token 來更新整個 app 的狀態
+            await verifyToken();
+        } else {
+            showNotification('登入失敗，請稍後再試。', 'error');
+        }
+    } catch (error) {
+        console.error('LINE login process failed:', error);
+        showNotification('登入時發生錯誤。', 'error');
+    }
+}
+
 /**
  * 處理 Google 登入成功後的回應。
  * @param {Object} googleProfile - 從 Google 取得的使用者個人資料。
