@@ -15,7 +15,7 @@ const isMobile = window.innerWidth < 768;
 
 
 /**
- * 從主模組設定原始報告資料。
+ * 從主模組設定原始報告資料 (用於首次載入)。
  * @param {Array} reports - 所有的地點/區域報告。
  */
 export function setRawReports(reports) {
@@ -51,9 +51,24 @@ export function setupManagementListeners() {
 
 // --- 我的貢獻 Modal ---
 
-function openManagementModal() {
+async function openManagementModal() {
     $('#management-modal').removeClass('hidden');
-    switchManagementTab('locations');
+    // 顯示載入指示器
+    $('#management-list-content, #management-area-content').html('<div class="flex justify-center items-center p-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div></div>');
+    
+    try {
+        // 1. 自動重新獲取最新資料
+        const latestReports = await api.loadData();
+        // 2. 更新模組內部的資料來源
+        rawReports = latestReports;
+        // 3. 使用最新資料渲染介面
+        switchManagementTab('locations');
+    } catch (error) {
+        console.error("無法為管理面板更新資料:", error);
+        showNotification('無法更新資料，請稍後再試', 'error');
+        $('#management-list-content').html('<p class="text-red-500 text-center">無法載入您的貢獻資料。</p>');
+        $('#management-area-content').addClass('hidden');
+    }
 }
 
 function closeManagementModal() {
@@ -79,7 +94,16 @@ function loadUserLocations() {
         return;
     }
 
-    const submissions = rawReports.filter(r => !r.isCommunity && (r.submitterEmail === profile.email || r.lineUserId === profile.lineUserId));
+    const currentUserIdentifier = profile.email || profile.lineUserId;
+    if (!currentUserIdentifier) {
+        $content.html('<p class="text-gray-500">無法識別您的使用者身份。</p>');
+        return;
+    }
+
+    const submissions = rawReports.filter(r => 
+        !r.isCommunity && (r.submitterEmail === currentUserIdentifier)
+    );
+
     if (submissions.length === 0) {
         $content.html('<p class="text-gray-500">您尚未提交任何地點資料。</p>');
         return;
@@ -112,8 +136,17 @@ async function loadUserAreas() {
         $content.html('<p class="text-gray-500">請先登入。</p>');
         return;
     }
+    
+    const currentUserIdentifier = profile.email || profile.lineUserId;
+    if (!currentUserIdentifier) {
+        $content.html('<p class="text-gray-500">無法識別您的使用者身份。</p>');
+        return;
+    }
 
-    const submissions = rawReports.filter(r => r.isCommunity && (r.submitterEmail === profile.email || r.lineUserId === profile.lineUserId));
+    const submissions = rawReports.filter(r => 
+        r.isCommunity && (r['製作者'] === currentUserIdentifier)
+    );
+
     if (submissions.length === 0) {
         $content.html('<p class="text-gray-500">您尚未提交任何建築資料。</p>');
         return;
@@ -341,4 +374,3 @@ function renderAreaOnMap(mapId, areaBounds) {
         return null;
     }
 }
-
