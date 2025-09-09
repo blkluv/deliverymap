@@ -20,6 +20,7 @@ const LIFF_ID = '2008020548-lVYKgg0B';
 
 /**
  * 處理 LINE LIFF 登入流程
+ * 當此函式在 LINE App 中被呼叫時，liff.login() 將會觸發原生的滑出式登入畫面。
  */
 export async function initializeLiffLogin() {
     try {
@@ -28,8 +29,9 @@ export async function initializeLiffLogin() {
 
         // 檢查使用者是否已登入 LINE
         if (!liff.isLoggedIn()) {
-            // 若未登入，則導向 LIFF 的登入頁面
-            // liff.login() 會自動處理頁面重新導向
+            // 若未登入，則呼叫 LIFF 登入。
+            // 在 LINE 手機 App 中，這會觸發您描述的「由下往上滑出」的登入視窗。
+            // 登入後，頁面會自動重新載入，並進入下方的 else 區塊。
             liff.login();
         } else {
             // 若已登入，則取得個人資料並交由後端處理
@@ -173,6 +175,11 @@ async function setLoginState(profile) {
  * @param {string} email - 使用者 Email。
  */
 async function checkIfAdmin(email) {
+    if (!email) {
+        isAdmin = false;
+        $('#review-btn').addClass('hidden');
+        return;
+    }
     try {
         const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?action=checkAdmin&email=${encodeURIComponent(email)}`);
         const result = await response.json();
