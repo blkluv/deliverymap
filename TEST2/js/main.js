@@ -183,16 +183,6 @@ async function main() {
     await finishInitializationWithLocation(initialLocation);
 
     chatModule.preloadHistory();
-    
-    // [MODIFIED] 在所有初始化完成後，隱藏讀取畫面
-    const loadingOverlay = document.getElementById('loading-overlay');
-    if (loadingOverlay) {
-        loadingOverlay.style.opacity = '0';
-        setTimeout(() => {
-            loadingOverlay.style.display = 'none';
-        }, 500); // 確保與 CSS 的 transition 時間一致
-    }
 }
 
 document.addEventListener('DOMContentLoaded', main);
-
