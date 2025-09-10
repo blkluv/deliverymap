@@ -4,7 +4,7 @@
     --mobile-bottom-offset: 6rem; 
     /* 手機版店家列表寬度 (可調整此數值) */
     --mobile-panel-width: 90vw;
-    /* NEW: Map filter variable */
+    /* Map filter variable */
     --map-filter-style: none;
 }
 html, body {
@@ -29,7 +29,7 @@ html, body {
 #map.grid-mode-active.pan-mode:active {
     cursor: grabbing;
 }
-/* NEW: Map Enhancement Style */
+/* Map Enhancement Style */
 #map .ol-layer canvas {
     transition: filter 0.5s ease-in-out, opacity 0.3s ease-in-out;
 }
@@ -37,7 +37,7 @@ html, body {
     filter: var(--map-filter-style);
 }
 
-/* 修正：當地圖進入網格模式時，讓地圖底圖稍微變暗，突顯網格 */
+/* 當地圖進入網格模式時，讓地圖底圖稍微變暗，突顯網格 */
 #map.grid-mode-active .ol-layer canvas {
     opacity: 0.6;
 }
@@ -144,7 +144,7 @@ html, body {
 .new-location-marker:active {
     cursor: grabbing;
 }
-/* NEW: Desktop Add Mode Layout */
+/* Desktop Add Mode Layout */
 #app-container {
     display: flex;
     width: 100%;
@@ -207,7 +207,7 @@ html, body {
     }
 }
 
-/* --- BEGIN MODIFICATION: Mobile modal minimization styles with pointer-events fix --- */
+
 #add-location-modal-mobile.minimized {
     pointer-events: none !important;
 }
@@ -215,10 +215,9 @@ html, body {
     pointer-events: auto !important; 
     transform: translateX(calc(-100% - 2rem));
 }
-/* --- END MODIFICATION --- */
 
 
-/* NEW: Vote button styles */
+/* Vote button styles */
 .vote-btn.voted-like svg {
     fill: #10B981; /* A brighter green */
 }
@@ -226,19 +225,18 @@ html, body {
     fill: #EF4444; /* A brighter red */
 }
 
-/* 修正：網格畫布樣式 */
+/* 網格畫布樣式 */
 #grid-canvas {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    /* 大幅提高 z-index 確保它在所有地圖圖層之上 */
     z-index: 40; 
-    pointer-events: none; /* 讓點擊事件可以穿透到下方的地圖 */
+    pointer-events: none;
 }
 
-/* NEW: Grid toolbar styles */
+/* Grid toolbar styles */
 #grid-toolbar {
     position: absolute;
     top: 1rem;
@@ -274,16 +272,13 @@ html, body {
     border-left: 1px solid #d1d5db; /* gray-300 */
 }
 
-/* MODIFIED: Grid Color Palette Styles */
+/* Grid Color Palette Styles */
 #grid-color-palette {
-    /* Repositioned from top-right to below the center toolbar */
     top: 4.5rem; 
     left: 50%;
     right: auto;
     transform: translateX(-50%);
-    z-index: 45; /* 確保在網格畫布之上 */
-    
-    /* Changed layout from vertical to horizontal */
+    z-index: 45;
     flex-direction: row;
     width: auto;
     gap: 1rem;
@@ -298,11 +293,11 @@ html, body {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
-    width: 2.5rem; /* Adjusted width for horizontal layout */
-    height: 2rem; /* 32px */
+    width: 2.5rem;
+    height: 2rem;
     background-color: transparent;
-    border: 1px solid #d1d5db; /* gray-300 */
-    border-radius: 0.375rem; /* rounded-md */
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
     cursor: pointer;
 }
 #grid-color-palette input[type="color"]::-webkit-color-swatch-wrapper {
@@ -310,10 +305,37 @@ html, body {
 }
 #grid-color-palette input[type="color"]::-webkit-color-swatch {
     border: none;
-    border-radius: 0.25rem; /* rounded */
+    border-radius: 0.25rem;
 }
 
-/* NEW: Styles for hiding system messages in chat */
+/* Styles for hiding system messages in chat */
 #chat-messages.hide-system-messages .system-message {
     display: none;
 }
+
+/* 新增：聊天室圖片上傳樣式 */
+.chat-image {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 0.5rem; /* rounded-lg */
+    border: 1px solid #e5e7eb; /* gray-200 */
+    margin-top: 4px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.chat-image:hover {
+    transform: scale(1.05);
+}
+
+#upload-image-btn {
+    position: relative;
+}
+
+#upload-image-btn .spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: none; /* Initially hidden */
+}
+
