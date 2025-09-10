@@ -11,18 +11,20 @@ import * as gridModule from './grid.js';
 import * as chatModule from './chat.js';
 import * as managementModule from './management.js';
 
-// --- Loading Screen Management ---
-let isLoadingScreenHidden = false;
-function hideLoadingScreen() {
-    if (isLoadingScreenHidden) return;
-    isLoadingScreenHidden = true;
+// --- 全域狀態變數 ---
+let rawReports = [];
 
-    const loadingOverlay = document.getElementById('loading-overlay');
-    if (loadingOverlay) {
-        loadingOverlay.style.opacity = '0';
+// --- 讀取畫面管理 ---
+let isLoaderHidden = false;
+function hideLoadingScreen() {
+    if (isLoaderHidden) return;
+    isLoaderHidden = true;
+    const loader = document.getElementById('loading-overlay');
+    if (loader) {
+        loader.style.opacity = '0';
         setTimeout(() => {
-            loadingOverlay.style.display = 'none';
-        }, 500); // 對應 CSS 的 transition duration
+            loader.style.display = 'none';
+        }, 500); // 等待淡出動畫結束
     }
 }
 
@@ -37,13 +39,12 @@ async function loadAndProcessData(city = null) {
             throw new Error('相依性函式庫 (pinyin-pro or Fuse.js) 載入失敗。');
         }
 
-        const rawReports = await api.loadData(city);
+        rawReports = await api.loadData(city);
         if (!rawReports) {
-            throw new Error('從伺服器取得的資料為空。');
+            throw new Error('從伺服器取得的資料為空，請檢查後端設定。');
         }
-        
+
         managementModule.setRawReports(rawReports);
-        
         processRawData(rawReports);
 
         uiModule.populateFiltersAndLegend();
@@ -52,9 +53,10 @@ async function loadAndProcessData(city = null) {
     } catch (error) {
         console.error("資料載入與處理失敗:", error);
         uiModule.showNotification(`無法載入資料：${error.message}`, 'error');
+        // 即使資料載入失敗，也要確保讀取畫面會消失
+        hideLoadingScreen();
     }
 }
-
 
 /**
  * 處理從 API 獲取的原始資料，轉換為地圖 features。
@@ -64,6 +66,7 @@ function processRawData(results) {
     const { pinyin } = pinyinPro;
     const groupedData = new Map();
     const communityAreas = [];
+    const allFeatures = [];
 
     results.forEach(data => {
         if (data.isCommunity) communityAreas.push(data);
@@ -76,7 +79,6 @@ function processRawData(results) {
 
     mapModule.vectorSource.clear();
     mapModule.areaGridSource.clear();
-    const allFeatures = [];
     
     mapModule.drawCommunityAreas(communityAreas);
 
@@ -113,39 +115,40 @@ function processRawData(results) {
     uiModule.setSearchableData(fuse, allFeatures);
 }
 
-
 /**
- * 根據已取得的位置資訊，完成後續的 UI 更新與資料載入
- * @param {Object} locationData - 從 index.html 的 Promise 取得的位置物件
+ * 初始化使用者地理位置。
  */
-async function finishInitializationWithLocation(locationData) {
-    if (locationData.success) {
-        const coords = [locationData.lon, locationData.lat];
+async function initializeUserLocation() {
+    if (!navigator.geolocation) {
+        uiModule.showNotification('您的瀏覽器不支援地理定位', 'warning');
+        await loadAndProcessData();
+        chatModule.sendJoinMessage();
+        return;
+    }
+    
+    try {
+        const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000 }));
+        const coords = [pos.coords.longitude, pos.coords.latitude];
         const mapCoords = ol.proj.fromLonLat(coords);
         
+        mapModule.map.getView().animate({ center: mapCoords, zoom: 16 });
         mapModule.userLocationOverlay.setPosition(mapCoords);
         $('#user-location').removeClass('hidden');
 
-        try {
-            const city = await api.reverseGeocodeForCity(coords[0], coords[1]);
-            chatModule.setCurrentUserCity(city);
-            await loadAndProcessData(city);
-        } catch (err) {
-            console.error("反向地理編碼或資料載入失敗:", err);
-            uiModule.showNotification('無法取得您的位置，將載入預設資料。', 'warning');
-            await loadAndProcessData();
-        }
-    } else {
+        const city = await api.reverseGeocodeForCity(coords[0], coords[1]);
+        chatModule.setCurrentUserCity(city);
+        await loadAndProcessData(city);
+        
+    } catch (err) {
         uiModule.showNotification('無法取得您的位置，將載入預設資料。', 'warning');
         await loadAndProcessData();
+    } finally {
+        chatModule.sendJoinMessage();
     }
-
-    chatModule.sendJoinMessage();
 }
 
 /**
  * 處理來自其他模組的資料刷新請求。
- * @param {CustomEvent} event - 自訂事件。
  */
 async function handleDataRefresh(event) {
     const source = event.detail?.source;
@@ -159,24 +162,21 @@ async function handleDataRefresh(event) {
 }
 
 /**
- * 應用程式初始化函式。
+ * 設置應用程式的動態樣式。
  */
-async function main() {
-    // [MODIFIED] 設定一個最多 2 秒的計時器來隱藏讀取畫面
-    setTimeout(hideLoadingScreen, 2000);
-
-    const initialLocation = await window.initialLocationPromise;
-    const centerCoords = ol.proj.fromLonLat([initialLocation.lon, initialLocation.lat]);
-
-    mapModule.initMap(centerCoords, initialLocation.zoom);
-    
+function setupStyles() {
     if (navigator.userAgent.toLowerCase().includes("line")) {
         document.documentElement.style.setProperty('--mobile-bottom-offset', '4rem');
     }
     document.documentElement.style.setProperty('--map-filter-style', 
         `contrast(${config.MAP_FILTER_CONTRAST}) saturate(${config.MAP_FILTER_SATURATE}) brightness(${config.MAP_FILTER_BRIGHTNESS})`
     );
+}
 
+/**
+ * 註冊所有模組的事件監聽器。
+ */
+function initializeModules() {
     uiModule.setupEventListeners();
     gridModule.setupGridToolbar();
     chatModule.initializeChat();
@@ -186,10 +186,15 @@ async function main() {
     authModule.setupAuthListeners();
     mapModule.map.on('singleclick', uiModule.handleMapClick);
     document.addEventListener('refresh-data', handleDataRefresh);
+}
 
+/**
+ * 處理使用者認證流程。
+ */
+async function handleAuthentication() {
     const isLineBrowser = navigator.userAgent.toLowerCase().includes("line");
     const isLoggedIn = await authModule.verifyToken();
-    
+
     if (!isLoggedIn) {
         if (isLineBrowser) {
             await authModule.initializeLiffLogin();
@@ -197,14 +202,41 @@ async function main() {
             authModule.initializeGoogleButton();
         }
     }
-
-    await finishInitializationWithLocation(initialLocation);
-
-    chatModule.preloadHistory();
-    
-    // [MODIFIED] 當所有初始化完成後，再次呼叫（確保在2秒內完成時能立即隱藏）
-    hideLoadingScreen();
 }
 
+
+/**
+ * 應用程式初始化函式。
+ */
+async function main() {
+    // 設定一個最多 3 秒的保險計時器，確保讀取畫面一定會消失
+    const loadingTimeout = setTimeout(hideLoadingScreen, 3000);
+
+    try {
+        setupStyles();
+        initializeModules();
+        await handleAuthentication();
+        await initializeUserLocation();
+        chatModule.preloadHistory();
+    } catch (error) {
+        console.error("應用程式初始化失敗:", error);
+        const appContainer = document.getElementById('app-container');
+        if (appContainer) {
+            appContainer.innerHTML = `
+                <div class="w-full h-full flex flex-col items-center justify-center text-center p-4">
+                    <h1 class="text-2xl font-bold text-red-600">糟糕，程式載入失敗了</h1>
+                    <p class="text-gray-700 mt-2">請嘗試重新整理頁面。如果問題持續發生，請回報給管理員。</p>
+                    <pre class="mt-4 p-2 bg-gray-100 text-left text-xs text-red-500 rounded-md overflow-auto w-full max-w-lg">${error.message}</pre>
+                </div>
+            `;
+        }
+    } finally {
+        // 清除保險計時器，並在所有程序完成後隱藏讀取畫面
+        clearTimeout(loadingTimeout);
+        hideLoadingScreen();
+    }
+}
+
+// 啟動
 document.addEventListener('DOMContentLoaded', main);
 
