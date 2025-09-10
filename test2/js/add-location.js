@@ -36,7 +36,13 @@ export function enterMobilePlacementMode(coordinate, areaBoundsToLoad = null) {
 
     if (areaBoundsToLoad) {
         areaBoundsForEditing = areaBoundsToLoad;
-        $('#add-location-form-mobile').find('#add-is-area').prop('checked', true).trigger('change');
+        // 修正：直接觸發建築編輯模式，並確保 UI 切換到正確的分頁
+        $('#add-location-form-mobile').find('#add-is-area').prop('checked', true);
+        toggleAreaSelectionMode(true, areaBoundsToLoad);
+        // 延遲觸發點擊，確保 grid 模式已啟動
+        setTimeout(() => {
+            $('#mobile-add-area-tab').trigger('click');
+        }, 50);
     } else {
         areaBoundsForEditing = null;
         drawRadiusCircle(coordinate);
@@ -59,11 +65,19 @@ export function enterDesktopAddMode(coordinate, areaBoundsToLoad = null) {
     $('#app-container').addClass('desktop-add-mode');
     $('#desktop-center-marker').removeClass('hidden');
 
+    const $form = $('#add-location-form');
+    const $isAreaCheckbox = $form.find('#add-is-area');
+
     if (areaBoundsToLoad) {
         areaBoundsForEditing = areaBoundsToLoad;
-        $('#add-location-form').find('#add-is-area').prop('checked', true).trigger('change');
+        // 修正：直接勾選 checkbox 並呼叫網格編輯模式，而不是透過 trigger
+        $isAreaCheckbox.prop('checked', true);
+        toggleAreaSelectionMode(true, areaBoundsToLoad);
+        const center = map.getView().getCenter();
+        setLockedCenterForEditing(center);
     } else {
         areaBoundsForEditing = null;
+        $isAreaCheckbox.prop('checked', false);
     }
     
     setTimeout(() => {
@@ -357,7 +371,11 @@ export function setupAddLocationListeners() {
         const form = $(this).closest('form');
         const isAreaEdit = !!(form.find('#edit-area-row-index').val());
 
-        toggleAreaSelectionMode(isChecked, isAreaEdit ? areaBoundsForEditing : null);
+        // 修正：僅在手動勾選/取消時，才根據 areaBoundsForEditing 載入資料
+        // 初始化的載入已在 enter...Mode 函式中處理
+        if (uiState.isDrawingOnGrid !== isChecked) {
+             toggleAreaSelectionMode(isChecked, (isAreaEdit && isChecked) ? areaBoundsForEditing : null);
+        }
 
         if (isChecked) {
             const center = isMobile && tempMarker ? tempMarker.getPosition() : map.getView().getCenter();
@@ -382,6 +400,7 @@ export function setupAddLocationListeners() {
         
         const $isAreaCheckbox = $('#add-location-form-mobile').find('#add-is-area');
         if ($isAreaCheckbox.is(':checked') !== isAreaTab) {
+            // 修正：手動點擊tab時也觸發 change handler 來處理 toggle
             $isAreaCheckbox.prop('checked', isAreaTab).trigger('change');
         }
     });
@@ -395,4 +414,3 @@ export function setupAddLocationListeners() {
         $(this).addClass('hidden');
     });
 }
-
