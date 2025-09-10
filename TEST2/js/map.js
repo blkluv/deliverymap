@@ -3,184 +3,57 @@
  */
 import { mapIcons, categoryColors, clusterColorPalette, LABEL_VISIBILITY_ZOOM } from './config.js';
 
-// --- 全域變數 ---
-export let map = null;
-export let vectorSource = null;
-export let clusterSource = null;
-export let areaGridSource = null;
-export let radiusSource = null;
-export let infoOverlay = null;
-export let userLocationOverlay = null;
-export let dragPanInteraction = null;
-export let areaGridLayer = null;
-export let clusterLayer = null; // [NEW] 匯出 clusterLayer
-
-let osmLayer, lineLayer, radiusLayer;
+// --- OpenLayers 元件與圖層 ---
 const styleCache = {};
+export let dragPanInteraction = null;
+
+// 新增：偵測是否為行動裝置
 const isMobile = window.innerWidth < 768;
 
-// --- IndexedDB 地圖圖磚快取 ---
-const DB_NAME = 'osm_tile_cache';
-const DB_VERSION = 1;
-const STORE_NAME = 'tiles';
-let db = null;
+const osmLayer = new ol.layer.Tile({
+    source: new ol.source.OSM({
+         attributions: '內容為外送員分享經驗 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap',
+    }),
+    zIndex: 0
+});
 
-function initTileCacheDB() {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = (event) => {
-        const dbInstance = event.target.result;
-        if (!dbInstance.objectStoreNames.contains(STORE_NAME)) {
-            dbInstance.createObjectStore(STORE_NAME);
-        }
-    };
-    request.onsuccess = (event) => { db = event.target.result; };
-    request.onerror = (event) => { console.error('初始化地圖快取資料庫失敗:', event.target.errorCode); };
-}
-initTileCacheDB();
+export const areaGridSource = new ol.source.Vector();
+// 修正：新增 export，讓 ui.js 可以匯入
+export const areaGridLayer = new ol.layer.Vector({
+    source: areaGridSource,
+    style: (feature) => feature.getStyle(),
+    zIndex: 1
+});
 
-function fetchAndCacheTile(tile, src) {
-    const image = tile.getImage();
-    fetch(src)
-        .then(response => response.ok ? response.blob() : Promise.reject(new Error(response.statusText)))
-        .then(blob => {
-            const objectURL = URL.createObjectURL(blob);
-            image.src = objectURL;
-            image.onload = () => URL.revokeObjectURL(objectURL);
-            if (db) {
-                blob.arrayBuffer().then(arrayBuffer => {
-                     const transaction = db.transaction([STORE_NAME], 'readwrite');
-                     transaction.objectStore(STORE_NAME).put({ data: arrayBuffer, type: blob.type }, src);
-                });
-            }
+export const vectorSource = new ol.source.Vector();
+export const clusterSource = new ol.source.Cluster({ 
+    distance: 50, 
+    minDistance: 25, 
+    source: vectorSource 
+});
+
+const lineSource = new ol.source.Vector();
+const lineLayer = new ol.layer.Vector({
+    source: lineSource,
+    style: new ol.style.Style({
+        stroke: new ol.style.Stroke({
+            color: 'rgba(50, 50, 50, 0.7)',
+            width: 1.5,
+            lineDash: [4, 4]
         })
-        .catch(() => tile.setState(3)); // ERROR
-}
+    }),
+    zIndex: 2
+});
 
-const customTileLoadFunction = (tile, src) => {
-    const image = tile.getImage();
-    if (!db) {
-        image.src = src;
-        return;
-    }
-    const request = db.transaction([STORE_NAME], 'readonly').objectStore(STORE_NAME).get(src);
-    request.onsuccess = (event) => {
-        const result = event.target.result;
-        if (result && result.data) {
-            const blob = new Blob([result.data], { type: result.type });
-            const objectURL = URL.createObjectURL(blob);
-            image.src = objectURL;
-            image.onload = () => URL.revokeObjectURL(objectURL);
-        } else {
-            fetchAndCacheTile(tile, src);
-        }
-    };
-    request.onerror = () => fetchAndCacheTile(tile, src);
-};
-
-
-/**
- * 初始化地圖
- * @param {ol.Coordinate} centerCoords - 地圖中心點座標
- * @param {number} zoomLevel - 地圖縮放層級
- */
-export function initMap(centerCoords, zoomLevel) {
-    osmLayer = new ol.layer.Tile({
-        source: new ol.source.OSM({
-             attributions: '內容為外送員分享經驗 | 地圖資料 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap',
-             tileLoadFunction: customTileLoadFunction,
-        }),
-        zIndex: 0
-    });
-
-    areaGridSource = new ol.source.Vector();
-    areaGridLayer = new ol.layer.Vector({
-        source: areaGridSource,
-        style: (feature) => feature.getStyle(),
-        zIndex: 1
-    });
-
-    vectorSource = new ol.source.Vector();
-    clusterSource = new ol.source.Cluster({ 
-        distance: 50, 
-        minDistance: 25, 
-        source: vectorSource 
-    });
-
-    const lineSource = new ol.source.Vector();
-    lineLayer = new ol.layer.Vector({
-        source: lineSource,
-        style: new ol.style.Style({
-            stroke: new ol.style.Stroke({ color: 'rgba(50, 50, 50, 0.7)', width: 1.5, lineDash: [4, 4] })
-        }),
-        zIndex: 2
-    });
-
-    radiusSource = new ol.source.Vector();
-    radiusLayer = new ol.layer.Vector({
-        source: radiusSource,
-        style: new ol.style.Style({
-            fill: new ol.style.Fill({ color: 'rgba(59, 130, 246, 0.1)' }),
-            stroke: new ol.style.Stroke({ color: 'rgba(59, 130, 246, 0.8)', width: 2 }),
-        }),
-        zIndex: 2
-    });
-
-    clusterLayer = new ol.layer.Vector({ 
-        source: clusterSource, 
-        style: clusterStyleFunction,
-        zIndex: 3
-    });
-
-    const taiwanExtent = ol.proj.transformExtent([118.0, 21.5, 122.5, 25.5], 'EPSG:4326', 'EPSG:3857');
-
-    map = new ol.Map({
-        target: 'map', 
-        layers: [osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer],
-        view: new ol.View({ 
-            center: centerCoords, 
-            zoom: zoomLevel,
-            extent: taiwanExtent,
-            minZoom: 8,
-            enableRotation: !isMobile,
-        }),
-        controls: [
-            new ol.control.Zoom(),
-            new ol.control.Attribution({ collapsible: false })
-        ].concat(isMobile ? [] : [new ol.control.Rotate()]),
-    });
-    
-    // [NEW] 設置圖磚載入優先序，優化載入體驗
-    const osmSource = osmLayer.getSource();
-    osmSource.setTilePriority((tile, sourceProjection, tileCenter, tileResolution) => {
-        const viewCenter = map.getView().getCenter();
-        if (!viewCenter) return 0;
-        const squaredDistance = ol.math.getSquaredDistance(tileCenter, viewCenter);
-        // 距離越近，優先序越高
-        return 100000 / (squaredDistance + 1);
-    });
-
-
-    map.getInteractions().forEach(interaction => {
-        if (interaction instanceof ol.interaction.DragPan) {
-            dragPanInteraction = interaction;
-        }
-    });
-
-    infoOverlay = new ol.Overlay({
-        element: document.getElementById('popup'),
-        autoPan: { animation: { duration: 250 } },
-    });
-    map.addOverlay(infoOverlay);
-
-    userLocationOverlay = new ol.Overlay({ 
-        element: document.getElementById('user-location'), 
-        positioning: 'center-center', 
-        stopEvent: false 
-    });
-    map.addOverlay(userLocationOverlay);
-}
-
-// --- 樣式與繪圖函式 ---
+export const radiusSource = new ol.source.Vector();
+const radiusLayer = new ol.layer.Vector({
+    source: radiusSource,
+    style: new ol.style.Style({
+        fill: new ol.style.Fill({ color: 'rgba(59, 130, 246, 0.1)' }),
+        stroke: new ol.style.Stroke({ color: 'rgba(59, 130, 246, 0.8)', width: 2 }),
+    }),
+    zIndex: 2
+});
 
 function formatAddress(address) {
     if (!address) return '';
@@ -227,7 +100,7 @@ function clusterStyleFunction(feature) {
         }
 
         const clonedStyle = styleCache[singleStyleKey].clone();
-        if (map.getView().getResolution() <= 50) {
+        if (map.getView().getResolution() <= 50) { // 只在高縮放層級顯示
             const shortAddress = formatAddress(originalFeature.get('address'));
             clonedStyle.setText(new ol.style.Text({
                 text: shortAddress, 
@@ -243,6 +116,57 @@ function clusterStyleFunction(feature) {
         return clonedStyle;
     }
 }
+
+const clusterLayer = new ol.layer.Vector({ 
+    source: clusterSource, 
+    style: clusterStyleFunction,
+    zIndex: 3
+});
+
+const taiwanExtent = ol.proj.transformExtent([118.0, 21.5, 122.5, 25.5], 'EPSG:4326', 'EPSG:3857');
+
+export const map = new ol.Map({
+    target: 'map', 
+    layers: [osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer],
+    view: new ol.View({ 
+        center: ol.proj.fromLonLat([120.9, 23.9]), 
+        zoom: 8,
+        extent: taiwanExtent,
+        minZoom: 8,
+        enableRotation: !isMobile, // 修改：此選項會停用旋轉地圖的互動功能
+    }),
+    // 修正：手動建立控制項陣列以修復錯誤，並根據是否為行動裝置決定是否顯示旋轉按鈕
+    controls: [
+        new ol.control.Zoom(),
+        new ol.control.Attribution({
+            collapsible: false
+        })
+    ].concat(isMobile ? [] : [new ol.control.Rotate()]),
+});
+
+// 取得內建的拖曳平移互動
+map.getInteractions().forEach(interaction => {
+    if (interaction instanceof ol.interaction.DragPan) {
+        dragPanInteraction = interaction;
+    }
+});
+
+
+// --- Overlays ---
+export const infoOverlay = new ol.Overlay({
+    element: document.getElementById('popup'),
+    autoPan: { animation: { duration: 250 } },
+});
+map.addOverlay(infoOverlay);
+
+export const userLocationOverlay = new ol.Overlay({ 
+    element: document.getElementById('user-location'), 
+    positioning: 'center-center', 
+    stopEvent: false 
+});
+map.addOverlay(userLocationOverlay);
+
+// --- 地圖繪製函式 ---
 
 /**
  * 在地圖上繪製所有已審核的社區/建築範圍。
@@ -298,7 +222,6 @@ export function drawCommunityAreas(areas) {
                 });
 
                 cellFeature.setStyle((feature, resolution) => {
-                    if (!map) return null;
                     const zoom = map.getView().getZoomForResolution(resolution);
                     const styles = [];
                     if (fillColor) styles.push(new ol.style.Style({ fill: new ol.style.Fill({ color: fillColor }) }));
@@ -326,7 +249,6 @@ export function drawCommunityAreas(areas) {
                     parentData: areaData
                 });
                  nameFeature.setStyle((feature, resolution) => {
-                    if (!map) return null;
                     if (map.getView().getZoomForResolution(resolution) >= LABEL_VISIBILITY_ZOOM) {
                         return new ol.style.Style({
                             text: new ol.style.Text({

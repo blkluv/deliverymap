@@ -3,8 +3,9 @@
  */
 import { categoryColors, legendIcons, allCategories } from './config.js';
 import * as api from './api.js';
-import { getLoginStatus, triggerLogin } from './auth.js';
-import { map, infoOverlay, clusterSource, areaGridLayer, clusterLayer } from './map.js';
+import { getLoginStatus } from './auth.js';
+// 修改：同時匯入 map, infoOverlay, clusterSource, areaGridLayer
+import { map, infoOverlay, clusterSource, areaGridLayer } from './map.js';
 
 // --- UI 狀態管理 ---
 export const uiState = {
@@ -80,7 +81,6 @@ export function setSearchableData(fuseInstance, features) {
  * 根據目前地圖視野更新店家列表。
  */
 export function updateStoreList() {
-    if (!map) return; // 確保地圖已初始化
     const extent = map.getView().calculateExtent(map.getSize());
     const $listContent = $('#store-list-content').empty();
     const activeCategory = $('#store-list-filters .active').data('category');
@@ -88,13 +88,12 @@ export function updateStoreList() {
     
     const uniqueFeatures = new Set();
 
-    if (clusterSource) {
-        clusterSource.forEachFeatureInExtent(extent, (cluster) => {
-            cluster.get('features').forEach(feature => {
-                uniqueFeatures.add(feature);
-            });
+    // 修改：使用 clusterSource 進行遍歷，以獲取視野內的聚合點和獨立點
+    clusterSource.forEachFeatureInExtent(extent, (cluster) => {
+        cluster.get('features').forEach(feature => {
+            uniqueFeatures.add(feature);
         });
-    }
+    });
 
     uniqueFeatures.forEach(feature => {
         if (count >= 200) return;
@@ -230,6 +229,7 @@ export function populateFiltersAndLegend() {
     });
 }
 
+// --- 新增：地圖點擊處理函式 (從 map.js 移入) ---
 /**
  * 處理地圖點擊事件，顯示彈出視窗或縮放至聚合點。
  * @param {ol.MapBrowserEvent} evt - 地圖瀏覽器事件。
@@ -246,14 +246,14 @@ export function handleMapClick(evt) {
     
     if(areaFeature) {
         featureClicked = true;
-        console.log("點擊到社區範圍:", areaFeature.get('parentData'));
+        console.log("Clicked on area:", areaFeature.get('parentData'));
     }
 
     if (featureClicked) return;
 
-    // [FIXED] 修正圖層篩選，確保能點擊到店家圖示
+    // 接著檢查是否點擊到地點聚合圖層
     const clusterFeature = map.forEachFeatureAtPixel(evt.pixel, f => f, {
-        layerFilter: layer => layer === clusterLayer
+        layerFilter: layer => layer === clusterSource.getLayer()
     });
 
     if (clusterFeature) {
@@ -268,7 +268,7 @@ export function handleMapClick(evt) {
             const coordinates = originalFeature.getGeometry().getCoordinates();
             uiState.currentFeatureData = originalFeature.getProperties();
             
-            map.getView().animate({ center: coordinates, zoom: 19, duration: 800 });
+            map.getView().animate({ center: coordinates, zoom: 18, duration: 800 });
             renderPopup(uiState.currentFeatureData, coordinates);
         }
     }
@@ -284,7 +284,6 @@ export function handleMapClick(evt) {
 function handleVoteClick(e) {
     if (!getLoginStatus()) {
         showNotification('請先登入才能評分！', 'warning');
-        triggerLogin();
         return;
     }
     const $btn = $(e.currentTarget);
@@ -308,11 +307,14 @@ function handleVoteClick(e) {
     
     saveUserVotes();
     
+    // 更新 UI
     uiState.currentFeatureData.likes += likeChange;
     uiState.currentFeatureData.dislikes += dislikeChange;
     
+    // 重新渲染 popup
     renderPopup(uiState.currentFeatureData, infoOverlay.getPosition());
 
+    // 送出到後端
     api.sendVote(uiState.currentFeatureData.reports, voteType, likeChange || dislikeChange);
 }
 
@@ -392,6 +394,7 @@ function compareAddresses(a, b) {
 export function setupEventListeners() {
     loadUserVotes();
     
+    // --- Popup ---
     $('#popup-closer').on('click', () => infoOverlay.setPosition(undefined));
     $('#popup').on('click', '.unit-item', (e) => {
         const fullAddress = decodeURIComponent($(e.currentTarget).data('address'));
@@ -400,15 +403,14 @@ export function setupEventListeners() {
     });
     $('#popup').on('click', '.vote-btn', handleVoteClick);
     
+    // --- Main Actions ---
     $('#center-on-me-btn').on('click', () => {
         const pos = map.getOverlayById('userLocation')?.getPosition();
-        if (pos) {
-            map.getView().animate({ center: pos, zoom: 18, duration: 800 });
-        } else {
-            showNotification('無法定位您的位置，請確認瀏覽器權限。', 'warning');
-        }
+        if (pos) map.getView().animate({ center: pos, zoom: 16, duration: 800 });
+        else showNotification('無法定位您的位置。', 'warning');
     });
 
+    // --- Search ---
     $('#search-address-btn').on('click', async () => {
         $('#search-panel').toggleClass('hidden');
         if (!$('#search-panel').hasClass('hidden')) {
@@ -425,15 +427,19 @@ export function setupEventListeners() {
     $('#close-search-panel').on('click', () => $('#search-panel').addClass('hidden'));
     $('#search-address-input').on('keydown', e => e.key === 'Enter' && handleSearch());
 
+    // --- Filter Modal ---
     $('#open-filter-modal').on('click', () => $('#filter-modal').removeClass('hidden'));
     $('#close-filter-modal').on('click', () => $('#filter-modal').addClass('hidden'));
     $('#filter-btn').on('click', handleFilterApply);
     $('#reset-btn').on('click', handleFilterReset);
 
+    // --- Product Modal ---
     $('#close-product-modal').on('click', () => $('#product-modal').addClass('hidden'));
 
+    // --- Store List ---
     $('#store-list-filters').on('click', '.store-filter-btn', function() {
         $(this).addClass('active').siblings().removeClass('active');
+        // 美化樣式
         $('.store-filter-btn').removeClass('bg-blue-600 text-white text-red-600').addClass('bg-white text-black');
         $('.store-filter-btn.active').each(function() {
             const cat = $(this).data('category');
@@ -449,8 +455,7 @@ export function setupEventListeners() {
         setTimeout(() => renderPopup(feature.getProperties(), coordinates), 200);
     });
 
-    if (map) {
-        map.on('moveend', updateStoreList);
-    }
+    // --- Map Listeners ---
+    map.on('moveend', updateStoreList);
 }
 
