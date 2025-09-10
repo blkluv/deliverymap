@@ -4,8 +4,7 @@
 import { categoryColors, legendIcons, allCategories } from './config.js';
 import * as api from './api.js';
 import { getLoginStatus } from './auth.js';
-// 修改：同時匯入 map, infoOverlay, clusterSource, areaGridLayer
-import { map, infoOverlay, clusterSource, areaGridLayer } from './map.js';
+import { map, infoOverlay, clusterSource, areaGridLayer, userLocationOverlay } from './map.js';
 
 // --- UI 狀態管理 ---
 export const uiState = {
@@ -88,7 +87,6 @@ export function updateStoreList() {
     
     const uniqueFeatures = new Set();
 
-    // 修改：使用 clusterSource 進行遍歷，以獲取視野內的聚合點和獨立點
     clusterSource.forEachFeatureInExtent(extent, (cluster) => {
         cluster.get('features').forEach(feature => {
             uniqueFeatures.add(feature);
@@ -229,7 +227,6 @@ export function populateFiltersAndLegend() {
     });
 }
 
-// --- 新增：地圖點擊處理函式 (從 map.js 移入) ---
 /**
  * 處理地圖點擊事件，顯示彈出視窗或縮放至聚合點。
  * @param {ol.MapBrowserEvent} evt - 地圖瀏覽器事件。
@@ -239,7 +236,6 @@ export function handleMapClick(evt) {
     
     let featureClicked = false;
     
-    // 優先檢查是否點擊到社區/建築範圍
     const areaFeature = map.forEachFeatureAtPixel(evt.pixel, f => f.get('parentData') ? f : null, {
         layerFilter: layer => layer === areaGridLayer
     });
@@ -251,7 +247,6 @@ export function handleMapClick(evt) {
 
     if (featureClicked) return;
 
-    // 接著檢查是否點擊到地點聚合圖層
     const clusterFeature = map.forEachFeatureAtPixel(evt.pixel, f => f, {
         layerFilter: layer => layer === clusterSource.getLayer()
     });
@@ -293,28 +288,25 @@ function handleVoteClick(e) {
 
     let likeChange = 0, dislikeChange = 0;
 
-    if (previousVote === voteType) { // 取消投票
+    if (previousVote === voteType) {
         uiState.userVotes[locationId] = null;
         voteType === 'like' ? likeChange = -1 : dislikeChange = -1;
-    } else if (previousVote) { // 更改投票
+    } else if (previousVote) {
         uiState.userVotes[locationId] = voteType;
         likeChange = voteType === 'like' ? 1 : -1;
         dislikeChange = voteType === 'dislike' ? 1 : -1;
-    } else { // 新投票
+    } else {
         uiState.userVotes[locationId] = voteType;
         voteType === 'like' ? likeChange = 1 : dislikeChange = 1;
     }
     
     saveUserVotes();
     
-    // 更新 UI
     uiState.currentFeatureData.likes += likeChange;
     uiState.currentFeatureData.dislikes += dislikeChange;
     
-    // 重新渲染 popup
     renderPopup(uiState.currentFeatureData, infoOverlay.getPosition());
 
-    // 送出到後端
     api.sendVote(uiState.currentFeatureData.reports, voteType, likeChange || dislikeChange);
 }
 
@@ -405,9 +397,16 @@ export function setupEventListeners() {
     
     // --- Main Actions ---
     $('#center-on-me-btn').on('click', () => {
-        const pos = map.getOverlayById('userLocation')?.getPosition();
-        if (pos) map.getView().animate({ center: pos, zoom: 16, duration: 800 });
-        else showNotification('無法定位您的位置。', 'warning');
+        const pos = userLocationOverlay.getPosition();
+        if (pos) {
+            map.getView().animate({ 
+                center: pos, 
+                zoom: 18,
+                duration: 800 
+            });
+        } else {
+            showNotification('無法定位您的位置。', 'warning');
+        }
     });
 
     // --- Search ---
@@ -421,7 +420,9 @@ export function setupEventListeners() {
                     $('#search-address-input').val(text);
                     handleSearch();
                 }
-            } catch (err) { /* clipboard permission denied */ }
+            } catch (err) {
+                // Clipboard permission denied or not supported
+            }
         }
     });
     $('#close-search-panel').on('click', () => $('#search-panel').addClass('hidden'));
@@ -439,7 +440,6 @@ export function setupEventListeners() {
     // --- Store List ---
     $('#store-list-filters').on('click', '.store-filter-btn', function() {
         $(this).addClass('active').siblings().removeClass('active');
-        // 美化樣式
         $('.store-filter-btn').removeClass('bg-blue-600 text-white text-red-600').addClass('bg-white text-black');
         $('.store-filter-btn.active').each(function() {
             const cat = $(this).data('category');
@@ -458,4 +458,3 @@ export function setupEventListeners() {
     // --- Map Listeners ---
     map.on('moveend', updateStoreList);
 }
-
