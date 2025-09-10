@@ -1,7 +1,7 @@
 /**
  * @file 處理「網格標示」功能的邏輯。
  */
-import { map, dragPanInteraction } from './map.js';
+import { map, dragPanInteraction, areaGridLayer } from './map.js'; // 修正：匯入 areaGridLayer
 import { uiState } from './ui.js';
 import { GRID_INTERVAL, GRID_PRECISION, GRID_DRAW_RADIUS, GRID_ZOOM_LEVEL_WEB, GRID_ZOOM_LEVEL_MOBILE } from './config.js';
 
@@ -33,6 +33,11 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
 
     $('#grid-toolbar').toggleClass('hidden', !enable).toggleClass('flex', enable);
     $('#grid-color-palette').toggleClass('hidden', !enable);
+
+    // 新增：當進入編輯模式時，隱藏地圖上原有的建築範圍，退出時重新顯示
+    if (areaGridLayer) {
+        areaGridLayer.setVisible(!enable);
+    }
 
     if (enable) {
         const zoomThreshold = isMobile ? GRID_ZOOM_LEVEL_MOBILE : GRID_ZOOM_LEVEL_WEB;
@@ -183,7 +188,10 @@ function paintCell(evt) {
 
     switch(currentAreaTool) {
         case 'fill':
-            existingData.fillColor = existingData.fillColor ? null : currentAreaColor;
+            // 修正：根據使用者需求，滑動填色時不再有擦除效果。僅填滿未上色的格子。
+            if (!existingData.fillColor) {
+                existingData.fillColor = currentAreaColor;
+            }
             break;
         case 'eraser':
             selectedGridCells.delete(cellKey);
@@ -303,4 +311,3 @@ export function setupGridToolbar() {
         }
     });
 }
-
