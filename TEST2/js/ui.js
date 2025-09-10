@@ -3,8 +3,8 @@
  */
 import { categoryColors, legendIcons, allCategories } from './config.js';
 import * as api from './api.js';
-import { getLoginStatus } from './auth.js';
-import { map, infoOverlay, clusterSource, areaGridLayer, userLocationOverlay } from './map.js';
+import { getLoginStatus, triggerLogin } from './auth.js';
+import { map, infoOverlay, clusterSource, areaGridLayer } from './map.js';
 
 // --- UI 狀態管理 ---
 export const uiState = {
@@ -236,19 +236,21 @@ export function handleMapClick(evt) {
     
     let featureClicked = false;
     
+    // 優先檢查是否點擊到社區/建築範圍
     const areaFeature = map.forEachFeatureAtPixel(evt.pixel, f => f.get('parentData') ? f : null, {
         layerFilter: layer => layer === areaGridLayer
     });
     
     if(areaFeature) {
         featureClicked = true;
-        console.log("Clicked on area:", areaFeature.get('parentData'));
+        console.log("點擊到社區範圍:", areaFeature.get('parentData'));
     }
 
     if (featureClicked) return;
 
+    // 接著檢查是否點擊到地點聚合圖層
     const clusterFeature = map.forEachFeatureAtPixel(evt.pixel, f => f, {
-        layerFilter: layer => layer === clusterSource.getLayer()
+        layerFilter: layer => layer === mapModule.clusterSource.getLayer()
     });
 
     if (clusterFeature) {
@@ -263,7 +265,8 @@ export function handleMapClick(evt) {
             const coordinates = originalFeature.getGeometry().getCoordinates();
             uiState.currentFeatureData = originalFeature.getProperties();
             
-            map.getView().animate({ center: coordinates, zoom: 18, duration: 800 });
+            // [MODIFIED] 更改縮放層級至 19
+            map.getView().animate({ center: coordinates, zoom: 19, duration: 800 });
             renderPopup(uiState.currentFeatureData, coordinates);
         }
     }
@@ -279,6 +282,7 @@ export function handleMapClick(evt) {
 function handleVoteClick(e) {
     if (!getLoginStatus()) {
         showNotification('請先登入才能評分！', 'warning');
+        triggerLogin();
         return;
     }
     const $btn = $(e.currentTarget);
@@ -288,14 +292,14 @@ function handleVoteClick(e) {
 
     let likeChange = 0, dislikeChange = 0;
 
-    if (previousVote === voteType) {
+    if (previousVote === voteType) { // 取消投票
         uiState.userVotes[locationId] = null;
         voteType === 'like' ? likeChange = -1 : dislikeChange = -1;
-    } else if (previousVote) {
+    } else if (previousVote) { // 更改投票
         uiState.userVotes[locationId] = voteType;
         likeChange = voteType === 'like' ? 1 : -1;
         dislikeChange = voteType === 'dislike' ? 1 : -1;
-    } else {
+    } else { // 新投票
         uiState.userVotes[locationId] = voteType;
         voteType === 'like' ? likeChange = 1 : dislikeChange = 1;
     }
@@ -386,7 +390,6 @@ function compareAddresses(a, b) {
 export function setupEventListeners() {
     loadUserVotes();
     
-    // --- Popup ---
     $('#popup-closer').on('click', () => infoOverlay.setPosition(undefined));
     $('#popup').on('click', '.unit-item', (e) => {
         const fullAddress = decodeURIComponent($(e.currentTarget).data('address'));
@@ -395,21 +398,15 @@ export function setupEventListeners() {
     });
     $('#popup').on('click', '.vote-btn', handleVoteClick);
     
-    // --- Main Actions ---
     $('#center-on-me-btn').on('click', () => {
-        const pos = userLocationOverlay.getPosition();
+        const pos = map.getOverlayById('userLocation')?.getPosition();
         if (pos) {
-            map.getView().animate({ 
-                center: pos, 
-                zoom: 18,
-                duration: 800 
-            });
+            map.getView().animate({ center: pos, zoom: 18, duration: 800 });
         } else {
-            showNotification('無法定位您的位置。', 'warning');
+            showNotification('無法定位您的位置，請確認瀏覽器權限。', 'warning');
         }
     });
 
-    // --- Search ---
     $('#search-address-btn').on('click', async () => {
         $('#search-panel').toggleClass('hidden');
         if (!$('#search-panel').hasClass('hidden')) {
@@ -420,24 +417,19 @@ export function setupEventListeners() {
                     $('#search-address-input').val(text);
                     handleSearch();
                 }
-            } catch (err) {
-                // Clipboard permission denied or not supported
-            }
+            } catch (err) { /* clipboard permission denied */ }
         }
     });
     $('#close-search-panel').on('click', () => $('#search-panel').addClass('hidden'));
     $('#search-address-input').on('keydown', e => e.key === 'Enter' && handleSearch());
 
-    // --- Filter Modal ---
     $('#open-filter-modal').on('click', () => $('#filter-modal').removeClass('hidden'));
     $('#close-filter-modal').on('click', () => $('#filter-modal').addClass('hidden'));
     $('#filter-btn').on('click', handleFilterApply);
     $('#reset-btn').on('click', handleFilterReset);
 
-    // --- Product Modal ---
     $('#close-product-modal').on('click', () => $('#product-modal').addClass('hidden'));
 
-    // --- Store List ---
     $('#store-list-filters').on('click', '.store-filter-btn', function() {
         $(this).addClass('active').siblings().removeClass('active');
         $('.store-filter-btn').removeClass('bg-blue-600 text-white text-red-600').addClass('bg-white text-black');
@@ -455,6 +447,6 @@ export function setupEventListeners() {
         setTimeout(() => renderPopup(feature.getProperties(), coordinates), 200);
     });
 
-    // --- Map Listeners ---
     map.on('moveend', updateStoreList);
 }
+
