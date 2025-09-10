@@ -12,8 +12,9 @@ export let radiusSource = null;
 export let infoOverlay = null;
 export let userLocationOverlay = null;
 export let dragPanInteraction = null;
+export let areaGridLayer = null; // [FIXED] 新增此變數的匯出
 
-let osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer;
+let osmLayer, lineLayer, radiusLayer, clusterLayer;
 const styleCache = {};
 const isMobile = window.innerWidth < 768;
 
@@ -39,7 +40,7 @@ initTileCacheDB();
 function fetchAndCacheTile(tile, src) {
     const image = tile.getImage();
     fetch(src)
-        .then(response => response.ok ? response.blob() : Promise.reject())
+        .then(response => response.ok ? response.blob() : Promise.reject(new Error(response.statusText)))
         .then(blob => {
             const objectURL = URL.createObjectURL(blob);
             image.src = objectURL;
