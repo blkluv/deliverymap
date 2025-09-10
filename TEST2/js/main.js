@@ -148,12 +148,10 @@ function setupStyles() {
 function initializeModules() {
     uiModule.setupEventListeners();
     gridModule.setupGridToolbar();
-    chatModule.initializeChat();
     chatModule.setupChatListeners();
     addLocationModule.setupAddLocationListeners();
     managementModule.setupManagementListeners();
     authModule.setupAuthListeners();
-    // 確保 map 物件存在後才綁定事件
     if (mapModule.map) {
         mapModule.map.on('singleclick', uiModule.handleMapClick);
     }
@@ -161,7 +159,7 @@ function initializeModules() {
 }
 
 /**
- * 處理使用者認證流程。
+ * 處理使用者認證與後續流程。
  */
 async function handleAuthentication() {
     const isLineBrowser = navigator.userAgent.toLowerCase().includes("line");
@@ -173,6 +171,9 @@ async function handleAuthentication() {
         } else {
             authModule.initializeGoogleButton();
         }
+    } else {
+        // 如果已經是登入狀態，直接初始化聊天室
+        chatModule.initializeChat();
     }
 }
 
@@ -195,6 +196,7 @@ async function finishInitializationWithLocation(locationData) {
         uiModule.showNotification('無法取得您的位置，將載入預設資料。', 'warning');
         await loadAndProcessData();
     }
+    // 不論定位成功與否，只要登入就發送加入訊息
     chatModule.sendJoinMessage();
 }
 
@@ -205,6 +207,8 @@ async function main() {
     const loadingTimeout = setTimeout(hideLoadingScreen, 3000);
 
     try {
+        setupStyles(); // 樣式可以先設定
+
         // 1. 等待 GPS 定位完成
         const initialLocation = await window.initialLocationPromise;
         const centerCoords = ol.proj.fromLonLat([initialLocation.lon, initialLocation.lat]);
@@ -213,11 +217,12 @@ async function main() {
         mapModule.initMap(centerCoords, initialLocation.zoom);
 
         // 3. 地圖建立後，才初始化其他模組
-        setupStyles();
         initializeModules();
         
-        // 4. 執行後續的認證和資料載入
+        // 4. 執行認證，成功後會自動初始化聊天室
         await handleAuthentication();
+        
+        // 5. 執行後續的資料載入
         await finishInitializationWithLocation(initialLocation);
         chatModule.preloadHistory();
 
