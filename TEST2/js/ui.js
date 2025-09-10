@@ -4,7 +4,7 @@
 import { categoryColors, legendIcons, allCategories } from './config.js';
 import * as api from './api.js';
 import { getLoginStatus, triggerLogin } from './auth.js';
-import { map, infoOverlay, clusterSource, areaGridLayer } from './map.js';
+import { map, infoOverlay, clusterSource, areaGridLayer, clusterLayer } from './map.js';
 
 // --- UI 狀態管理 ---
 export const uiState = {
@@ -80,6 +80,7 @@ export function setSearchableData(fuseInstance, features) {
  * 根據目前地圖視野更新店家列表。
  */
 export function updateStoreList() {
+    if (!map) return; // 確保地圖已初始化
     const extent = map.getView().calculateExtent(map.getSize());
     const $listContent = $('#store-list-content').empty();
     const activeCategory = $('#store-list-filters .active').data('category');
@@ -87,11 +88,13 @@ export function updateStoreList() {
     
     const uniqueFeatures = new Set();
 
-    clusterSource.forEachFeatureInExtent(extent, (cluster) => {
-        cluster.get('features').forEach(feature => {
-            uniqueFeatures.add(feature);
+    if (clusterSource) {
+        clusterSource.forEachFeatureInExtent(extent, (cluster) => {
+            cluster.get('features').forEach(feature => {
+                uniqueFeatures.add(feature);
+            });
         });
-    });
+    }
 
     uniqueFeatures.forEach(feature => {
         if (count >= 200) return;
@@ -248,9 +251,9 @@ export function handleMapClick(evt) {
 
     if (featureClicked) return;
 
-    // 接著檢查是否點擊到地點聚合圖層
+    // [FIXED] 修正圖層篩選，確保能點擊到店家圖示
     const clusterFeature = map.forEachFeatureAtPixel(evt.pixel, f => f, {
-        layerFilter: layer => layer === mapModule.clusterSource.getLayer()
+        layerFilter: layer => layer === clusterLayer
     });
 
     if (clusterFeature) {
@@ -265,7 +268,6 @@ export function handleMapClick(evt) {
             const coordinates = originalFeature.getGeometry().getCoordinates();
             uiState.currentFeatureData = originalFeature.getProperties();
             
-            // [MODIFIED] 更改縮放層級至 19
             map.getView().animate({ center: coordinates, zoom: 19, duration: 800 });
             renderPopup(uiState.currentFeatureData, coordinates);
         }
@@ -447,5 +449,8 @@ export function setupEventListeners() {
         setTimeout(() => renderPopup(feature.getProperties(), coordinates), 200);
     });
 
-    map.on('moveend', updateStoreList);
+    if (map) {
+        map.on('moveend', updateStoreList);
+    }
 }
+
