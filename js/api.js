@@ -155,17 +155,22 @@ export function sendVote(locationId, voteType, change, reports) {
  * @param {number} rowIndex - 資料在試算表中的列索引。
  * @param {boolean} isCommunity - 是否為社區/建築資料。
  * @param {Object} userProfile - 當前使用者的個人資料物件。
- * @returns {Promise<Response>}
+ * @returns {Promise<Object>}
  */
-export function userDelete(rowIndex, isCommunity, userProfile) {
+export async function userDelete(rowIndex, isCommunity, userProfile) {
     const payload = {
-        action: 'user_delete',
+        action: isCommunity ? 'user_delete_area' : 'user_delete',
         rowIndex,
         isCommunity,
         userEmail: userProfile.email,
         lineUserId: userProfile.lineUserId
     };
-    return fetch(GOOGLE_APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+    const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+    });
+    return response.json();
 }
 
 /**

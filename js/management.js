@@ -15,7 +15,7 @@ const isMobile = window.innerWidth < 768;
 
 
 /**
- * 從主模組設定原始報告資料。
+ * 從主模組設定原始報告資料 (用於首次載入)。
  * @param {Array} reports - 所有的地點/區域報告。
  */
 export function setRawReports(reports) {
@@ -51,9 +51,24 @@ export function setupManagementListeners() {
 
 // --- 我的貢獻 Modal ---
 
-function openManagementModal() {
+async function openManagementModal() {
     $('#management-modal').removeClass('hidden');
-    switchManagementTab('locations');
+    // 顯示載入指示器
+    $('#management-list-content, #management-area-content').html('<div class="flex justify-center items-center p-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div></div>');
+    
+    try {
+        // 1. 自動重新獲取最新資料
+        const latestReports = await api.loadData();
+        // 2. 更新模組內部的資料來源
+        rawReports = latestReports;
+        // 3. 使用最新資料渲染介面
+        switchManagementTab('locations');
+    } catch (error) {
+        console.error("無法為管理面板更新資料:", error);
+        showNotification('無法更新資料，請稍後再試', 'error');
+        $('#management-list-content').html('<p class="text-red-500 text-center">無法載入您的貢獻資料。</p>');
+        $('#management-area-content').addClass('hidden');
+    }
 }
 
 function closeManagementModal() {
@@ -79,7 +94,16 @@ function loadUserLocations() {
         return;
     }
 
-    const submissions = rawReports.filter(r => !r.isCommunity && (r.submitterEmail === profile.email || r.lineUserId === profile.lineUserId));
+    const currentUserIdentifier = profile.email || profile.lineUserId;
+    if (!currentUserIdentifier) {
+        $content.html('<p class="text-gray-500">無法識別您的使用者身份。</p>');
+        return;
+    }
+
+    const submissions = rawReports.filter(r => 
+        !r.isCommunity && (r.submitterEmail === currentUserIdentifier)
+    );
+
     if (submissions.length === 0) {
         $content.html('<p class="text-gray-500">您尚未提交任何地點資料。</p>');
         return;
@@ -112,8 +136,17 @@ async function loadUserAreas() {
         $content.html('<p class="text-gray-500">請先登入。</p>');
         return;
     }
+    
+    const currentUserIdentifier = profile.email || profile.lineUserId;
+    if (!currentUserIdentifier) {
+        $content.html('<p class="text-gray-500">無法識別您的使用者身份。</p>');
+        return;
+    }
 
-    const submissions = rawReports.filter(r => r.isCommunity && (r.submitterEmail === profile.email || r.lineUserId === profile.lineUserId));
+    const submissions = rawReports.filter(r => 
+        r.isCommunity && (r['製作者'] === currentUserIdentifier)
+    );
+
     if (submissions.length === 0) {
         $content.html('<p class="text-gray-500">您尚未提交任何建築資料。</p>');
         return;
@@ -246,15 +279,24 @@ async function handleEditClick() {
 }
 
 async function handleDeleteClick() {
-    const rowIndex = $(this).data('row-index'), isCommunity = $(this).data('is-community');
+    const rowIndex = $(this).data('row-index');
+    const isCommunity = $(this).data('is-community');
+    const profile = getUserProfile();
+    
     if (confirm('確定要刪除這筆您提交的資料嗎？')) {
         showNotification('正在刪除...');
         try {
-            await api.userDelete(rowIndex, isCommunity);
-            showNotification("資料已刪除！", 'success');
-            closeManagementModal();
-            document.dispatchEvent(new CustomEvent('refresh-data'));
-        } catch (error) { showNotification(`刪除失敗: ${error.message}`, 'error'); }
+            const result = await api.userDelete(rowIndex, isCommunity, profile);
+             if (result.status === 'success') {
+                showNotification("資料已刪除！", 'success');
+                closeManagementModal();
+                document.dispatchEvent(new CustomEvent('refresh-data'));
+            } else {
+                throw new Error(result.message || '刪除失敗');
+            }
+        } catch (error) { 
+            showNotification(`刪除失敗: ${error.message}`, 'error'); 
+        }
     }
 }
 
@@ -269,12 +311,21 @@ function handleReviewItemClick() {
 async function handleAdminActionClick() {
     const action = $(this).data('action');
     const report = $('#review-detail-panel').data('report');
+    const profile = getUserProfile();
+
     if (!report || (action === 'delete' && !confirm('確定要永久刪除嗎？'))) return;
 
     try {
-        await api.sendAdminAction(action, report.rowIndex, !!report.isCommunity);
-        document.dispatchEvent(new CustomEvent('refresh-data', { detail: { source: 'review' } }));
-    } catch (error) { /* error shown by api module */ }
+        const result = await api.sendAdminAction(action, report.rowIndex, !!report.isCommunity, profile);
+        if (result.status === 'success') {
+            showNotification('操作成功！', 'success');
+            document.dispatchEvent(new CustomEvent('refresh-data', { detail: { source: 'review' } }));
+        } else {
+            throw new Error(result.message || '操作失敗');
+        }
+    } catch (error) {
+        showNotification(`操作失敗: ${error.message}`, 'error');
+    }
 }
 
 async function openEditModalForUser(report) {
@@ -323,4 +374,3 @@ function renderAreaOnMap(mapId, areaBounds) {
         return null;
     }
 }
-

@@ -12,8 +12,21 @@ import * as chatModule from './chat.js';
 import * as managementModule from './management.js';
 
 // --- 全域狀態變數 ---
-let allFeatures = [];
 let rawReports = [];
+
+// --- 讀取畫面管理 ---
+let isLoaderHidden = false;
+function hideLoadingScreen() {
+    if (isLoaderHidden) return;
+    isLoaderHidden = true;
+    const loader = document.getElementById('loading-overlay');
+    if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(() => {
+            loader.style.display = 'none';
+        }, 500); // 等待淡出動畫結束
+    }
+}
 
 /**
  * 載入並處理應用程式所需的主要資料。
@@ -28,7 +41,7 @@ async function loadAndProcessData(city = null) {
 
         rawReports = await api.loadData(city);
         if (!rawReports) {
-            throw new Error('從伺服器取得的資料為空，這通常是 CORS 錯誤造成的。');
+            throw new Error('從伺服器取得的資料為空，請檢查後端設定。');
         }
 
         managementModule.setRawReports(rawReports);
@@ -39,16 +52,10 @@ async function loadAndProcessData(city = null) {
         uiModule.hideNotification();
     } catch (error) {
         console.error("資料載入與處理失敗:", error);
-        let errorMessage = '無法載入資料！請稍後再試。';
-        if (error.message.includes('fetch') || error.message.includes('CORS')) {
-            errorMessage = '無法載入資料：發生網路或 CORS 錯誤，請檢查您的後端 Apps Script 部署設定。';
-        } else if (error.message.includes('相依性函式庫') || error.message.includes('資料為空')) {
-            errorMessage = `錯誤：${error.message}`;
-        }
-        uiModule.showNotification(errorMessage, 'error');
+        uiModule.showNotification(`無法載入資料：${error.message}`, 'error');
+        hideLoadingScreen(); // 即使資料載入失敗，也要確保讀取畫面會消失
     }
 }
-
 
 /**
  * 處理從 API 獲取的原始資料，轉換為地圖 features。
@@ -58,6 +65,7 @@ function processRawData(results) {
     const { pinyin } = pinyinPro;
     const groupedData = new Map();
     const communityAreas = [];
+    const allFeatures = [];
 
     results.forEach(data => {
         if (data.isCommunity) communityAreas.push(data);
@@ -68,9 +76,10 @@ function processRawData(results) {
         }
     });
 
+    if (!mapModule.vectorSource || !mapModule.areaGridSource) return;
+
     mapModule.vectorSource.clear();
     mapModule.areaGridSource.clear();
-    allFeatures = [];
     
     mapModule.drawCommunityAreas(communityAreas);
 
@@ -107,42 +116,8 @@ function processRawData(results) {
     uiModule.setSearchableData(fuse, allFeatures);
 }
 
-
-/**
- * 初始化使用者地理位置。
- */
-async function initializeUserLocation() {
-    if (!navigator.geolocation) {
-        uiModule.showNotification('您的瀏覽器不支援地理定位', 'warning');
-        await loadAndProcessData();
-        chatModule.sendJoinMessage();
-        return;
-    }
-    
-    try {
-        const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000 }));
-        const coords = [pos.coords.longitude, pos.coords.latitude];
-        const mapCoords = ol.proj.fromLonLat(coords);
-        
-        mapModule.map.getView().animate({ center: mapCoords, zoom: 16 });
-        mapModule.userLocationOverlay.setPosition(mapCoords);
-        $('#user-location').removeClass('hidden');
-
-        const city = await api.reverseGeocodeForCity(coords[0], coords[1]);
-        chatModule.setCurrentUserCity(city);
-        await loadAndProcessData(city);
-        
-    } catch (err) {
-        uiModule.showNotification('無法取得您的位置，將載入預設資料。', 'warning');
-        await loadAndProcessData();
-    } finally {
-        chatModule.sendJoinMessage();
-    }
-}
-
 /**
  * 處理來自其他模組的資料刷新請求。
- * @param {CustomEvent} event - 自訂事件。
  */
 async function handleDataRefresh(event) {
     const source = event.detail?.source;
@@ -156,18 +131,21 @@ async function handleDataRefresh(event) {
 }
 
 /**
- * 應用程式初始化函式。
+ * 設置應用程式的動態樣式。
  */
-async function main() {
-    // 樣式調整
+function setupStyles() {
     if (navigator.userAgent.toLowerCase().includes("line")) {
         document.documentElement.style.setProperty('--mobile-bottom-offset', '4rem');
     }
     document.documentElement.style.setProperty('--map-filter-style', 
         `contrast(${config.MAP_FILTER_CONTRAST}) saturate(${config.MAP_FILTER_SATURATE}) brightness(${config.MAP_FILTER_BRIGHTNESS})`
     );
+}
 
-    // 初始化所有模組的事件監聽器
+/**
+ * 註冊所有模組的事件監聽器。
+ */
+function initializeModules() {
     uiModule.setupEventListeners();
     gridModule.setupGridToolbar();
     chatModule.initializeChat();
@@ -175,20 +153,91 @@ async function main() {
     addLocationModule.setupAddLocationListeners();
     managementModule.setupManagementListeners();
     authModule.setupAuthListeners();
-    // 修改：將地圖點擊事件的處理函式改為 uiModule 中的版本
-    mapModule.map.on('singleclick', uiModule.handleMapClick);
-    document.addEventListener('refresh-data', handleDataRefresh);
-
-    // 認證與資料載入流程
-    const isLoggedIn = await authModule.verifyToken();
-    if (!isLoggedIn && !navigator.userAgent.toLowerCase().includes("line")) {
-        authModule.initializeGoogleButton();
+    // 確保 map 物件存在後才綁定事件
+    if (mapModule.map) {
+        mapModule.map.on('singleclick', uiModule.handleMapClick);
     }
-    await initializeUserLocation();
-
-    // 修改：當所有主要資料載入完成後，預先載入聊天歷史紀錄
-    chatModule.preloadHistory();
+    document.addEventListener('refresh-data', handleDataRefresh);
 }
 
-// 啟動
+/**
+ * 處理使用者認證流程。
+ */
+async function handleAuthentication() {
+    const isLineBrowser = navigator.userAgent.toLowerCase().includes("line");
+    const isLoggedIn = await authModule.verifyToken();
+
+    if (!isLoggedIn) {
+        if (isLineBrowser) {
+            await authModule.initializeLiffLogin();
+        } else {
+            authModule.initializeGoogleButton();
+        }
+    }
+}
+
+/**
+ * 根據已取得的位置資訊，完成後續的 UI 更新與資料載入
+ * @param {Object} locationData - 從 index.html 的 Promise 取得的位置物件
+ */
+async function finishInitializationWithLocation(locationData) {
+    if (locationData.success) {
+        const mapCoords = ol.proj.fromLonLat([locationData.lon, locationData.lat]);
+        if (mapModule.userLocationOverlay) {
+            mapModule.userLocationOverlay.setPosition(mapCoords);
+        }
+        $('#user-location').removeClass('hidden');
+
+        const city = await api.reverseGeocodeForCity(locationData.lon, locationData.lat);
+        chatModule.setCurrentUserCity(city);
+        await loadAndProcessData(city);
+    } else {
+        uiModule.showNotification('無法取得您的位置，將載入預設資料。', 'warning');
+        await loadAndProcessData();
+    }
+    chatModule.sendJoinMessage();
+}
+
+/**
+ * 應用程式初始化函式。
+ */
+async function main() {
+    const loadingTimeout = setTimeout(hideLoadingScreen, 3000);
+
+    try {
+        // 1. 等待 GPS 定位完成
+        const initialLocation = await window.initialLocationPromise;
+        const centerCoords = ol.proj.fromLonLat([initialLocation.lon, initialLocation.lat]);
+
+        // 2. 使用取得的座標初始化地圖
+        mapModule.initMap(centerCoords, initialLocation.zoom);
+
+        // 3. 地圖建立後，才初始化其他模組
+        setupStyles();
+        initializeModules();
+        
+        // 4. 執行後續的認證和資料載入
+        await handleAuthentication();
+        await finishInitializationWithLocation(initialLocation);
+        chatModule.preloadHistory();
+
+    } catch (error) {
+        console.error("應用程式初始化失敗:", error);
+        const appContainer = document.getElementById('app-container');
+        if (appContainer) {
+            appContainer.innerHTML = `
+                <div class="w-full h-full flex flex-col items-center justify-center text-center p-4">
+                    <h1 class="text-2xl font-bold text-red-600">糟糕，程式載入失敗了</h1>
+                    <p class="text-gray-700 mt-2">請嘗試重新整理頁面。如果問題持續發生，請回報給管理員。</p>
+                    <pre class="mt-4 p-2 bg-gray-100 text-left text-xs text-red-500 rounded-md overflow-auto w-full max-w-lg">${error.stack || error.message}</pre>
+                </div>
+            `;
+        }
+    } finally {
+        clearTimeout(loadingTimeout);
+        hideLoadingScreen();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', main);
+
