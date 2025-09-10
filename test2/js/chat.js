@@ -12,9 +12,9 @@ let heartbeatInterval = null;
 let unreadChatCount = 0;
 let currentUserCity = '未知區域';
 let contextMenuTarget = { userId: null, userName: null };
-let systemMessageQueue = [];
 let historyPromise = null;
-let isHistoryRendered = false; // 新增：標記歷史紀錄是否已渲染
+let hasHistoryBeenLoaded = false;
+let uploadUrlResolver = null;
 
 export const setCurrentUserCity = (city) => currentUserCity = city || '未知區域';
 
@@ -24,42 +24,46 @@ export const setCurrentUserCity = (city) => currentUserCity = city || '未知區
 export function initializeChat() {
     function connect() {
         if (ws && ws.readyState === WebSocket.OPEN) return;
-
         ws = new WebSocket(WEBSOCKET_URL);
 
         ws.onopen = () => {
             console.log('聊天室已連線。');
             sendJoinMessage();
             if (heartbeatInterval) clearInterval(heartbeatInterval);
-            heartbeatInterval = setInterval(() => ws.send(JSON.stringify({ type: 'ping' })), 30000);
+            heartbeatInterval = setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'ping' }));
+                }
+            }, 30000);
         };
 
         ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
                 switch (data.type) {
+                    case 'upload_url_response':
+                        if (uploadUrlResolver) {
+                            uploadUrlResolver(data);
+                            uploadUrlResolver = null;
+                        }
+                        break;
                     case 'history':
+                        // 由 loadArchivedChatHistoryOnce 處理，此處忽略
                         break;
                     case 'chat':
-                        const profile = getUserProfile();
-                        const currentUserId = profile.email || profile.lineUserId;
-                        if (data.userId === currentUserId) {
-                            return; 
-                        }
-                        
-                        if ($('#chat-modal').hasClass('hidden')) {
+                    case 'image':
+                    case 'system_join':
+                    case 'system_leave':
+                    case 'system_name_change':
+                    case 'system_error':
+                        if ($('#chat-modal').hasClass('hidden') && data.type !== 'system_error') {
                             unreadChatCount++;
                             $('#chat-unread-badge').text(unreadChatCount).removeClass('hidden');
                         }
                         appendChatMessage(data);
                         break;
-                    case 'system_join':
-                    case 'system_leave':
-                    case 'system_name_change':
-                        // 確保任何時候收到的系統訊息都能被加入
-                        appendChatMessage(data);
-                        break;
                     case 'pong':
+                        // Heartbeat response
                         break;
                     default:
                         console.warn("收到未知的訊息類型:", data.type);
@@ -77,15 +81,12 @@ export function initializeChat() {
 
         ws.onerror = (error) => {
             console.error('WebSocket 錯誤:', error);
-            ws.close();
+            ws.close(); // 觸發 onclose 中的重連邏輯
         };
     }
     connect();
 }
 
-/**
- * 發送使用者加入或名稱變更的訊息到 WebSocket。
- */
 export function sendJoinMessage() {
     if (getLoginStatus() && ws?.readyState === WebSocket.OPEN) {
         const profile = getUserProfile();
@@ -99,118 +100,69 @@ export function sendJoinMessage() {
     }
 }
 
-/**
- * 將一則系統/載入訊息附加到聊天視窗。
- * @param {string} message - 要顯示的訊息。
- */
-function appendLoadingMessage(message) {
-    const $chatMessages = $('#chat-messages');
-    const messageHtml = `<div class="text-center text-xs text-gray-500 italic py-1 loading-message">${message}</div>`;
-    $chatMessages.append(messageHtml);
-    $chatMessages.scrollTop($chatMessages[0].scrollHeight);
-}
-
-/**
- * 預先載入聊天歷史紀錄。
- */
 export function preloadHistory() {
     if (!historyPromise && getLoginStatus()) {
-        historyPromise = api.getArchivedChatHistory();
-        historyPromise.catch(err => {
+        historyPromise = api.getArchivedChatHistory().catch(err => {
             console.error("聊天歷史紀錄預載失敗:", err);
             historyPromise = null;
         });
     }
 }
 
-
-/**
- * 載入存檔的歷史聊天紀錄並顯示在畫面上。
- */
-async function loadArchivedChatHistory() {
-    // 如果已渲染過，或未登入，則直接返回
-    if (isHistoryRendered || !getLoginStatus()) return;
-
-    const $chatMessages = $('#chat-messages');
-    const $chatInput = $('#chat-input');
-    const $sendBtn = $('#send-chat-btn');
-
-    $chatInput.prop('disabled', true).attr('placeholder', '載入中...');
-    $sendBtn.prop('disabled', true);
-    systemMessageQueue = [];
+async function loadArchivedChatHistoryOnce() {
+    if (hasHistoryBeenLoaded || !getLoginStatus()) return;
     
-    appendLoadingMessage('讀取使用者訊息...');
-    await new Promise(resolve => setTimeout(resolve, 200));
-    appendLoadingMessage(`正在偵測你的位置... (${currentUserCity})`);
-    await new Promise(resolve => setTimeout(resolve, 300));
-    appendLoadingMessage('讀取歷史訊息...');
+    const $chatMessages = $('#chat-messages');
+    $chatMessages.empty().append('<div class="text-center text-gray-500 italic p-4">正在載入歷史訊息...</div>');
 
     try {
-        if (!historyPromise) {
-            preloadHistory();
-        }
-        
+        if (!historyPromise) preloadHistory();
         const history = await historyPromise;
-        
-        $chatMessages.find('.loading-message').remove();
+        $chatMessages.empty();
 
         if (Array.isArray(history) && history.length > 0) {
-            for (const log of history) {
-                appendChatMessage({
-                    type: 'chat',
-                    message: log.message,
-                    nickname: log.conversation_name,
-                    city: log.conversation_location,
-                    pictureUrl: log.pictureUrl || '',
-                    timestamp: log.updated_time,
-                    userId: log.conversation_id,
-                });
-                await new Promise(resolve => setTimeout(resolve, 20));
-            }
+            history.forEach(log => appendChatMessage({
+                type: log.message.startsWith('https://') ? 'image' : 'chat',
+                message: log.message.startsWith('https://') ? undefined : log.message,
+                imageUrl: log.message.startsWith('https://') ? log.message : undefined,
+                nickname: log.conversation_name,
+                city: log.conversation_location,
+                pictureUrl: log.pictureUrl || '',
+                timestamp: log.updated_time,
+                userId: log.conversation_id,
+            }));
         }
-        
-        processSystemMessageQueue();
-        isHistoryRendered = true; // 設定旗標，表示歷史紀錄已成功載入
-        $chatMessages.scrollTop($chatMessages[0].scrollHeight);
-
+        hasHistoryBeenLoaded = true;
     } catch (error) {
         console.error("無法載入歷史聊天紀錄:", error);
-        historyPromise = null;
-        $chatMessages.find('.loading-message').remove();
-        appendLoadingMessage('載入歷史紀錄失敗，請稍後再試。');
+        $chatMessages.html('<div class="text-center text-red-500 italic p-4">載入歷史紀錄失敗，請稍後再試。</div>');
     } finally {
-        $chatInput.prop('disabled', false).attr('placeholder', '輸入訊息...');
-        $sendBtn.prop('disabled', false);
+        $chatMessages.scrollTop($chatMessages[0].scrollHeight);
     }
 }
 
-/**
- * 處理並顯示佇列中的系統訊息。
- */
-function processSystemMessageQueue() {
-    systemMessageQueue.forEach(appendChatMessage);
-    systemMessageQueue = [];
-}
-
-
-/**
- * 將一則訊息附加到聊天視窗。
- * @param {Object} data - 訊息資料。
- */
 function appendChatMessage(data) {
     const $chatMessages = $('#chat-messages');
     if (data.timestamp && $chatMessages.find(`[data-timestamp="${data.timestamp}"]`).length > 0) return;
     
     const time = new Date(data.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
-    const sanitizedMsg = $('<div>').text(data.message || '').html();
-    
     let messageHtml = '';
+    
     if (data.type.startsWith('system')) {
-        messageHtml = `<div class="text-center text-xs text-gray-500 italic py-1 system-message" data-timestamp="${data.timestamp}">${sanitizedMsg}</div>`;
+        const colorClass = data.type === 'system_error' ? 'text-red-500' : 'text-gray-500';
+        messageHtml = `<div class="text-center text-xs ${colorClass} italic py-1 system-message" data-timestamp="${data.timestamp}">${$('<div>').text(data.message).html()}</div>`;
     } else {
         const sanitizedNick = $('<div>').text(data.nickname || '匿名').html();
         const sanitizedCity = $('<div>').text(data.city || '未知').html();
         const pictureUrl = data.pictureUrl || 'https://placehold.co/40x40/E2E8F0/A0AEC0?text=?';
+        let contentHtml = '';
+
+        if (data.type === 'image' && data.imageUrl) {
+            contentHtml = `<a href="${data.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${data.imageUrl}" class="chat-image" alt="使用者上傳的圖片"></a>`;
+        } else {
+            contentHtml = `<p class="text-gray-800 break-words">${$('<div>').text(data.message).html()}</p>`;
+        }
+        
         messageHtml = `
             <div class="chat-message-item flex items-start space-x-3 p-1 rounded-md hover:bg-gray-100" 
                  data-timestamp="${data.timestamp}" data-user-id="${data.userId || ''}" data-user-name="${sanitizedNick}">
@@ -221,7 +173,7 @@ function appendChatMessage(data) {
                         <span class="text-xs text-gray-500">(${sanitizedCity})</span>
                         <span class="text-xs text-gray-400">${time}</span>
                     </div>
-                    <p class="text-gray-800 break-words">${sanitizedMsg}</p>
+                    ${contentHtml}
                 </div>
             </div>`;
     }
@@ -231,37 +183,53 @@ function appendChatMessage(data) {
     if (shouldScroll) $chatMessages.scrollTop($chatMessages[0].scrollHeight);
 }
 
-/**
- * 發送聊天訊息。
- */
 function sendChatMessage() {
-    if (!getLoginStatus()) {
-        showNotification('請先登入才能發言！', 'warning');
-        return;
-    }
     const $input = $('#chat-input');
     const message = $input.val().trim();
-
-    if (message && ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'chat', message }));
-
-        const profile = getUserProfile();
-        const optimisticMessage = {
-            type: 'chat',
-            message: message,
-            nickname: profile.name || '匿名',
-            city: currentUserCity,
-            pictureUrl: profile.pictureUrl || '',
-            timestamp: new Date().toISOString(),
-            userId: profile.email || profile.lineUserId,
-        };
-        appendChatMessage(optimisticMessage);
-        
-        $input.val('');
+    if (message) {
+        if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'chat', message }));
+            $input.val('');
+        } else {
+            showNotification('聊天室尚未連線，請稍後再試。', 'error');
+        }
     }
 }
 
-// --- 右鍵選單與禁言 ---
+async function uploadImageToGCS(file) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showNotification('無法上傳圖片：聊天室尚未連線。', 'error');
+        return;
+    }
+    showNotification('正在準備上傳圖片...', 'info');
+    try {
+        ws.send(JSON.stringify({ type: 'get_upload_url', fileName: file.name }));
+        const { signedUrl, publicUrl } = await new Promise((resolve, reject) => {
+            uploadUrlResolver = resolve;
+            setTimeout(() => reject(new Error('取得上傳連結超時')), 10000);
+        });
+
+        if (!signedUrl || !publicUrl) throw new Error('從伺服器收到的上傳連結無效。');
+        showNotification('正在上傳圖片...', 'info');
+
+        const response = await fetch(signedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: file,
+        });
+
+        if (!response.ok) throw new Error(`上傳失敗，狀態碼: ${response.status}`);
+
+        showNotification('圖片上傳成功！', 'success');
+        if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'image', message: publicUrl }));
+        }
+    } catch (error) {
+        console.error('GCS 上傳失敗:', error);
+        showNotification(`圖片上傳失敗: ${error.message}`, 'error');
+        uploadUrlResolver = null;
+    }
+}
 
 function handleContextMenu(element, x, y) {
     const $el = $(element);
@@ -272,9 +240,7 @@ function handleContextMenu(element, x, y) {
     if (!userId || userId === (currentUser.email || currentUser.lineUserId)) return;
     
     contextMenuTarget = { userId, userName };
-    
     $('#context-mute-user').toggle(getIsAdmin());
-    
     $('#chat-context-menu').css({ top: `${y}px`, left: `${x}px` }).removeClass('hidden');
 }
 
@@ -282,15 +248,12 @@ async function handleMuteUserSubmit(e) {
     e.preventDefault();
     const days = parseInt($('#mute-days').val()) || 0;
     const minutes = parseInt($('#mute-minutes').val()) || 0;
-    
     if (days === 0 && minutes === 0) {
         showNotification('請設定有效的禁言時間。', 'warning');
         return;
     }
-    
     const duration = `${days}d${minutes}m`;
     showNotification(`正在禁言 ${contextMenuTarget.userName}...`, 'info');
-    
     try {
         const result = await api.muteUserAPI(contextMenuTarget.userId, contextMenuTarget.userName, duration);
         if (result.status !== 'success') throw new Error(result.message);
@@ -301,26 +264,12 @@ async function handleMuteUserSubmit(e) {
     }
 }
 
-
-/**
- * 初始化所有與聊天室相關的事件監聽器。
- */
 export function setupChatListeners() {
     let longPressTimer;
 
-    $('#open-chat-btn').on('click', async () => {
-        if (!getLoginStatus()) {
-            await triggerLogin();
-            return;
-        }
-        
-        // 只有在歷史紀錄尚未渲染時，才執行清空和載入
-        if (!isHistoryRendered) {
-            $('#chat-messages').empty();
-            await loadArchivedChatHistory();
-        }
-
+    $('#open-chat-btn').on('click', () => {
         $('#chat-modal').removeClass('hidden');
+        loadArchivedChatHistoryOnce();
         unreadChatCount = 0;
         $('#chat-unread-badge').addClass('hidden').text('');
         setTimeout(() => $('#chat-messages').scrollTop($('#chat-messages')[0].scrollHeight), 0);
@@ -330,7 +279,22 @@ export function setupChatListeners() {
     $('#chat-input').on('keydown', e => e.key === 'Enter' && (e.preventDefault(), sendChatMessage()));
     $('#hide-system-msgs-checkbox').on('change', (e) => $('#chat-messages').toggleClass('hide-system-messages', e.target.checked));
 
-    // 右鍵選單
+    $('#upload-image-btn').on('click', () => {
+        if (!getLoginStatus()) {
+            triggerLogin();
+            return;
+        }
+        $('#image-upload-input').trigger('click');
+    });
+
+    $('#image-upload-input').on('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            uploadImageToGCS(file);
+        }
+        $(this).val('');
+    });
+
     $('#chat-messages').on('contextmenu touchstart', '.chat-message-item', function(e) {
         e.preventDefault();
         const targetElement = this;
@@ -339,11 +303,10 @@ export function setupChatListeners() {
         } else {
             handleContextMenu(targetElement, e.pageX, e.pageY);
         }
-    }).on('touchend touchmove', '.chat-message-item', () => clearTimeout(longPressTimer));
+    }).on('touchend touchmove', () => clearTimeout(longPressTimer));
 
     $(document).on('click', () => $('#chat-context-menu').addClass('hidden'));
     
-    // 禁言 Modal
     $('#mute-user-form').on('submit', handleMuteUserSubmit);
     $('#cancel-mute-btn').on('click', () => $('#mute-user-modal').addClass('hidden'));
     $('#context-mute-user').on('click', e => {
@@ -355,3 +318,4 @@ export function setupChatListeners() {
         }
     });
 }
+
