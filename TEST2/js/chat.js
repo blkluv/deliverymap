@@ -14,6 +14,7 @@ let currentUserCity = '未知區域';
 let contextMenuTarget = { userId: null, userName: null };
 let systemMessageQueue = [];
 let historyPromise = null;
+let isHistoryRendered = false; // 新增：標記歷史紀錄是否已渲染
 
 export const setCurrentUserCity = (city) => currentUserCity = city || '未知區域';
 
@@ -55,11 +56,8 @@ export function initializeChat() {
                     case 'system_join':
                     case 'system_leave':
                     case 'system_name_change':
-                        if (historyPromise && historyPromise.then) {
-                            appendChatMessage(data);
-                        } else {
-                            systemMessageQueue.push(data);
-                        }
+                        // 確保任何時候收到的系統訊息都能被加入
+                        appendChatMessage(data);
                         break;
                     case 'pong':
                         break;
@@ -130,9 +128,10 @@ export function preloadHistory() {
  * 載入存檔的歷史聊天紀錄並顯示在畫面上。
  */
 async function loadArchivedChatHistory() {
-    if (!getLoginStatus()) return;
+    // 如果已渲染過，或未登入，則直接返回
+    if (isHistoryRendered || !getLoginStatus()) return;
 
-    const $chatMessages = $('#chat-messages').empty();
+    const $chatMessages = $('#chat-messages');
     const $chatInput = $('#chat-input');
     const $sendBtn = $('#send-chat-btn');
 
@@ -171,6 +170,7 @@ async function loadArchivedChatHistory() {
         }
         
         processSystemMessageQueue();
+        isHistoryRendered = true; // 設定旗標，表示歷史紀錄已成功載入
         $chatMessages.scrollTop($chatMessages[0].scrollHeight);
 
     } catch (error) {
@@ -313,8 +313,14 @@ export function setupChatListeners() {
             await triggerLogin();
             return;
         }
+        
+        // 只有在歷史紀錄尚未渲染時，才執行清空和載入
+        if (!isHistoryRendered) {
+            $('#chat-messages').empty();
+            await loadArchivedChatHistory();
+        }
+
         $('#chat-modal').removeClass('hidden');
-        await loadArchivedChatHistory();
         unreadChatCount = 0;
         $('#chat-unread-badge').addClass('hidden').text('');
         setTimeout(() => $('#chat-messages').scrollTop($('#chat-messages')[0].scrollHeight), 0);
@@ -349,3 +355,4 @@ export function setupChatListeners() {
         }
     });
 }
+
