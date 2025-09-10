@@ -12,9 +12,10 @@ export let radiusSource = null;
 export let infoOverlay = null;
 export let userLocationOverlay = null;
 export let dragPanInteraction = null;
-export let areaGridLayer = null; // [FIXED] 新增此變數的匯出
+export let areaGridLayer = null;
+export let clusterLayer = null; // [NEW] 匯出 clusterLayer
 
-let osmLayer, lineLayer, radiusLayer, clusterLayer;
+let osmLayer, lineLayer, radiusLayer;
 const styleCache = {};
 const isMobile = window.innerWidth < 768;
 
@@ -147,6 +148,17 @@ export function initMap(centerCoords, zoomLevel) {
             new ol.control.Attribution({ collapsible: false })
         ].concat(isMobile ? [] : [new ol.control.Rotate()]),
     });
+    
+    // [NEW] 設置圖磚載入優先序，優化載入體驗
+    const osmSource = osmLayer.getSource();
+    osmSource.setTilePriority((tile, sourceProjection, tileCenter, tileResolution) => {
+        const viewCenter = map.getView().getCenter();
+        if (!viewCenter) return 0;
+        const squaredDistance = ol.math.getSquaredDistance(tileCenter, viewCenter);
+        // 距離越近，優先序越高
+        return 100000 / (squaredDistance + 1);
+    });
+
 
     map.getInteractions().forEach(interaction => {
         if (interaction instanceof ol.interaction.DragPan) {
@@ -286,6 +298,7 @@ export function drawCommunityAreas(areas) {
                 });
 
                 cellFeature.setStyle((feature, resolution) => {
+                    if (!map) return null;
                     const zoom = map.getView().getZoomForResolution(resolution);
                     const styles = [];
                     if (fillColor) styles.push(new ol.style.Style({ fill: new ol.style.Fill({ color: fillColor }) }));
@@ -313,6 +326,7 @@ export function drawCommunityAreas(areas) {
                     parentData: areaData
                 });
                  nameFeature.setStyle((feature, resolution) => {
+                    if (!map) return null;
                     if (map.getView().getZoomForResolution(resolution) >= LABEL_VISIBILITY_ZOOM) {
                         return new ol.style.Style({
                             text: new ol.style.Text({
@@ -333,3 +347,4 @@ export function drawCommunityAreas(areas) {
         }
     });
 }
+
