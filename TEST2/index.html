@@ -33,13 +33,10 @@
         })();
     </script>
     
-    <!-- [MODIFIED] Initial Location Fetcher Script -->
     <script>
-        // 將使用者座標的讀取設為第一步，以利地圖順暢載入
         window.initialLocationPromise = new Promise((resolve) => {
             if (!navigator.geolocation) {
                 console.warn('您的瀏覽器不支援地理定位。');
-                // 預設台北車站
                 resolve({ lon: 121.5173, lat: 25.0479, zoom: 15, success: false });
                 return;
             }
@@ -49,18 +46,17 @@
                     resolve({
                         lon: position.coords.longitude,
                         lat: position.coords.latitude,
-                        zoom: 18, // 成功取得位置時，使用較大的縮放層級
+                        zoom: 16,
                         success: true
                     });
                 },
                 () => {
                     console.warn('無法取得使用者位置。');
-                    // 若失敗，同樣使用預設台北車站
                     resolve({ lon: 121.5173, lat: 25.0479, zoom: 15, success: false });
                 },
                 {
                     enableHighAccuracy: true,
-                    timeout: 8000, // 8秒超時
+                    timeout: 8000,
                     maximumAge: 0
                 }
             );
@@ -81,16 +77,36 @@
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
     <script src="https://unpkg.com/pinyin-pro@3.18.2/dist/index.js"></script>
     
-    <!-- Inline Style -->
+    <!-- [NEW] Inline Styles for Loading Screen & Chat -->
     <style>
         .chat-message-item {
-            -webkit-user-select: none; /* Safari */
-            -ms-user-select: none; /* IE 10+ */
-            user-select: none; /* Standard syntax */
+            -webkit-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @-webkit-keyframes spinner {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body class="bg-gray-100">
+
+    <!-- [NEW] Loading Screen Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out">
+        <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-24 w-24 mb-4"></div>
+        <h2 class="text-center text-gray-700 text-xl font-semibold">正在載入地圖...</h2>
+        <p class="w-2/3 md:w-1/3 text-center text-gray-500 mt-2">初次載入或網路較慢時可能需要一些時間，請稍候。</p>
+    </div>
 
     <div id="app" class="relative h-screen w-screen overflow-hidden">
         <!-- App Container -->
