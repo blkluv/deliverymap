@@ -33,7 +33,7 @@ function hideLoadingScreen() {
  * @param {string|null} city - (可選) 要載入的特定城市。
  */
 async function loadAndProcessData(city = null) {
-    uiModule.showNotification('正在讀取資料...');
+    uiModule.showNotification('正在偵測附近...');
     try {
         if (typeof pinyinPro === 'undefined' || typeof Fuse === 'undefined') {
             throw new Error('相依性函式庫 (pinyin-pro or Fuse.js) 載入失敗。');
