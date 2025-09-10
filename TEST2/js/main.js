@@ -11,20 +11,9 @@ import * as gridModule from './grid.js';
 import * as chatModule from './chat.js';
 import * as managementModule from './management.js';
 
-// --- Loading Screen Management ---
-let isLoadingScreenHidden = false;
-function hideLoadingScreen() {
-    if (isLoadingScreenHidden) return;
-    isLoadingScreenHidden = true;
-
-    const loadingOverlay = document.getElementById('loading-overlay');
-    if (loadingOverlay) {
-        loadingOverlay.style.opacity = '0';
-        setTimeout(() => {
-            loadingOverlay.style.display = 'none';
-        }, 500); // 對應 CSS 的 transition duration
-    }
-}
+// --- 全域狀態變數 ---
+let allFeatures = [];
+let rawReports = [];
 
 /**
  * 載入並處理應用程式所需的主要資料。
@@ -37,13 +26,12 @@ async function loadAndProcessData(city = null) {
             throw new Error('相依性函式庫 (pinyin-pro or Fuse.js) 載入失敗。');
         }
 
-        const rawReports = await api.loadData(city);
+        rawReports = await api.loadData(city);
         if (!rawReports) {
-            throw new Error('從伺服器取得的資料為空。');
+            throw new Error('從伺服器取得的資料為空，這通常是 CORS 錯誤造成的。');
         }
-        
+
         managementModule.setRawReports(rawReports);
-        
         processRawData(rawReports);
 
         uiModule.populateFiltersAndLegend();
@@ -51,7 +39,13 @@ async function loadAndProcessData(city = null) {
         uiModule.hideNotification();
     } catch (error) {
         console.error("資料載入與處理失敗:", error);
-        uiModule.showNotification(`無法載入資料：${error.message}`, 'error');
+        let errorMessage = '無法載入資料！請稍後再試。';
+        if (error.message.includes('fetch') || error.message.includes('CORS')) {
+            errorMessage = '無法載入資料：發生網路或 CORS 錯誤，請檢查您的後端 Apps Script 部署設定。';
+        } else if (error.message.includes('相依性函式庫') || error.message.includes('資料為空')) {
+            errorMessage = `錯誤：${error.message}`;
+        }
+        uiModule.showNotification(errorMessage, 'error');
     }
 }
 
@@ -76,7 +70,7 @@ function processRawData(results) {
 
     mapModule.vectorSource.clear();
     mapModule.areaGridSource.clear();
-    const allFeatures = [];
+    allFeatures = [];
     
     mapModule.drawCommunityAreas(communityAreas);
 
@@ -115,32 +109,35 @@ function processRawData(results) {
 
 
 /**
- * 根據已取得的位置資訊，完成後續的 UI 更新與資料載入
- * @param {Object} locationData - 從 index.html 的 Promise 取得的位置物件
+ * 初始化使用者地理位置。
  */
-async function finishInitializationWithLocation(locationData) {
-    if (locationData.success) {
-        const coords = [locationData.lon, locationData.lat];
+async function initializeUserLocation() {
+    if (!navigator.geolocation) {
+        uiModule.showNotification('您的瀏覽器不支援地理定位', 'warning');
+        await loadAndProcessData();
+        chatModule.sendJoinMessage();
+        return;
+    }
+    
+    try {
+        const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000 }));
+        const coords = [pos.coords.longitude, pos.coords.latitude];
         const mapCoords = ol.proj.fromLonLat(coords);
         
+        mapModule.map.getView().animate({ center: mapCoords, zoom: 16 });
         mapModule.userLocationOverlay.setPosition(mapCoords);
         $('#user-location').removeClass('hidden');
 
-        try {
-            const city = await api.reverseGeocodeForCity(coords[0], coords[1]);
-            chatModule.setCurrentUserCity(city);
-            await loadAndProcessData(city);
-        } catch (err) {
-            console.error("反向地理編碼或資料載入失敗:", err);
-            uiModule.showNotification('無法取得您的位置，將載入預設資料。', 'warning');
-            await loadAndProcessData();
-        }
-    } else {
+        const city = await api.reverseGeocodeForCity(coords[0], coords[1]);
+        chatModule.setCurrentUserCity(city);
+        await loadAndProcessData(city);
+        
+    } catch (err) {
         uiModule.showNotification('無法取得您的位置，將載入預設資料。', 'warning');
         await loadAndProcessData();
+    } finally {
+        chatModule.sendJoinMessage();
     }
-
-    chatModule.sendJoinMessage();
 }
 
 /**
@@ -162,14 +159,7 @@ async function handleDataRefresh(event) {
  * 應用程式初始化函式。
  */
 async function main() {
-    // [MODIFIED] 設定一個最多 2 秒的計時器來隱藏讀取畫面
-    setTimeout(hideLoadingScreen, 2000);
-
-    const initialLocation = await window.initialLocationPromise;
-    const centerCoords = ol.proj.fromLonLat([initialLocation.lon, initialLocation.lat]);
-
-    mapModule.initMap(centerCoords, initialLocation.zoom);
-    
+    // 樣式調整
     if (navigator.userAgent.toLowerCase().includes("line")) {
         document.documentElement.style.setProperty('--mobile-bottom-offset', '4rem');
     }
@@ -177,6 +167,7 @@ async function main() {
         `contrast(${config.MAP_FILTER_CONTRAST}) saturate(${config.MAP_FILTER_SATURATE}) brightness(${config.MAP_FILTER_BRIGHTNESS})`
     );
 
+    // 初始化所有模組的事件監聽器
     uiModule.setupEventListeners();
     gridModule.setupGridToolbar();
     chatModule.initializeChat();
@@ -184,27 +175,20 @@ async function main() {
     addLocationModule.setupAddLocationListeners();
     managementModule.setupManagementListeners();
     authModule.setupAuthListeners();
+    // 修改：將地圖點擊事件的處理函式改為 uiModule 中的版本
     mapModule.map.on('singleclick', uiModule.handleMapClick);
     document.addEventListener('refresh-data', handleDataRefresh);
 
-    const isLineBrowser = navigator.userAgent.toLowerCase().includes("line");
+    // 認證與資料載入流程
     const isLoggedIn = await authModule.verifyToken();
-    
-    if (!isLoggedIn) {
-        if (isLineBrowser) {
-            await authModule.initializeLiffLogin();
-        } else {
-            authModule.initializeGoogleButton();
-        }
+    if (!isLoggedIn && !navigator.userAgent.toLowerCase().includes("line")) {
+        authModule.initializeGoogleButton();
     }
+    await initializeUserLocation();
 
-    await finishInitializationWithLocation(initialLocation);
-
+    // 修改：當所有主要資料載入完成後，預先載入聊天歷史紀錄
     chatModule.preloadHistory();
-    
-    // [MODIFIED] 當所有初始化完成後，再次呼叫（確保在2秒內完成時能立即隱藏）
-    hideLoadingScreen();
 }
 
+// 啟動
 document.addEventListener('DOMContentLoaded', main);
-

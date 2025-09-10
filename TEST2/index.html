@@ -33,36 +33,6 @@
         })();
     </script>
     
-    <script>
-        window.initialLocationPromise = new Promise((resolve) => {
-            if (!navigator.geolocation) {
-                console.warn('您的瀏覽器不支援地理定位。');
-                resolve({ lon: 121.5173, lat: 25.0479, zoom: 15, success: false });
-                return;
-            }
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    resolve({
-                        lon: position.coords.longitude,
-                        lat: position.coords.latitude,
-                        zoom: 16,
-                        success: true
-                    });
-                },
-                () => {
-                    console.warn('無法取得使用者位置。');
-                    resolve({ lon: 121.5173, lat: 25.0479, zoom: 15, success: false });
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 8000,
-                    maximumAge: 0
-                }
-            );
-        });
-    </script>
-    
     <!-- Libraries CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css">
     
@@ -77,36 +47,16 @@
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
     <script src="https://unpkg.com/pinyin-pro@3.18.2/dist/index.js"></script>
     
-    <!-- Inline Styles for Loading Screen & Chat -->
+    <!-- Inline Style -->
     <style>
         .chat-message-item {
-            -webkit-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-        }
-        .loader {
-            border-top-color: #3498db; /* Spinner active color */
-            -webkit-animation: spinner 1.5s linear infinite;
-            animation: spinner 1.5s linear infinite;
-        }
-        @-webkit-keyframes spinner {
-            0% { -webkit-transform: rotate(0deg); }
-            100% { -webkit-transform: rotate(360deg); }
-        }
-        @keyframes spinner {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10+ */
+            user-select: none; /* Standard syntax */
         }
     </style>
 </head>
 <body class="bg-gray-100">
-
-    <!-- Loading Screen Overlay -->
-    <div id="loading-overlay" class="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out">
-        <div class="loader ease-linear rounded-full border-8 border-t-8 border-blue-20 h-24 w-24 mb-4"></div>
-        <h2 class="text-center text-gray-700 text-xl font-semibold">🌎黑客指南針🧭</h2>
-        <p class="w-2/3 md:w-1/3 text-center text-gray-500 mt-2">🛵🛵🛵初次載入或網路較慢時可能需要一些時間，請稍候。</p>
-    </div>
 
     <div id="app" class="relative h-screen w-screen overflow-hidden">
         <!-- App Container -->
@@ -478,4 +428,3 @@
     </script>
 </body>
 </html>
-
