@@ -9,8 +9,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "ws": "^8.17.0",
-    "node-fetch": "^2.7.0"
+    "@google-cloud/storage": "^7.11.0",
+    "node-fetch": "^2.7.0",
+    "ws": "^8.17.0"
   },
   "engines": {
     "node": ">=16"
