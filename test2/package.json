@@ -1,0 +1,19 @@
+{
+  "name": "render-websocket-chat-server",
+  "version": "1.0.0",
+  "description": "WebSocket chat server with Google Sheets archival for Render.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google-cloud/storage": "^7.11.0",
+    "node-fetch": "^2.7.0",
+    "ws": "^8.17.0"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
