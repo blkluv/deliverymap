@@ -73,7 +73,11 @@ async function handleLineSignIn(lineProfile) {
         const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'line_login', profile: lineProfile })
+            body: JSON.stringify({ 
+                action: 'line_login', 
+                profile: lineProfile,
+                last_time: new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" })
+            })
         });
         const result = await response.json();
 
@@ -98,7 +102,11 @@ async function handleGoogleSignIn(googleProfile) {
         const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'google_login', profile: googleProfile })
+            body: JSON.stringify({ 
+                action: 'google_login', 
+                profile: googleProfile,
+                last_time: new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" })
+            })
         });
         const result = await response.json();
 
@@ -268,4 +276,3 @@ export function setupAuthListeners() {
     });
     $(document).on('click', '#edit-nickname-btn', handleNicknameEdit);
 }
-
