@@ -34,7 +34,6 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
     $('#grid-toolbar').toggleClass('hidden', !enable).toggleClass('flex', enable);
     $('#grid-color-palette').toggleClass('hidden', !enable);
 
-    // 新增：當進入編輯模式時，隱藏地圖上原有的建築範圍，退出時重新顯示
     if (areaGridLayer) {
         areaGridLayer.setVisible(!enable);
     }
@@ -44,7 +43,6 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
         map.getView().animate({ zoom: zoomThreshold });
         $('#map').addClass('map-enhanced grid-mode-active');
         
-        // 預設為填色工具，所以畫布可互動，地圖平移關閉
         gridCanvas.style.pointerEvents = 'auto';
         if (dragPanInteraction) dragPanInteraction.setActive(false);
         
@@ -179,6 +177,8 @@ function paintCell(evt) {
     const cellKey = `${(Math.floor(lon / GRID_INTERVAL) * GRID_INTERVAL).toFixed(GRID_PRECISION)}-${(Math.floor(lat / GRID_INTERVAL) * GRID_INTERVAL).toFixed(GRID_PRECISION)}`;
     
     if (cellKey === lastPaintedCellKey) return;
+
+    const isFirstCellOfStroke = (lastPaintedCellKey === null);
     lastPaintedCellKey = cellKey;
 
     const centerCoords = lockedCenterForEditing || map.getView().getCenter();
@@ -188,9 +188,14 @@ function paintCell(evt) {
 
     switch(currentAreaTool) {
         case 'fill':
-            // 修正：根據使用者需求，滑動填色時不再有擦除效果。僅填滿未上色的格子。
-            if (!existingData.fillColor) {
-                existingData.fillColor = currentAreaColor;
+            if (isFirstCellOfStroke) {
+                // 如果是點擊或拖曳的第一個格子，則切換顏色 (填色/擦除)
+                existingData.fillColor = existingData.fillColor ? null : currentAreaColor;
+            } else {
+                // 如果是拖曳經過的其他格子，則只填色，不擦除
+                if (!existingData.fillColor) {
+                    existingData.fillColor = currentAreaColor;
+                }
             }
             break;
         case 'eraser':
@@ -213,6 +218,7 @@ function paintCell(evt) {
 // --- 事件處理函式 ---
 const mapPointerDown = (evt) => {
     if (evt.button !== 0 || !uiState.isDrawingOnGrid || currentAreaTool === 'pan') return;
+    lastPaintedCellKey = null; // 每次新點擊都重置，以區分點擊和拖曳
     uiState.isPainting = true;
     paintCell(evt);
     gridCanvas.addEventListener('pointermove', mapPointerMove);
@@ -225,7 +231,7 @@ const mapPointerMove = (evt) => {
 };
 const mapPointerUp = () => {
     uiState.isPainting = false;
-    lastPaintedCellKey = null;
+    // lastPaintedCellKey 不在此處重置，而是在下一次 pointerdown 時重置
     gridCanvas.removeEventListener('pointermove', mapPointerMove);
 };
 
@@ -297,17 +303,15 @@ export function setupGridToolbar() {
         $btn.addClass('active');
         currentAreaTool = toolId.replace('tool-', '');
 
-        // 修正：根據選擇的工具，動態切換畫布的互動性和地圖的平移功能
         if (currentAreaTool === 'pan') {
-            // 若為平移工具：停用畫布互動，啟用地圖平移
             gridCanvas.style.pointerEvents = 'none';
             if (dragPanInteraction) dragPanInteraction.setActive(true);
             $('#map').addClass('pan-mode').removeClass('paint-mode');
         } else {
-            // 若為繪圖工具：啟用畫布互動，停用地圖平移
             gridCanvas.style.pointerEvents = 'auto';
             if (dragPanInteraction) dragPanInteraction.setActive(false);
             $('#map').removeClass('pan-mode').addClass('paint-mode');
         }
     });
 }
+
