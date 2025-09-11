@@ -52,6 +52,7 @@ html, body {
     min-width: 300px;
     max-width: 350px;
     transform: translateX(-50%);
+    touch-action: auto; /* 確保彈出視窗內的元件 (如關閉按鈕) 可以正常接收觸控事件 */
 }
 .ol-popup:after, .ol-popup:before {
     top: 100%;
