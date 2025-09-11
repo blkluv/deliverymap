@@ -239,6 +239,7 @@ export function handleMapClick(evt) {
     if (mapModule.searchResultOverlay.getPosition()) {
         mapModule.searchResultOverlay.setPosition(undefined);
         mapModule.searchResultSource.clear();
+        return; // 點擊地圖以關閉搜尋結果後，不應再觸發其他點擊事件
     }
     
     if (uiState.isDesktopAddMode || uiState.isDrawingOnGrid) return;
@@ -444,9 +445,10 @@ export function setupEventListeners() {
                 const text = await navigator.clipboard.readText();
                 if (text && ['區', '路', '街', '巷'].some(k => text.includes(k))) {
                     $('#search-address-input').val(text);
-                    handleSearch();
                 }
-            } catch (err) { /* clipboard permission denied */ }
+            } catch (err) { 
+                console.warn('無法讀取剪貼簿，可能需要使用者授權。', err);
+            }
         }
     });
     $('#close-search-panel').on('click', () => $('#search-panel').addClass('hidden'));
