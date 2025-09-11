@@ -278,7 +278,19 @@ export function setupChatListeners() {
     });
     $('#close-chat-modal').on('click', () => $('#chat-modal').addClass('hidden'));
     $('#send-chat-btn').on('click', sendChatMessage);
-    $('#chat-input').on('keydown', e => e.key === 'Enter' && (e.preventDefault(), sendChatMessage()));
+    
+    // --- 修改開始 ---
+    // 將原本的單行寫法改成更明確的 if 判斷式，確保只有 Enter 鍵會觸發事件
+    $('#chat-input').on('keydown', e => {
+        // 只在按下 Enter 鍵時觸發送出，並阻止預設行為
+        // 這樣可以確保其他按鍵 (如退格鍵 Backspace、方向鍵) 的功能正常
+        if (e.key === 'Enter') {
+            e.preventDefault(); // 阻止 Enter 鍵的預設行為 (例如換行或送出表單)
+            sendChatMessage();
+        }
+    });
+    // --- 修改結束 ---
+
     $('#hide-system-msgs-checkbox').on('change', (e) => $('#chat-messages').toggleClass('hide-system-messages', e.target.checked));
 
     $('#upload-image-btn').on('click', () => {
@@ -320,4 +332,3 @@ export function setupChatListeners() {
         }
     });
 }
-
