@@ -235,6 +235,12 @@ export function populateFiltersAndLegend() {
  * @param {ol.MapBrowserEvent} evt - 地圖瀏覽器事件。
  */
 export function handleMapClick(evt) {
+    // 如果正在顯示搜尋結果，任何地圖點擊都會先將其關閉。
+    if (mapModule.searchResultOverlay.getPosition()) {
+        mapModule.searchResultOverlay.setPosition(undefined);
+        mapModule.searchResultSource.clear();
+    }
+    
     if (uiState.isDesktopAddMode || uiState.isDrawingOnGrid) return;
     
     let featureClicked = false;
@@ -473,13 +479,6 @@ export function setupEventListeners() {
     if (mapModule.map) {
         mapModule.map.on('moveend', updateStoreList);
     }
-
-    // 搜尋結果彈出視窗的事件
-    $('#search-result-popup-closer').on('click', (e) => {
-        e.preventDefault();
-        mapModule.searchResultOverlay.setPosition(undefined);
-        mapModule.searchResultSource.clear();
-    });
 
     $('#navigate-btn').on('click', function() {
         const lat = $(this).data('lat');
