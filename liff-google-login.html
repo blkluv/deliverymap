@@ -108,14 +108,20 @@
                         localStorage.setItem(SESSION_TOKEN_KEY, result.token);
                         
                         $statusTitle.innerText = '登入成功！';
-                        $statusMessage.innerText = '即將關閉此視窗...';
+                        // --- 修改開始 ---
+                        $statusMessage.innerText = '1秒後將自動關閉視窗或返回地圖...';
 
-                        // 延長一點時間讓使用者能看到頭像
+                        // 設定 1 秒後執行
                         setTimeout(() => {
-                            if (liff.isInClient()) {
-                                liff.closeWindow();
-                            }
-                        }, 2500); 
+                            // 嘗試關閉 LIFF 視窗。
+                            // 如果在 LINE App 中，此指令會成功，後續的程式碼不會執行。
+                            liff.closeWindow();
+                            
+                            // 如果 liff.closeWindow() 沒有成功 (例如在一般瀏覽器中開啟)，
+                            // 程式會繼續執行到這裡，並跳轉到指定的網址。
+                            window.location.href = 'https://weibsite.github.io/deliverymap/';
+                        }, 1000); // 1000 毫秒 = 1 秒
+                        // --- 修改結束 ---
 
                     } else {
                         throw new Error(result.message || '無法從後端取得 Token');
@@ -133,4 +139,3 @@
     </script>
 </body>
 </html>
-
