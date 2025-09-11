@@ -75,8 +75,7 @@ async function handleLineSignIn(lineProfile) {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({ 
                 action: 'line_login', 
-                profile: lineProfile,
-                last_time: new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" })
+                profile: lineProfile
             })
         });
         const result = await response.json();
@@ -104,8 +103,7 @@ async function handleGoogleSignIn(googleProfile) {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({ 
                 action: 'google_login', 
-                profile: googleProfile,
-                last_time: new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" })
+                profile: googleProfile
             })
         });
         const result = await response.json();
@@ -276,3 +274,4 @@ export function setupAuthListeners() {
     });
     $(document).on('click', '#edit-nickname-btn', handleNicknameEdit);
 }
+
