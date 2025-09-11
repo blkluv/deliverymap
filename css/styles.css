@@ -336,3 +336,14 @@ html, body {
     display: none; /* Initially hidden */
 }
 
+/* Loader Color Animation */
+@keyframes colorful-border {
+    0%, 100% { border-top-color: #06b6d4; } /* Tiffany Blue */
+    25% { border-top-color: #15803d; } /* Dark Green */
+    50% { border-top-color: #ec4899; } /* Pink */
+    75% { border-top-color: #f97316; } /* Orange */
+}
+
+.animate-colorful-border {
+    animation: colorful-border 4s ease-in-out infinite;
+}
