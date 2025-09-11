@@ -15,7 +15,7 @@ const isMobile = window.innerWidth < 768;
 
 
 /**
- * 從主模組設定原始報告資料 (用於首次載入)。
+ * 從主模組設定原始報告資料 (用於首次載入或更新)。
  * @param {Array} reports - 所有的地點/區域報告。
  */
 export function setRawReports(reports) {
@@ -53,16 +53,20 @@ export function setupManagementListeners() {
 
 async function openManagementModal() {
     $('#management-modal').removeClass('hidden');
-    // 顯示載入指示器
-    $('#management-list-content, #management-area-content').html('<div class="flex justify-center items-center p-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div></div>');
+    // 立即顯示載入指示器，提供更好的使用者回饋
+    $('#management-list-content').html('<div class="flex justify-center items-center p-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div></div>');
+    $('#management-area-content').html('<div class="flex justify-center items-center p-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div></div>').addClass('hidden');
     
     try {
-        // 1. 自動重新獲取最新資料
+        // 為了確保資料是最新狀態，每次開啟管理面板時都重新從 API 獲取
         const latestReports = await api.loadData();
-        // 2. 更新模組內部的資料來源
-        rawReports = latestReports;
-        // 3. 使用最新資料渲染介面
-        switchManagementTab('locations');
+        if (!latestReports) {
+            throw new Error("從伺服器獲取的回報資料為空。");
+        }
+        // 更新模組內部的資料來源
+        setRawReports(latestReports);
+        // 預設載入第一個分頁
+        await switchManagementTab('locations');
     } catch (error) {
         console.error("無法為管理面板更新資料:", error);
         showNotification('無法更新資料，請稍後再試', 'error');
@@ -77,13 +81,20 @@ function closeManagementModal() {
     managementAreaMaps = {};
 }
 
-function switchManagementTab(tab) {
+async function switchManagementTab(tab) {
     const isLocations = tab === 'locations';
     $('#manage-locations-tab').toggleClass('border-indigo-500 text-indigo-600', isLocations).toggleClass('border-transparent text-gray-500', !isLocations);
     $('#manage-areas-tab').toggleClass('border-indigo-500 text-indigo-600', !isLocations).toggleClass('border-transparent text-gray-500', isLocations);
+    
     $('#management-list-content').toggleClass('hidden', !isLocations);
     $('#management-area-content').toggleClass('hidden', isLocations);
-    isLocations ? loadUserLocations() : loadUserAreas();
+
+    // 根據選擇的分頁載入對應的資料
+    if (isLocations) {
+        loadUserLocations();
+    } else {
+        await loadUserAreas();
+    }
 }
 
 function loadUserLocations() {
@@ -127,7 +138,10 @@ function loadUserLocations() {
 }
 
 async function loadUserAreas() {
-    const $content = $('#management-area-content').empty();
+    const $content = $('#management-area-content');
+    // 在開始載入前顯示 spinner
+    $content.html('<div class="flex justify-center items-center p-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div></div>');
+
     Object.values(managementAreaMaps).forEach(map => map?.setTarget(null));
     managementAreaMaps = {};
     
@@ -143,9 +157,13 @@ async function loadUserAreas() {
         return;
     }
 
+    // 使用已經在 openManagementModal 中獲取的最新 rawReports 資料
     const submissions = rawReports.filter(r => 
         r.isCommunity && (r['製作者'] === currentUserIdentifier)
     );
+    
+    // 清空內容，準備渲染列表
+    $content.empty();
 
     if (submissions.length === 0) {
         $content.html('<p class="text-gray-500">您尚未提交任何建築資料。</p>');
@@ -169,14 +187,21 @@ async function loadUserAreas() {
             </div>
         `);
         
+        // 確保非同步地址解析完成後再處理下一個
         if (!area['地址'] && area.areaBounds) {
              try {
                 const { o: [lon, lat] } = JSON.parse(area.areaBounds);
-                const address = await api.getAddressFromCoords(parseFloat(lon), parseFloat(lat));
-                $(`#${addressId}`).text(address);
-            } catch(e) { console.error(e); }
+                const data = await api.reverseGeocode(parseFloat(lon), parseFloat(lat));
+                if (data?.results?.[0]) {
+                    $(`#${addressId}`).text(data.results[0].formatted_address);
+                }
+            } catch(e) { 
+                console.error("地址解析失敗:", e);
+                $(`#${addressId}`).text('地址解析失敗');
+            }
         }
         
+        // 使用 setTimeout 確保 DOM 元素已渲染，再初始化地圖
         setTimeout(() => managementAreaMaps[area.rowIndex] = renderAreaOnMap(mapId, area.areaBounds), 0);
     }
 }
@@ -334,7 +359,8 @@ async function openEditModalForUser(report) {
     forms.forEach($f => {
         $f[0].reset();
         $f.find('#edit-row-index').val(isArea ? '' : report.rowIndex);
-        $f.find('#edit-area-row-index').val(isArea ? report.rowIndex : '').data('bounds', report.areaBounds);
+        // 當修改建築時，將 areaBounds 存起來，以便 add-location 模組使用
+        $f.find('#edit-area-row-index').val(isArea ? report.rowIndex : '');
         $f.find('#edit-original-name').val(report['地址']);
         $f.find('#add-address').val(report['地址']);
         $f.find('#add-area-name').val(report.areaName || '');
@@ -348,6 +374,7 @@ async function openEditModalForUser(report) {
     closeManagementModal();
     const coord = ol.proj.fromLonLat([parseFloat(report['經度']), parseFloat(report['緯度'])]);
     
+    // 將 report.areaBounds 作為第三個參數傳入，以便編輯器載入
     isMobile ? enterMobilePlacementMode(coord, report.areaBounds) : enterDesktopAddMode(coord, report.areaBounds);
 }
 
