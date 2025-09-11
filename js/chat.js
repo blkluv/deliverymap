@@ -56,7 +56,8 @@ export function initializeChat() {
                     case 'system_leave':
                     case 'system_name_change':
                     case 'system_error':
-                        if ($('#chat-modal').hasClass('hidden') && data.type !== 'system_error') {
+                        // 只有使用者發送的 chat 和 image 訊息才計入未讀
+                        if ($('#chat-modal').hasClass('hidden') && (data.type === 'chat' || data.type === 'image')) {
                             unreadChatCount++;
                             $('#chat-unread-badge').text(unreadChatCount).removeClass('hidden');
                         }
