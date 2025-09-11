@@ -431,6 +431,22 @@
                 </form>
             </div>
         </div>
+
+        <!-- Area Name Prompt Modal -->
+        <div id="area-name-prompt-modal" class="hidden fixed inset-0 bg-black/50 z-[120] flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-sm">
+                <div class="p-6 border-b">
+                    <h2 class="text-xl font-bold text-gray-800">是否要命名社區/區域名稱</h2>
+                </div>
+                <div class="p-6">
+                    <input type="text" id="prompt-area-name-input" placeholder="可留空，或輸入名稱..." class="w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div class="p-4 bg-gray-50 border-t rounded-b-lg flex justify-end space-x-2">
+                    <button type="button" id="cancel-area-name-prompt" class="bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300">取消</button>
+                    <button type="button" id="confirm-area-name-prompt" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">確認送出</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Mobile Floating Action Button for Grid Mode -->
@@ -456,4 +472,5 @@
     </script>
 </body>
 </html>
+
 
