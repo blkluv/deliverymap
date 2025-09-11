@@ -114,6 +114,7 @@ export function exitAddMode() {
         $('#complete-placement-btn').addClass('hidden');
         $('#add-location-modal-mobile').addClass('hidden').removeClass('minimized');
         $('#restore-mobile-modal-btn').addClass('hidden');
+        $('#mobile-grid-submit-btn').addClass('hidden');
     } else {
         uiState.isDesktopAddMode = false;
         $('#app-container').removeClass('desktop-add-mode');
@@ -396,6 +397,8 @@ export function setupAddLocationListeners() {
         $('#mobile-area-fields').toggleClass('hidden', !isAreaTab);
         $('#minimize-mobile-modal-btn').toggleClass('hidden', !isAreaTab);
         
+        $('#mobile-grid-submit-btn').toggleClass('hidden', !isAreaTab);
+        
         const $isAreaCheckbox = $('#add-location-form-mobile').find('#add-is-area');
         if ($isAreaCheckbox.is(':checked') !== isAreaTab) {
             $isAreaCheckbox.prop('checked', isAreaTab).trigger('change');
@@ -409,6 +412,10 @@ export function setupAddLocationListeners() {
     $('#restore-mobile-modal-btn').on('click', function() {
         $('#add-location-modal-mobile').removeClass('minimized');
         $(this).addClass('hidden');
+    });
+
+    $('#mobile-grid-submit-btn').on('click', () => {
+        $('#add-location-form-mobile').submit();
     });
 }
 
