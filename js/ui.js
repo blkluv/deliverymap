@@ -348,6 +348,10 @@ function handleFilterReset() {
 }
 
 async function handleSearch() {
+    // 先清除上一次的搜尋結果
+    mapModule.searchResultSource.clear();
+    mapModule.searchResultOverlay.setPosition(undefined);
+
     const address = $('#search-address-input').val().trim();
     if (!address) return;
     
@@ -356,10 +360,27 @@ async function handleSearch() {
     
     if (data?.results?.length > 0) {
         hideNotification();
-        const loc = data.results[0].geometry.location;
+        const result = data.results[0];
+        const loc = result.geometry.location;
         const coords = ol.proj.fromLonLat([loc.lng, loc.lat]);
+        
+        // 移動地圖至搜尋結果
         mapModule.map.getView().animate({ center: coords, zoom: 17, duration: 800 });
         $('#search-panel').addClass('hidden');
+
+        // 加上紅色標記
+        const searchMarker = new ol.Feature({
+            geometry: new ol.geom.Point(coords)
+        });
+        mapModule.searchResultSource.addFeature(searchMarker);
+
+        // 顯示導航按鈕的彈出視窗
+        $('#search-result-address').text(result.formatted_address);
+        const $navigateBtn = $('#navigate-btn');
+        $navigateBtn.data('lat', loc.lat);
+        $navigateBtn.data('lng', loc.lng);
+        mapModule.searchResultOverlay.setPosition(coords);
+
     } else {
         showNotification('找不到您輸入的地址', 'error');
     }
@@ -452,5 +473,21 @@ export function setupEventListeners() {
     if (mapModule.map) {
         mapModule.map.on('moveend', updateStoreList);
     }
-}
 
+    // 搜尋結果彈出視窗的事件
+    $('#search-result-popup-closer').on('click', (e) => {
+        e.preventDefault();
+        mapModule.searchResultOverlay.setPosition(undefined);
+        mapModule.searchResultSource.clear();
+    });
+
+    $('#navigate-btn').on('click', function() {
+        const lat = $(this).data('lat');
+        const lng = $(this).data('lng');
+        if (lat && lng) {
+            // 使用 daddr 和 dirflg=m 參數來嘗試觸發機車導航模式
+            const url = `https://maps.google.com/maps?daddr=${lat},${lng}&dirflg=m`;
+            window.open(url, '_blank');
+        }
+    });
+}
