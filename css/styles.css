@@ -98,18 +98,20 @@ html, body {
 }
 /* 滾動條樣式 */
 .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
+    width: 8px; /* 加寬以利手機觸控 */
+    -webkit-appearance: none; /* 強制在某些行動瀏覽器上顯示 */
 }
 .custom-scrollbar::-webkit-scrollbar-track {
     background: #f1f1f1;
     border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #888;
+    background-color: #a0aec0; /* light gray */
     border-radius: 10px;
+    border: 2px solid #f1f1f1; /* 增加邊距使其更清晰 */
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #555;
+    background-color: #718096; /* darker gray */
 }
 #store-list-filters::-webkit-scrollbar {
     height: 9px; /* For horizontal scrollbar */
@@ -338,4 +340,3 @@ html, body {
     transform: translate(-50%, -50%);
     display: none; /* Initially hidden */
 }
-
