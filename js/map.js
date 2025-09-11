@@ -14,6 +14,8 @@ export let userLocationOverlay = null;
 export let dragPanInteraction = null;
 export let areaGridLayer = null; // 確保匯出
 export let clusterLayer = null; // 確保匯出
+export let searchResultSource = null;
+export let searchResultOverlay = null;
 
 const styleCache = {};
 const isMobile = window.innerWidth < 768;
@@ -58,6 +60,8 @@ export function initMap(center, zoom) {
     });
     radiusSource = new ol.source.Vector();
     const lineSource = new ol.source.Vector();
+    searchResultSource = new ol.source.Vector();
+
 
     // --- 圖層 (Layers) ---
     const osmLayer = new ol.layer.Tile({ source: osmSource, zIndex: 0 });
@@ -82,13 +86,24 @@ export function initMap(center, zoom) {
         style: clusterStyleFunction,
         zIndex: 3
     });
+    const searchResultLayer = new ol.layer.Vector({
+        source: searchResultSource,
+        zIndex: 4, // 確保在聚合圖示之上
+        style: new ol.style.Style({
+            image: new ol.style.Icon({
+                anchor: [0.5, 1],
+                src: `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ef4444" width="40px" height="40px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`)}`
+            })
+        })
+    });
+
 
     const taiwanExtent = ol.proj.transformExtent([118.0, 21.5, 122.5, 25.5], 'EPSG:4326', 'EPSG:3857');
 
     // --- 建立地圖實例 ---
     map = new ol.Map({
         target: 'map',
-        layers: [osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer],
+        layers: [osmLayer, areaGridLayer, lineLayer, radiusLayer, clusterLayer, searchResultLayer],
         view: new ol.View({
             center: center,
             zoom: zoom,
@@ -107,6 +122,10 @@ export function initMap(center, zoom) {
         element: document.getElementById('popup'),
         autoPan: { animation: { duration: 250 } },
     });
+    searchResultOverlay = new ol.Overlay({
+        element: document.getElementById('search-result-popup'),
+        autoPan: { animation: { duration: 250 } },
+    });
     userLocationOverlay = new ol.Overlay({
         element: document.getElementById('user-location'),
         positioning: 'center-center',
@@ -114,6 +133,7 @@ export function initMap(center, zoom) {
         id: 'userLocation' // 給予一個 ID 以便之後選取
     });
     map.addOverlay(infoOverlay);
+    map.addOverlay(searchResultOverlay);
     map.addOverlay(userLocationOverlay);
 
     // --- 互動 (Interactions) ---
@@ -288,4 +308,3 @@ export function drawCommunityAreas(areas) {
         }
     });
 }
-
