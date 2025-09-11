@@ -37,11 +37,6 @@ html, body {
     filter: var(--map-filter-style);
 }
 
-/* 當地圖進入網格模式時，讓地圖底圖稍微變暗，突顯網格 */
-#map.grid-mode-active .ol-layer canvas {
-    opacity: 0.6;
-}
-
 /* OpenLayers 彈出視窗樣式 */
 .ol-popup {
     position: absolute;
@@ -340,3 +335,4 @@ html, body {
     transform: translate(-50%, -50%);
     display: none; /* Initially hidden */
 }
+
