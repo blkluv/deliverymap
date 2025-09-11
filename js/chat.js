@@ -178,7 +178,6 @@ function appendChatMessage(data, isHistory = false) {
             </div>`;
     }
     
-    // 修正：無論使用者在哪，收到新訊息都自動捲動到底部
     $chatMessages.append(messageHtml);
     if (!isHistory) {
         $chatMessages.scrollTop($chatMessages[0].scrollHeight);
@@ -320,3 +319,4 @@ export function setupChatListeners() {
         }
     });
 }
+
