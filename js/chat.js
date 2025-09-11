@@ -130,7 +130,7 @@ async function loadArchivedChatHistoryOnce() {
                 pictureUrl: log.pictureUrl || '',
                 timestamp: log.updated_time,
                 userId: log.conversation_id,
-            }));
+            }, true)); // 傳入 isHistory = true，避免捲動
         }
         hasHistoryBeenLoaded = true;
     } catch (error) {
@@ -141,7 +141,7 @@ async function loadArchivedChatHistoryOnce() {
     }
 }
 
-function appendChatMessage(data) {
+function appendChatMessage(data, isHistory = false) {
     const $chatMessages = $('#chat-messages');
     if (data.timestamp && $chatMessages.find(`[data-timestamp="${data.timestamp}"]`).length > 0) return;
     
@@ -178,9 +178,11 @@ function appendChatMessage(data) {
             </div>`;
     }
     
-    const shouldScroll = $chatMessages.scrollTop() + $chatMessages.innerHeight() >= $chatMessages[0].scrollHeight - 30;
+    // 修正：無論使用者在哪，收到新訊息都自動捲動到底部
     $chatMessages.append(messageHtml);
-    if (shouldScroll) $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+    if (!isHistory) {
+        $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+    }
 }
 
 function sendChatMessage() {
@@ -272,7 +274,7 @@ export function setupChatListeners() {
         loadArchivedChatHistoryOnce();
         unreadChatCount = 0;
         $('#chat-unread-badge').addClass('hidden').text('');
-        setTimeout(() => $('#chat-messages').scrollTop($('#chat-messages')[0].scrollHeight), 0);
+        setTimeout(() => $('#chat-messages').scrollTop($('#chat-messages')[0].scrollHeight), 50);
     });
     $('#close-chat-modal').on('click', () => $('#chat-modal').addClass('hidden'));
     $('#send-chat-btn').on('click', sendChatMessage);
@@ -318,4 +320,3 @@ export function setupChatListeners() {
         }
     });
 }
-
