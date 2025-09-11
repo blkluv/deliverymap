@@ -203,7 +203,7 @@ function renderVoteSection(featureData) {
                 </button>
                  <span class="likes-count text-sm text-gray-600">${likes}</span>
                 <button class="vote-btn p-1 rounded-full hover:bg-gray-200 ${userVote === 'dislike' ? 'voted-dislike' : ''}" data-vote-type="dislike">
-                    <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1h-6.364a1 1 0 00-.949.684L3.565 9H6v7a1 1 0 001 1h1a1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.6-4.8zM14 12h-2.545M15 9.5a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-3 0v-3a1.5 1.5 0 011.5 1.5z"/></svg>
+                    <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1h-6.364a1 1 0 00-.949.684L3.565 9H6v7a1 1 0 001 1h1a1 1 0 001-1v-.667a4 4 0 01.8 2.4l1.6-4.8zM14 12h-2.545M15 9.5a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-3 0v-3a1.5 1.5 0 011.5 1.5z"/></svg>
                 </button>
                  <span class="dislikes-count text-sm text-gray-600">${dislikes}</span>
             </div>
@@ -487,7 +487,8 @@ export function setupEventListeners() {
         if (lat && lng) {
             // 使用 daddr 和 dirflg=m 參數來嘗試觸發機車導航模式
             const url = `https://maps.google.com/maps?daddr=${lat},${lng}&dirflg=m`;
-            window.open(url, '_blank');
+            window.location.href = url;
         }
     });
 }
+
