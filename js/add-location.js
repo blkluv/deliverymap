@@ -172,11 +172,17 @@ async function handleCompletePlacementClick() {
 async function handleFormSubmit(e) {
     e.preventDefault();
     const $form = $(e.target);
-    // 修正：不論是哪個按鈕觸發，都統一尋找 form 內的主提交按鈕來顯示 spinner
-    const $submitBtn = $('#add-location-modal-mobile').find('#submit-location-btn-mobile');
-    
+    const $submitBtn = $form.find('button[type="submit"]');
+
     let finalCoords, areaBoundsStr = null;
-    const isArea = $form.find('#add-is-area').is(':checked');
+    
+    let isArea;
+    // 針對手機版，以當前作用中的分頁來判斷是否為新增建築，避免因 ID 重複導致 checkbox 狀態讀取錯誤
+    if (isMobile && $form.attr('id') === 'add-location-form-mobile') {
+        isArea = $('#mobile-add-area-tab').hasClass('active');
+    } else {
+        isArea = $form.find('#add-is-area').is(':checked');
+    }
 
     if (isArea) {
         const selectedGridCells = getSelectedGridCells();
@@ -365,6 +371,7 @@ export function setupAddLocationListeners() {
     $('#add-location-btn').on('click', handleAddLocationClick);
     $('#complete-placement-btn').on('click', handleCompletePlacementClick);
     $('#close-add-location-modal, #close-add-location-modal-mobile').on('click', exitAddMode);
+    $('#mobile-close-grid-btn').on('click', exitAddMode);
     $('#add-location-form, #add-location-form-mobile').on('submit', handleFormSubmit);
     $(document).on('change', '#add-address', handleAddressInputChange);
     
@@ -432,4 +439,3 @@ export function setupAddLocationListeners() {
         $('#add-location-form-mobile').submit();
     });
 }
-
