@@ -159,7 +159,7 @@ function appendChatMessage(data, isHistory = false) {
         let contentHtml = '';
 
         if (data.type === 'image' && data.imageUrl) {
-            contentHtml = `<a href="${data.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${data.imageUrl}" class="chat-image" alt="使用者上傳的圖片"></a>`;
+            contentHtml = `<img src="${data.imageUrl}" class="chat-image" alt="使用者上傳的圖片">`;
         } else {
             contentHtml = `<p class="text-gray-800 break-words">${$('<div>').text(data.message).html()}</p>`;
         }
@@ -279,17 +279,12 @@ export function setupChatListeners() {
     $('#close-chat-modal').on('click', () => $('#chat-modal').addClass('hidden'));
     $('#send-chat-btn').on('click', sendChatMessage);
     
-    // --- 修改開始 ---
-    // 將原本的單行寫法改成更明確的 if 判斷式，確保只有 Enter 鍵會觸發事件
     $('#chat-input').on('keydown', e => {
-        // 只在按下 Enter 鍵時觸發送出，並阻止預設行為
-        // 這樣可以確保其他按鍵 (如退格鍵 Backspace、方向鍵) 的功能正常
         if (e.key === 'Enter') {
-            e.preventDefault(); // 阻止 Enter 鍵的預設行為 (例如換行或送出表單)
+            e.preventDefault();
             sendChatMessage();
         }
     });
-    // --- 修改結束 ---
 
     $('#hide-system-msgs-checkbox').on('change', (e) => $('#chat-messages').toggleClass('hide-system-messages', e.target.checked));
 
@@ -331,4 +326,30 @@ export function setupChatListeners() {
             $('#mute-user-modal').removeClass('hidden');
         }
     });
+
+    // --- 新增圖片預覽功能 ---
+    $('#chat-messages').on('click', '.chat-image', function(e) {
+        e.stopPropagation(); // 阻止事件冒泡到父元素
+        const imageUrl = $(this).attr('src');
+        $('#preview-image').attr('src', imageUrl);
+        $('#image-preview-modal').removeClass('hidden').addClass('flex');
+    });
+
+    function closePreview() {
+        $('#image-preview-modal').addClass('hidden').removeClass('flex');
+        $('#preview-image').attr('src', ''); // 清空 src 避免短暫顯示舊圖
+    }
+
+    $('#close-preview-modal').on('click', (e) => {
+        e.stopPropagation();
+        closePreview();
+    });
+    
+    $('#image-preview-modal').on('click', function(e) {
+        // 確保點擊的是背景而不是圖片本身
+        if (e.target.id === 'image-preview-modal') {
+            closePreview();
+        }
+    });
 }
+
