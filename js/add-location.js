@@ -172,7 +172,8 @@ async function handleCompletePlacementClick() {
 async function handleFormSubmit(e) {
     e.preventDefault();
     const $form = $(e.target);
-    const $submitBtn = $form.find('button[type="submit"]');
+    // 修正：不論是哪個按鈕觸發，都統一尋找 form 內的主提交按鈕來顯示 spinner
+    const $submitBtn = $('#add-location-modal-mobile').find('#submit-location-btn-mobile');
     
     let finalCoords, areaBoundsStr = null;
     const isArea = $form.find('#add-is-area').is(':checked');
@@ -415,6 +416,19 @@ export function setupAddLocationListeners() {
     });
 
     $('#mobile-grid-submit-btn').on('click', () => {
+        const existingName = $('#add-location-form-mobile').find('#add-area-name').val();
+        $('#prompt-area-name-input').val(existingName).focus();
+        $('#area-name-prompt-modal').removeClass('hidden');
+    });
+
+    $('#cancel-area-name-prompt').on('click', () => {
+        $('#area-name-prompt-modal').addClass('hidden');
+    });
+
+    $('#confirm-area-name-prompt').on('click', () => {
+        const areaName = $('#prompt-area-name-input').val().trim();
+        $('#add-location-form-mobile').find('#add-area-name').val(areaName);
+        $('#area-name-prompt-modal').addClass('hidden');
         $('#add-location-form-mobile').submit();
     });
 }
