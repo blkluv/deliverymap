@@ -36,10 +36,8 @@ export function enterMobilePlacementMode(coordinate, areaBoundsToLoad = null) {
 
     if (areaBoundsToLoad) {
         areaBoundsForEditing = areaBoundsToLoad;
-        // 修正：直接觸發建築編輯模式，並確保 UI 切換到正確的分頁
         $('#add-location-form-mobile').find('#add-is-area').prop('checked', true);
         toggleAreaSelectionMode(true, areaBoundsToLoad);
-        // 延遲觸發點擊，確保 grid 模式已啟動
         setTimeout(() => {
             $('#mobile-add-area-tab').trigger('click');
         }, 50);
@@ -69,9 +67,11 @@ export function enterDesktopAddMode(coordinate, areaBoundsToLoad = null) {
     const $isAreaCheckbox = $form.find('#add-is-area');
 
     if (areaBoundsToLoad) {
+        // 儲存傳入的 areaBounds，以便在編輯過程中，若使用者取消勾選又重新勾選時能重新載入
         areaBoundsForEditing = areaBoundsToLoad;
-        // 修正：直接勾選 checkbox 並呼叫網格編輯模式，而不是透過 trigger
+        // 直接勾選 checkbox 以符合編輯建築的狀態
         $isAreaCheckbox.prop('checked', true);
+        // 呼叫網格模組，傳入 true 表示啟用編輯模式，並傳入 areaBounds 讓其繪製在畫布上
         toggleAreaSelectionMode(true, areaBoundsToLoad);
         const center = map.getView().getCenter();
         setLockedCenterForEditing(center);
@@ -371,7 +371,7 @@ export function setupAddLocationListeners() {
         const form = $(this).closest('form');
         const isAreaEdit = !!(form.find('#edit-area-row-index').val());
 
-        // 當處於編輯模式且使用者勾選checkbox時，永遠載入儲存的 areaBounds
+        // 當處於編輯模式且使用者勾選checkbox時，從先前儲存的 areaBoundsForEditing 重新載入資料
         const boundsToLoad = (isAreaEdit && isChecked) ? areaBoundsForEditing : null;
         toggleAreaSelectionMode(isChecked, boundsToLoad);
 
