@@ -85,6 +85,16 @@ html, body {
 .ol-popup-closer:after {
     content: "✖";
 }
+
+/* 搜尋結果彈出視窗的特定樣式 */
+#search-result-popup {
+    min-width: 200px;
+    width: auto;
+    max-width: 250px;
+    transform: translateX(-50%) translateY(-55px); /* 調整位置使其在標記正上方 */
+}
+
+
 /* 避免 Tailwind CSS 影響 OpenLayers 控制項 */
 .ol-control button {
     background-color: rgba(255,255,255,0.8) !important;
