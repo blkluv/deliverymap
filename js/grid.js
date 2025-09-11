@@ -54,6 +54,7 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
             if ($buttons.length) cachedActionButtons = $buttons.detach();
             $('#add-location-modal-mobile').addClass('minimized');
             $('#restore-mobile-modal-btn').removeClass('hidden');
+            $('#mobile-close-grid-btn').removeClass('hidden');
         }
         
         selectedGridCells.clear();
@@ -69,10 +70,14 @@ export function toggleAreaSelectionMode(enable, areaBoundsToLoad = null) {
         if (dragPanInteraction) dragPanInteraction.setActive(true);
         gridCanvas.style.pointerEvents = 'none';
 
-        if (isMobile && cachedActionButtons) {
-            $('#map-container').append(cachedActionButtons);
-            cachedActionButtons = null;
+        if (isMobile) {
+            if (cachedActionButtons) {
+                $('#map-container').append(cachedActionButtons);
+                cachedActionButtons = null;
+            }
+            $('#mobile-close-grid-btn').addClass('hidden');
         }
+
         if (!isMobile) $('#desktop-center-marker').removeClass('hidden');
         
         $('#location-instruction').text('請移動地圖中心點來選擇位置。');
@@ -314,4 +319,3 @@ export function setupGridToolbar() {
         }
     });
 }
-
