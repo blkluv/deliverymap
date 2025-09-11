@@ -204,7 +204,7 @@ async function finishInitializationWithLocation(locationData) {
  * 應用程式初始化函式。
  */
 async function main() {
-    const loadingTimeout = setTimeout(hideLoadingScreen, 3000);
+    const loadingTimeout = setTimeout(hideLoadingScreen, 1500);
 
     try {
         setupStyles(); // 樣式可以先設定
