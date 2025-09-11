@@ -3,7 +3,7 @@
  */
 
 // --- API & URLs ---
-export const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx0-uzkARiULYBfpixUWGciCTWWVFjd_RwSjnqIunKONP-qXSf_PyxsmJTJbUCPu3Yirg/exec';
+export const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyxDWgVY7Idi0XSFshBgrr7IWm8J9vwpdJklFDfJg8YE5MROP3Yc1LqQ1YG94jaf_i2oA/exec';
 export const CHAT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_Xmv4WeUCDOjpZmXdHLwtWg4kAOhcMB0brJQWkzquFqOLjupnFcB7AvdQM022dqWrQ/exec';
 export const GOOGLE_API_KEY = "AIzaSyBa9P8XeaoUPUXPqMm8m6NHawZKFpCePqE";
 export const WEBSOCKET_URL = 'wss://chat.sunhitemp.com';
